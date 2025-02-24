@@ -1,0 +1,6 @@
+auth_service/.venv/
+auth_service/.env
+auth_service/.idea/
+auth_service/__pycache__/
+
+.idea/
