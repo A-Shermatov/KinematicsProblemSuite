@@ -50,4 +50,4 @@ def user(token: str, role: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
-    return {"access": True}
+    return {"id": db_user.id}

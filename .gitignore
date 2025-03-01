@@ -1,6 +1,11 @@
+# auth_service
 auth_service/.venv/
 auth_service/.env
 auth_service/.idea/
 auth_service/__pycache__/
 
-task_management_service/
+# task_management_service
+task_management_service/.venv/
+task_management_service/.env
+task_management_service/.idea/
+task_management_service/__pycache__/
