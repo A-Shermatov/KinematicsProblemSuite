@@ -46,9 +46,14 @@ def teacher(token: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
-    db_user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == data["sub"])).filter(
-        cast("ColumnElement[bool]", models.User.is_active)).first()
-    if db_user is None or db_user.role != "teacher":
+    db_user = (
+        db.query(models.User)
+               .filter(cast("ColumnElement[bool]", models.User.username == data["sub"]))
+               .filter(cast("ColumnElement[bool]", models.User.is_active))
+               .filter(cast("ColumnElement[bool]", models.User.role == "teacher"))
+               .first()
+    )
+    if db_user is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
