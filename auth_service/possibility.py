@@ -17,17 +17,9 @@ def get_db():
     finally:
         db.close()
 
-def check_user(token: str, role: str, db):
-    pass
 
-
-@router.post("/student")
-def student(token: str, db: Session = Depends(get_db)):
-    pass
-
-
-@router.get("/teacher")
-def teacher(token: str, db: Session = Depends(get_db)):
+@router.get("/user")
+def user(token: str, role: str, db: Session = Depends(get_db)):
     db_token = db.query(models.Token).filter(cast("ColumnElement[bool]", models.Token.token == token)).first()
     data = decode_token(token)
 
@@ -48,10 +40,10 @@ def teacher(token: str, db: Session = Depends(get_db)):
         )
     db_user = (
         db.query(models.User)
-               .filter(cast("ColumnElement[bool]", models.User.username == data["sub"]))
-               .filter(cast("ColumnElement[bool]", models.User.is_active))
-               .filter(cast("ColumnElement[bool]", models.User.role == "teacher"))
-               .first()
+        .filter(cast("ColumnElement[bool]", models.User.username == data["sub"]))
+        .filter(cast("ColumnElement[bool]", models.User.is_active))
+        .filter(cast("ColumnElement[bool]", models.User.role == role))
+        .first()
     )
     if db_user is None:
         raise HTTPException(
@@ -59,8 +51,3 @@ def teacher(token: str, db: Session = Depends(get_db)):
             detail="Access denied"
         )
     return {"access": True}
-
-
-@router.post("/admin")
-def admin(token: str, db: Session = Depends(get_db)):
-    pass
