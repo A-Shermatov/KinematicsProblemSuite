@@ -3,4 +3,4 @@ auth_service/.env
 auth_service/.idea/
 auth_service/__pycache__/
 
-.idea/
+task_management_service/

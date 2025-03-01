@@ -31,6 +31,7 @@ def add_token(token: str, secret_key: str = SECRET_KEY, algorithm: str = ALGORIT
     )
     db.add(db_token)
     db.commit()
+    db.refresh(db_token)
 
 
 @router.post("/register", response_model=schemas.UserResponse)
@@ -65,7 +66,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == user.username)).first()
+    db_user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == user.username)).filter(cast("ColumnElement[bool]", models.User.is_active)).first()
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -97,7 +98,7 @@ def refresh_token(token: TokenRefresh, db: Session = Depends(get_db)):
         )
     username = data['sub']
 
-    db_user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == username)).first()
+    db_user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == username)).filter(cast("ColumnElement[bool]", models.User.is_active)).first()
     if db_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
