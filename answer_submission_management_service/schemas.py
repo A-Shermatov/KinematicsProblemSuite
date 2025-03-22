@@ -1,18 +1,11 @@
 from pydantic import BaseModel
 
-from models import ProblemType
+
+class AnswerCreate(BaseModel):
+    answer: str = ""
 
 
-class TaskCreate(BaseModel):
-    title: str
-    condition: str = None
-    type: ProblemType = ProblemType.problem
-    answer: str
-
-    theme_id: int
-
-
-class TaskCreateResponse(BaseModel):
+class AnswerCreateResponse(BaseModel):
     id: int
 
     class Config:
@@ -22,6 +15,7 @@ class TaskCreateResponse(BaseModel):
 class ThemeCreate(BaseModel):
     title: str
     description: str = None
+    token: str
 
 
 class ThemeResponse(BaseModel):

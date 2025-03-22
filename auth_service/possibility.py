@@ -1,11 +1,9 @@
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
-import models, database
-
-from utils import *
+import models, database, utils
 
 router = APIRouter()
 
@@ -19,9 +17,18 @@ def get_db():
 
 
 @router.get("/user")
-def user(token: str, role: str, db: Session = Depends(get_db)):
+def user(request: Request, db: Session = Depends(get_db), token: str = Depends(utils.oauth2_scheme)):
+    print(111)
+    print(request.headers)
     db_token = db.query(models.Token).filter(cast("ColumnElement[bool]", models.Token.token == token)).first()
-    data = decode_token(token)
+
+
+    if db_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    data = utils.decode_token(db_token.token)
 
     if "error" in data and data["error"] == "ExpiredSignatureError":
         raise HTTPException(
@@ -29,20 +36,10 @@ def user(token: str, role: str, db: Session = Depends(get_db)):
             detail="Token has expired"
         )
 
-    if ("error" in data and data["error"] == "InvalidTokenError" or
-            db_token is None or
-            data is None or
-            'sub' not in data or
-            "exp" not in data):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
     db_user = (
         db.query(models.User)
         .filter(cast("ColumnElement[bool]", models.User.username == data["sub"]))
         .filter(cast("ColumnElement[bool]", models.User.is_active))
-        .filter(cast("ColumnElement[bool]", models.User.role == role))
         .first()
     )
     if db_user is None:
@@ -50,4 +47,4 @@ def user(token: str, role: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
-    return {"id": db_user.id}
+    return {"id": db_user.id, "role": db_user.role}

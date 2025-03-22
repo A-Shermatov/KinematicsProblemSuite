@@ -1,18 +1,13 @@
-import os
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-import models, database
+import models, database, utils
 import schemas
 import httpx
 
 router = APIRouter()
-
-AUTH_SERVICE_HOST = os.getenv("AUTH_SERVICE_HOST")
-AUTH_SERVICE_PORT = os.getenv("AUTH_SERVICE_PORT")
-AUTH_SERVICE_POSSIBILITY_PREFIX_URL = os.getenv("AUTH_SERVICE_POSSIBILITY_PREFIX_API")
 
 def get_db():
     db = database.SessionLocal()
@@ -22,26 +17,20 @@ def get_db():
         db.close()
 
 @router.post("/create", response_model=schemas.ThemeResponse)
-async def create_theme(theme: schemas.TaskCreate, db: Session = Depends(get_db)):
-    required_fields = [column.name for column in models.Theme.__table__.columns if
-                       not column.nullable and not column.name.endswith("id")]
-
-    missing_fields = [field for field in required_fields if
-                      field not in theme.model_dump() or theme.model_dump()[field] is None]
-    if missing_fields:
-        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE,
-                            detail=", ".join([field.replace('_', ' ').capitalize() for field in missing_fields]))
-
-    url = f"http://{AUTH_SERVICE_HOST}:{AUTH_SERVICE_PORT}/{AUTH_SERVICE_POSSIBILITY_PREFIX_URL}/user"
+async def create_theme(theme: schemas.ThemeCreate, db: Session = Depends(get_db), token: dict = Depends(utils.oauth2_scheme)):
+    url = f"http://{utils.AUTH_SERVICE_HOST}:{utils.AUTH_SERVICE_PORT}/{utils.AUTH_SERVICE_POSSIBILITY_PREFIX_URL}/user"
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, params={"token": theme.token, "role": "admin"})
+        response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
         if response.status_code != status.HTTP_200_OK:
-            if response.status_code != status.HTTP_403_FORBIDDEN:
-                raise HTTPException(status_code=response.status_code, detail="Failed to retrieve teacher data.")
-            else:
+            if response.status_code == status.HTTP_403_FORBIDDEN:
                 raise HTTPException(status_code=response.status_code, detail=response.json()["detail"])
-
-        # admin_data = response.json()  # Process the data as required
+            if response.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(status_code=response.status_code, detail="Unauthorized")
+            raise HTTPException(status_code=response.status_code, detail=response.json()["detail"])
+        user_data = response.json()  # Process the data as required
+    print(user_data)
+    if user_data["role"] != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access denied")
 
     if "description" in theme.model_dump() or theme.model_dump()["description"] is not None:
         db_theme = models.Theme(
