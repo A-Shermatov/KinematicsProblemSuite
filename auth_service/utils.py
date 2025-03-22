@@ -81,24 +81,30 @@ def add_token(token: str, secret_key: str = SECRET_KEY, algorithm: str = ALGORIT
 
 
 def validate_auth_user(
-    username: Annotated[str, Form()],
-    password: Annotated[str, Form()],
+    user_login: UserLogin,
     db: Session = Depends(get_db),
 ) -> UserLogin:
     unauthed_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="invalid username or password",
     )
-    user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == username)).filter(
+    print(user_login.username, user_login.password)
+    user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == user_login.username)).filter(
         cast("ColumnElement[bool]", models.User.is_active)).first()
     if user is None:
-        raise unauthed_exc
+        raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="invalid username",
+    )
 
     if not verify_password(
-        plain_password=password,
+        plain_password=user_login.password,
         hashed_password=user.password,
     ):
-        raise unauthed_exc
+        raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="invalid password",
+    )
     return UserLogin(username=user.username, password=user.password)
 
 

@@ -1,4 +1,3 @@
-// src/components/Login.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "../api/Auth";
@@ -15,8 +14,7 @@ const Login: React.FC = () => {
     try {
       const response = await loginUser({ username, password });
       if (response.status === 200) {
-        // Здесь можно добавить логику после успешного входа
-        navigate("/dashboard"); // Предполагаемая страница после входа
+        navigate("/main");
       }
     } catch (err) {
       setError("Неверный email или пароль");
@@ -30,7 +28,7 @@ const Login: React.FC = () => {
         <div className="form-group">
           <label>Username</label>
           <input
-            type="email"
+            type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required

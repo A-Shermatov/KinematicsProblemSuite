@@ -9,11 +9,6 @@ export const registerUser = async (data: RegisterData) => {
     const response = await axios.post(
       `${API_AUTH_HOST}:${API_AUTH_PORT}/${API_AUTH_PREFIX}/register`, 
       data,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
     );
     return response;
   } catch (error) {
@@ -23,8 +18,8 @@ export const registerUser = async (data: RegisterData) => {
 
 export const loginUser = async (data: LoginData) => {
   try {
-    const response = await axios.post(`${API_AUTH_HOST}:${API_AUTH_PORT}/auth/login`, data);
-    return response.data;
+    const response = await axios.post(`${API_AUTH_HOST}:${API_AUTH_PORT}/${API_AUTH_PREFIX}/login`, data);
+    return response;
   } catch (error) {
     throw error;
   }
