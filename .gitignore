@@ -10,7 +10,7 @@ task_management_service/.env
 task_management_service/.idea/
 task_management_service/__pycache__/
 
-# answer and submission management service
+# answer_and_submission_management_service
 answer_submission_management_service/.venv/
 answer_submission_management_service/.env
 answer_submission_management_service/.idea/

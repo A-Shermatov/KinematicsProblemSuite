@@ -23,6 +23,9 @@ PORT = os.getenv("PORT")
 
 PREFIX_AUTH_API = os.getenv("PREFIX_AUTH_API")
 
+BASE_DIR = "C:\\Users\\azamat\\PycharmProjects\\KinematicsProblemSuite\\auth_service\\public\\user"
+UPLOAD_DIR = os.path.join(BASE_DIR, "images")
+
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"http://{HOST}:{PORT}{PREFIX_AUTH_API}/login",
 )
@@ -35,6 +38,13 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_directories_exist():
+    if not os.path.exists(BASE_DIR):
+        os.mkdir(BASE_DIR)
+    if not os.path.exists(UPLOAD_DIR):
+        os.mkdir(UPLOAD_DIR)
 
 
 def hash_password(password):

@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Column, Integer, String, Enum, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Enum, Boolean, DateTime, Text
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -25,6 +25,7 @@ class User(Base):
     is_active = Column(Boolean(), default=True)
     created_at = Column(DateTime(), default=datetime.datetime.now(datetime.timezone.utc))
     updated_at = Column(DateTime(), default=datetime.datetime.now(datetime.timezone.utc))
+    image_path = Column(Text(), default="C:\\Users\\azamat\\PycharmProjects\\KinematicsProblemSuite\\auth_service\\public\\user\\images\\_default_user_.png")
 
 
 class Token(Base):
