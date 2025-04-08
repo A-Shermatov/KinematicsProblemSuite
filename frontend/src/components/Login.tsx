@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginUser } from "../api/Auth";
+import { loginUser, setPossibilityAuthToken } from "../api/Auth";
+import { setTaskManagerAuthToken } from "../api/TaskManager";
 import "../styles/Auth.css";
 
 const Login: React.FC = () => {
@@ -13,9 +14,13 @@ const Login: React.FC = () => {
     e.preventDefault();
     try {
       const response = await loginUser({ username, password });
-      if (response.status === 200) {
-        navigate("/main");
-      }
+      localStorage.setItem("token", response.access_token);
+      // console.log(response);
+      localStorage.setItem("refreshToken", response.refresh_token);
+      setPossibilityAuthToken(response.access_token);
+      setTaskManagerAuthToken(response.access_token);
+      navigate("/");
+      
     } catch (err) {
       setError("Неверный email или пароль");
     }

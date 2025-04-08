@@ -28,11 +28,12 @@ class User(Base):
     image_path = Column(Text(), default="C:\\Users\\azamat\\PycharmProjects\\KinematicsProblemSuite\\auth_service\\public\\user\\images\\_default_user_.png")
 
 
-class Token(Base):
-    __tablename__ = "tokens"
+class AccessRefreshToken(Base):
+    __tablename__ = "access_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
-    token = Column(String(256), unique=True, index=True, nullable=False)
+    access_token = Column(String(256), unique=True, index=True, nullable=False)
+    refresh_token = Column(String(256), unique=True, index=True, nullable=False)
     token_type = Column(String(50), nullable=False)
     secret_key = Column(String(50), nullable=False)
     algorithm = Column(String(20), nullable=False)

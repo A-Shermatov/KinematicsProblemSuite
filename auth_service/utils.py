@@ -16,7 +16,7 @@ from schemas import UserResponse, UserLogin
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
-TOKEN_TYPE = os.getenv("TOKEN_TYPE", "bearer")
+TOKEN_TYPE = os.getenv("TOKEN_TYPE", "Bearer")
 
 HOST = os.getenv("HOST")
 PORT = os.getenv("PORT")
@@ -55,7 +55,7 @@ def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+def create_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -78,9 +78,10 @@ def decode_token(token: str):
         )
 
 
-def add_token(token: str, secret_key: str = SECRET_KEY, algorithm: str = ALGORITHM, db: Session = Depends(get_db)):
-    db_token = models.Token(
-        token=token,
+def add_tokens(access_token: str, refresh_token, secret_key: str = SECRET_KEY, algorithm: str = ALGORITHM, db: Session = Depends(get_db)):
+    db_token = models.AccessRefreshToken(
+        access_token=access_token,
+        refresh_token=refresh_token,
         secret_key=secret_key,
         algorithm=algorithm,
         token_type=TOKEN_TYPE
@@ -98,7 +99,7 @@ def validate_auth_user(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="invalid username or password",
     )
-    print(user_login.username, user_login.password)
+    # print(user_login.username, user_login.password)
     user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == user_login.username)).filter(
         cast("ColumnElement[bool]", models.User.is_active)).first()
     if user is None:

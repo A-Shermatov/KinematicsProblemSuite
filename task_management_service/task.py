@@ -68,3 +68,10 @@ async def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), t
     db.refresh(db_task)
 
     return db_task
+
+
+# TODO /task/ - get tasks
+
+# TODO /task/update
+
+# TODO /task/delete

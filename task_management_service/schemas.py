@@ -26,6 +26,5 @@ class ThemeCreate(BaseModel):
 
 class ThemeResponse(BaseModel):
     id: int
-
-    class Config:
-        from_attributes = True
+    title: str
+    description: str

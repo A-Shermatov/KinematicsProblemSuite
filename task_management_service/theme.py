@@ -19,8 +19,10 @@ def get_db():
 @router.post("/create", response_model=schemas.ThemeResponse)
 async def create_theme(theme: schemas.ThemeCreate, db: Session = Depends(get_db), token: dict = Depends(utils.oauth2_scheme)):
     url = f"http://{utils.AUTH_SERVICE_HOST}:{utils.AUTH_SERVICE_PORT}/{utils.AUTH_SERVICE_POSSIBILITY_PREFIX_URL}/user"
+    print(token)
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+        # print(response.json())
         if response.status_code != status.HTTP_200_OK:
             if response.status_code == status.HTTP_403_FORBIDDEN:
                 raise HTTPException(status_code=response.status_code, detail=response.json()["detail"])
@@ -28,7 +30,7 @@ async def create_theme(theme: schemas.ThemeCreate, db: Session = Depends(get_db)
                 raise HTTPException(status_code=response.status_code, detail="Unauthorized")
             raise HTTPException(status_code=response.status_code, detail=response.json()["detail"])
         user_data = response.json()  # Process the data as required
-    print(user_data)
+    # print(user_data)
     if user_data["role"] != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access denied")
 
@@ -47,7 +49,7 @@ async def create_theme(theme: schemas.ThemeCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_theme)
 
-    return db_theme
+    return {"id": db_theme.id, "title": db_theme.title, "description": db_theme.description or ""}
 
 
 @router.get("/exist", response_model=schemas.ThemeResponse)
@@ -63,3 +65,14 @@ def check(theme_id: int, db: Session = Depends(get_db)):
             detail="Theme with this id not found"
         )
     return db_theme
+
+@router.get("/")
+def themes(db: Session = Depends(get_db)):
+    db_themes = list(db.query(models.Theme)
+                .filter(cast("ColumnElement[bool]", models.Theme.is_active))
+                )
+    return db_themes
+
+# TODO /theme/update
+
+# TODO /theme/delete

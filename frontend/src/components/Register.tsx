@@ -152,6 +152,7 @@ const Register: React.FC = () => {
           >
             <option value="student">Студент</option>
             <option value="teacher">Преподаватель</option>
+            <option value="admin">Администратор</option>
           </select>
         </div>
         <div className="form-group">

@@ -36,26 +36,6 @@ class Task(Base):
     user_id = Column(Integer(), nullable=False) # author, i.e. teacher
 
 
-
-
-
-
-class Submission(Base):
-    __tablename__ = "submissions"
-
-    id = Column(Integer(), primary_key=True, index=True)
-
-    user_id = Column(Integer, nullable=False)
-    task_id = Column(Integer, nullable=False)
-
-    is_active = Column(Boolean(), default=True)
-    created_at = Column(DateTime(), default=datetime.datetime.now(datetime.timezone.utc))
-
-    answer = Column(String(50))
-
-
-
-
 class Theme(Base):
     __tablename__ = "themes"
 
