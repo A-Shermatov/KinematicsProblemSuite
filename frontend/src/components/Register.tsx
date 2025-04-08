@@ -1,21 +1,9 @@
-// src/components/Register.tsx
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import { AxiosError } from 'axios';
 import { useNavigate } from "react-router-dom";
 import "../styles/Auth.css";
 import { registerUser } from "../api/Auth";
-
-interface RegisterFormData {
-  first_name: string;
-  second_name?: string;
-  username: string;
-  role: "student" | "teacher";
-  password: string;
-  image_data?: {
-    image: string;
-    file_name: string;
-  };
-}
+import { RegisterFormData } from "../types/Auth";
 
 const Register: React.FC = () => {
   const [firstName, setFirstName] = useState<string>("");

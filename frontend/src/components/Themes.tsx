@@ -20,9 +20,7 @@ const Themes: React.FC = () => {
   const [editingThemeId, setEditingThemeId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState<string>("");
   const [editDescription, setEditDescription] = useState<string>("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(
-    null
-  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
   const navigate = useNavigate();
 
@@ -101,9 +99,7 @@ const Themes: React.FC = () => {
         description: editDescription,
       });
       console.log("Успешно обновленная тема:", updatedTheme);
-      setThemes(
-        themes.map((theme) => (theme.id === id ? updatedTheme : theme))
-      );
+      setThemes(themes.map((theme) => (theme.id === id ? updatedTheme : theme)));
       setEditingThemeId(null);
       setEditTitle("");
       setEditDescription("");
@@ -129,14 +125,15 @@ const Themes: React.FC = () => {
     navigate(path);
   };
 
+  const handleThemeClick = (themeId: number) => {
+    navigate(`/themes/${themeId}/tasks`);
+  };
+
   return (
     <div className="themes-container">
       <header className="themes-header">
         <h1>Темы</h1>
-        <button
-          className="back-button"
-          onClick={() => handleNavigation("/main")}
-        >
+        <button className="back-button" onClick={() => handleNavigation("/main")}>
           Назад
         </button>
       </header>
@@ -175,15 +172,18 @@ const Themes: React.FC = () => {
                 ) : (
                   <>
                     <div className="theme-header">
-                      <h3>{theme.title}</h3>
+                      <h3
+                        className="theme-title"
+                        onClick={() => handleThemeClick(theme.id)}
+                      >
+                        {theme.title}
+                      </h3>
                       {isAuthenticated && user?.role === "admin" && (
-                        <div className="theme-actions">
+                        <div className="theme-actions" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => handleEditStart(theme)}>
                             Изменить
                           </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(theme.id)}
-                          >
+                          <button onClick={() => setShowDeleteConfirm(theme.id)}>
                             Удалить
                           </button>
                         </div>
@@ -193,12 +193,8 @@ const Themes: React.FC = () => {
                     {showDeleteConfirm === theme.id && (
                       <div className="delete-confirm">
                         <p>Вы уверены, что хотите удалить "{theme.title}"?</p>
-                        <button onClick={() => handleDelete(theme.id)}>
-                          Да
-                        </button>
-                        <button onClick={() => setShowDeleteConfirm(null)}>
-                          Нет
-                        </button>
+                        <button onClick={() => handleDelete(theme.id)}>Да</button>
+                        <button onClick={() => setShowDeleteConfirm(null)}>Нет</button>
                       </div>
                     )}
                   </>

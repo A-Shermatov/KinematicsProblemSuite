@@ -1,4 +1,4 @@
-.themes-container {
+.tasks-container {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -6,7 +6,7 @@
     background-color: #f4f7fa;
 }
 
-.themes-header {
+.tasks-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -15,7 +15,7 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-.themes-header h1 {
+.tasks-header h1 {
     font-size: 28px;
     color: #333;
     margin: 0;
@@ -36,7 +36,7 @@
     background-color: #0056b3;
 }
 
-.themes-content {
+.tasks-content {
     flex: 1;
     padding: 40px;
 }
@@ -47,11 +47,11 @@
     margin-bottom: 20px;
 }
 
-.themes-list {
+.tasks-list {
     margin-bottom: 40px;
 }
 
-.theme-item {
+.task-item {
     background-color: #ffffff;
     padding: 20px;
     margin-bottom: 15px;
@@ -59,34 +59,27 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-.theme-header {
+.task-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
 }
 
-.theme-title {
+.task-item h3 {
     font-size: 20px;
-    color: #007bff;
+    color: #333;
     margin: 0;
-    cursor: pointer;
-    transition: color 0.3s;
 }
 
-.theme-title:hover {
-    color: #0056b3;
-    text-decoration: underline;
-}
-
-.theme-item p {
+.task-item p {
     font-size: 16px;
     color: #666;
-    margin: 0;
+    margin: 0 0 10px 0;
 }
 
-.theme-item input,
-.theme-item textarea {
+.task-item input,
+.task-item textarea {
     width: 100%;
     padding: 8px;
     margin-bottom: 10px;
@@ -96,17 +89,17 @@
     box-sizing: border-box;
 }
 
-.theme-item textarea {
+.task-item textarea {
     resize: vertical;
     min-height: 100px;
 }
 
-.theme-actions {
+.task-actions {
     display: flex;
     gap: 10px;
 }
 
-.theme-actions button {
+.task-actions button {
     padding: 6px 12px;
     font-size: 14px;
     border: none;
@@ -115,21 +108,21 @@
     transition: background-color 0.3s;
 }
 
-.theme-actions button:first-child {
+.task-actions button:first-child {
     background-color: #28a745;
     color: white;
 }
 
-.theme-actions button:first-child:hover {
+.task-actions button:first-child:hover {
     background-color: #218838;
 }
 
-.theme-actions button:last-child {
+.task-actions button:last-child {
     background-color: #dc3545;
     color: white;
 }
 
-.theme-actions button:last-child:hover {
+.task-actions button:last-child:hover {
     background-color: #c82333;
 }
 
@@ -171,7 +164,7 @@
     background-color: #5a6268;
 }
 
-.theme-form {
+.task-form {
     background-color: #ffffff;
     padding: 20px;
     border-radius: 10px;
@@ -180,7 +173,7 @@
     margin: 0 auto;
 }
 
-.theme-form h3 {
+.task-form h3 {
     font-size: 20px;
     color: #333;
     margin-bottom: 20px;
@@ -212,7 +205,7 @@
     min-height: 100px;
 }
 
-.theme-button {
+.task-button {
     padding: 10px 20px;
     font-size: 16px;
     background-color: #007bff;
@@ -223,18 +216,18 @@
     transition: background-color 0.3s;
 }
 
-.theme-button:hover {
+.task-button:hover {
     background-color: #0056b3;
 }
 
-.themes-footer {
+.tasks-footer {
     padding: 20px;
     background-color: #333;
     color: white;
     text-align: center;
 }
 
-.themes-footer p {
+.tasks-footer p {
     margin: 0;
     font-size: 14px;
 }

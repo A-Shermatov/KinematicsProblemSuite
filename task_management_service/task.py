@@ -72,6 +72,13 @@ async def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), t
 
 # TODO /task/ - get tasks
 
+@router.get("/")
+def get_tasks(theme_id: int = None, db: Session = Depends(get_db)):
+    query = db.query(models.Task)
+    if theme_id is not None:
+        query = query.filter(cast("ColumnElement[bool]", models.Task.theme_id == theme_id and models.Task.is_active))
+    return query.all()
+
 # TODO /task/update
 
 # TODO /task/delete

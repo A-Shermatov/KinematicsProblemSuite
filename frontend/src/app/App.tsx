@@ -5,6 +5,7 @@ import Login from "../components/Login";
 import Main from "../components/Main";
 import "./App.css";
 import Themes from "../components/Themes";
+import Tasks from "../components/Tasks";
 
 const App: React.FC = () => {
   return (
@@ -15,6 +16,7 @@ const App: React.FC = () => {
         <Route path="/main" element={<Main />} />
         <Route path="/" element={<Main />} />
         <Route path="/themes" element={<Themes />} />
+        <Route path="/themes/:themeId/tasks" element={<Tasks />} />
       </Routes>
     </BrowserRouter>
   );

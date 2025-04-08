@@ -52,26 +52,19 @@ async def create_theme(theme: schemas.ThemeCreate, db: Session = Depends(get_db)
     return {"id": db_theme.id, "title": db_theme.title, "description": db_theme.description or ""}
 
 
-@router.get("/exist", response_model=schemas.ThemeResponse)
-def check(theme_id: int, db: Session = Depends(get_db)):
-    db_theme = (db.query(models.Theme)
-                .filter(cast("ColumnElement[bool]", models.Theme.id == theme_id))
-                .filter(cast("ColumnElement[bool]", models.Theme.is_active))
-                .first())
-
-    if db_theme is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Theme with this id not found"
-        )
-    return db_theme
-
 @router.get("/")
 def themes(db: Session = Depends(get_db)):
-    db_themes = list(db.query(models.Theme)
-                .filter(cast("ColumnElement[bool]", models.Theme.is_active))
-                )
-    return db_themes
+    db_themes = db.query(models.Theme).filter(cast("ColumnElement[bool]", models.Theme.is_active))
+    return db_themes.all()
+
+
+@router.get("/{theme_id}")
+def theme_by_id(theme_id: int = None, db: Session = Depends(get_db)):
+    print(theme_id)
+    db_theme = db.query(models.Theme).filter(cast("ColumnElement[bool]", models.Theme.is_active and models.Theme.id == theme_id)).first()
+    if db_theme is not None:
+        return {"id": db_theme.id, "title": db_theme.title, "description": db_theme.description}
+    return {}
 
 # TODO /theme/update
 

@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
   fetchThemes,
   fetchTasks,
-  createTheme,
   createTask,
   setTaskManagerAuthToken,
 } from "../api/TaskManager";
@@ -43,10 +42,10 @@ const TaskManager: React.FC = () => {
       try {
         const UserData = await getUserPosibility();
         const ThemesData = await fetchThemes();
-        const tasksData = await fetchTasks();
+        //const tasksData = await fetchTasks();
         setUser(UserData);
         setThemes(ThemesData);
-        setTasks(tasksData);
+        //setTasks(tasksData);
       } catch (err) {
         setError("Ошибка загрузки данных");
       }
@@ -59,12 +58,12 @@ const TaskManager: React.FC = () => {
   const filteredThemes = Themes.filter((Theme) =>
     Theme.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const filteredTasks = tasks.filter(
-    (task) =>
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.condition.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  //const filteredTasks = tasks.filter(
+  //  (task) =>
+      //task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      //task.condition.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      //task.type.toLowerCase().includes(searchQuery.toLowerCase())
+  //);
 
   // Создание темы
   const handleThemeSubmit = async (e: React.FormEvent) => {
@@ -93,8 +92,8 @@ const TaskManager: React.FC = () => {
         description: newTask.description,
         themeId: Number(newTask.ThemeId),
       };
-      const newTaskResponse = await createTask(taskData);
-      setTasks([...tasks, newTaskResponse]);
+      // const newTaskResponse = await createTask(taskData);
+      //setTasks([...tasks, newTaskResponse]);
       setNewTask({ title: "", description: "", ThemeId: "" });
     } catch (err) {
       setError("Ошибка создания задачи");
@@ -196,14 +195,14 @@ const TaskManager: React.FC = () => {
           <div key={Theme.id} className="Theme-item">
             <h4>{Theme.title}</h4>
             <ul>
-              {filteredTasks
+              {/*{filteredTasks
                 .filter((task) => task.theme_id === Theme.id)
                 .map((task) => (
                   <li key={task.id} className="task-item">
                     <strong>{task.title}</strong>
                     <p>{task.condition}</p>
                   </li>
-                ))}
+                ))}*/}
             </ul>
           </div>
         ))}

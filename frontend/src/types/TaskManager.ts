@@ -9,8 +9,6 @@ export interface Task {
     title: string;
     condition: string;
 
-    type: "problem" | "test";
-
     user_id: number;
     theme_id: number;
     answer_id: number;

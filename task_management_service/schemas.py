@@ -6,7 +6,6 @@ from models import ProblemType
 class TaskCreate(BaseModel):
     title: str
     condition: str = None
-    type: ProblemType = ProblemType.problem
     answer: str
 
     theme_id: int
@@ -14,6 +13,11 @@ class TaskCreate(BaseModel):
 
 class TaskCreateResponse(BaseModel):
     id: int
+    title: str
+    condition: str
+
+    answer_id: int
+    user_id: int
 
     class Config:
         from_attributes = True

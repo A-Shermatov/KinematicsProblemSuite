@@ -29,7 +29,7 @@ class User(Base):
 
 
 class AccessRefreshToken(Base):
-    __tablename__ = "access_tokens"
+    __tablename__ = "tokens"
 
     id = Column(Integer, primary_key=True, index=True)
     access_token = Column(String(256), unique=True, index=True, nullable=False)
