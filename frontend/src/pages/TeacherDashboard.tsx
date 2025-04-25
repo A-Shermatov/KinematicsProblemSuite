@@ -464,7 +464,7 @@ export const TeacherDashboard = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.15 }}
           >
             <motion.div
               className="relative bg-white p-4 rounded-lg max-w-3xl max-h-[90vh]"
@@ -472,7 +472,7 @@ export const TeacherDashboard = () => {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.15 }}
             >
               <button
                 onClick={handleCloseModal}
