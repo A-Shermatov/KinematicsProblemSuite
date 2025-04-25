@@ -12,10 +12,11 @@ task_management_service/.idea/
 task_management_service/__pycache__/
 
 # answer_and_submission_management_service
-answer_submission_management_service/.venv/
-answer_submission_management_service/.env
-answer_submission_management_service/.idea/
-answer_submission_management_service/__pycache__/
+solution_service/.venv/
+solution_service/.env
+solution_service/.idea/
+solution_service/__pycache__/
+solution_service/public/
 
 # frontend service
 frontend/node_modules/

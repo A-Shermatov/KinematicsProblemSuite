@@ -1,17 +1,16 @@
 import base64
+import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 import schemas
 
 from utils import *
+from config import DEFAULT_USER_IMAGE_PATH, MAX_IMAGE_SIZE, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
+
 
 router = APIRouter()
 
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
-
-DEFAULT_USER_IMAGE_PATH = "C:\\Users\\azamat\\PycharmProjects\\KinematicsProblemSuite\\auth_service\\public\\user\\images\\_default_user_.png"
 
 @router.post("/register", response_model=schemas.UserResponse)
 def api_register(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -25,6 +24,11 @@ def api_register(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_406_NOT_ACCEPTABLE,
             detail="User with this username already exists"
+        )
+    if user.role == models.Role.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin registration is not allowed"
         )
 
     # Создаем нового пользователя
@@ -47,6 +51,8 @@ def api_register(user: schemas.UserCreate, db: Session = Depends(get_db)):
         try:
             ensure_directories_exist()
             image_bytes = base64.b64decode(user.image_data.image)
+            if len(image_bytes) > MAX_IMAGE_SIZE:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image size exceeds 5MB")
             file_extension = user.image_data.file_name.split('.')[-1]
             safe_filename = f"image_{db_user.id}.{file_extension}"
             file_path = os.path.join(UPLOAD_DIR, safe_filename)
@@ -67,14 +73,18 @@ def api_register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def api_login(request: Request, user: schemas.UserLogin = Depends(validate_auth_user), db: Session = Depends(get_db)):
+def api_login(user: schemas.UserLogin = Depends(validate_auth_user), db: Session = Depends(get_db)):
     # print(request.headers)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
     refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     refresh_token = create_token(data={"sub": user.username}, expires_delta=refresh_token_expires)
-    add_tokens(access_token=access_token, refresh_token=refresh_token, db=db)
+    try:
+        add_tokens(access_token=access_token, refresh_token=refresh_token, db=db)
+    except Exception as e:
+        logging.error(f"Failed to save tokens for user {user.username}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save tokens")
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": TOKEN_TYPE}
 
 

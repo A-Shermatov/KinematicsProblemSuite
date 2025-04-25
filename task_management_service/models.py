@@ -6,7 +6,6 @@ from sqlalchemy import Column, Integer, String, Enum, Boolean, DateTime, Text
 from database import Base
 
 
-
 class Role(enum.Enum):
     student = "student"
     teacher = "teacher"

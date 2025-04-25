@@ -1,8 +1,7 @@
-from typing import cast, Annotated
+from typing import cast
 
-from fastapi import Depends, HTTPException, Form, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from jwt import encode, decode, InvalidTokenError
 import os
@@ -13,23 +12,12 @@ import models
 import database
 from schemas import UserResponse, UserLogin
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-TOKEN_TYPE = os.getenv("TOKEN_TYPE", "Bearer")
+from config import HOST, PORT, PREFIX_AUTH_API, SECRET_KEY, BASE_DIR, UPLOAD_DIR, pwd_context, ALGORITHM, TOKEN_TYPE
 
-HOST = os.getenv("HOST")
-PORT = os.getenv("PORT")
-
-PREFIX_AUTH_API = os.getenv("PREFIX_AUTH_API")
-
-BASE_DIR = "C:\\Users\\azamat\\PycharmProjects\\KinematicsProblemSuite\\auth_service\\public\\user"
-UPLOAD_DIR = os.path.join(BASE_DIR, "images")
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"http://{HOST}:{PORT}{PREFIX_AUTH_API}/login",
 )
-
 
 
 def get_db():
@@ -95,26 +83,15 @@ def validate_auth_user(
     user_login: UserLogin,
     db: Session = Depends(get_db),
 ) -> UserLogin:
-    unauthed_exc = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="invalid username or password",
-    )
-    # print(user_login.username, user_login.password)
     user = db.query(models.User).filter(cast("ColumnElement[bool]", models.User.username == user_login.username)).filter(
         cast("ColumnElement[bool]", models.User.is_active)).first()
-    if user is None:
-        raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="invalid username",
-    )
-
-    if not verify_password(
+    if user is None or not verify_password(
         plain_password=user_login.password,
         hashed_password=user.password,
     ):
         raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="invalid password",
+        detail="invalid username or password",
     )
     return UserLogin(username=user.username, password=user.password)
 

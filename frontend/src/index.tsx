@@ -1,18 +1,14 @@
 import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './app/App';
-import reportWebVitals from './reportWebVitals';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
 
-const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// Get the root element and ensure it exists
+const rootElement = document.getElementById('root');
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+if (!rootElement) {
+  throw new Error('Root element with id "root" not found in the DOM');
+}
+
+// Create the root and render the app
+const root = createRoot(rootElement);
+root.render(<App />);
