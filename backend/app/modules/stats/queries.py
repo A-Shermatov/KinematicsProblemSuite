@@ -123,26 +123,8 @@ WHERE school IS NOT NULL AND is_active AND ($1::text IS NULL OR lower(city) = lo
 GROUP BY lower(school) ORDER BY users DESC, name LIMIT 100
 """
 
-# Всё для значков одним запросом. $1 ученик, $2 часовой пояс (для серий по дням), $3 высший уровень сложности.
-ACHIEVEMENTS = f"""
-WITH solved AS (
-    SELECT DISTINCT ON (a.task_id) a.task_id, a.created_at
-    FROM attempts a
-    JOIN tasks k ON k.id = a.task_id AND k.is_active
-    WHERE a.student_id = $1 AND {SOLVED_CONDITION}
-    ORDER BY a.task_id, a.created_at
-),
-days AS (
-    SELECT DISTINCT (a.created_at AT TIME ZONE $2::text)::date AS d
-    FROM attempts a
-    WHERE a.student_id = $1 AND {SOLVED_CONDITION}
-),
-islands AS (
-    SELECT d, d - (row_number() OVER (ORDER BY d))::int AS grp FROM days
-),
-streaks AS (
-    SELECT count(*) AS len, max(d) AS last_day FROM islands GROUP BY grp
-),
+# Призовые места (1–3 с ненулевым баллом) по олимпиадам с опубликованными итогами — для званий.
+_OLYMPIAD_PLACES = """
 olympiad_scores AS (
     SELECT sb.olympiad_id, sb.user_id, sum(COALESCE(sb.jury_points, sb.auto_points)) AS total
     FROM olympiad_submissions sb
@@ -152,23 +134,34 @@ olympiad_scores AS (
 olympiad_places AS (
     SELECT *, RANK() OVER (PARTITION BY olympiad_id ORDER BY total DESC) AS place FROM olympiad_scores
 )
+"""
+
+# Сводка ученика для профиля: очки, решённые задачи, олимпиады. $1 ученик.
+STUDENT_PROFILE = f"""
+WITH solved AS (
+    SELECT DISTINCT a.task_id
+    FROM attempts a
+    JOIN tasks k ON k.id = a.task_id AND k.is_active
+    WHERE a.student_id = $1 AND {SOLVED_CONDITION}
+),
+{_OLYMPIAD_PLACES}
 SELECT
-    (SELECT count(*) FROM solved) AS solved_tasks,
-    (SELECT COALESCE(sum(k.difficulty), 0) FROM solved s JOIN tasks k ON k.id = s.task_id) AS points,
-    (SELECT count(*) FROM solved s JOIN tasks k ON k.id = s.task_id WHERE k.difficulty >= $3) AS hard_solved,
-    COALESCE((SELECT max(len) FROM streaks), 0) AS best_streak,
-    COALESCE((SELECT len FROM streaks
-              WHERE last_day >= (now() AT TIME ZONE $2::text)::date - 1
-              ORDER BY last_day DESC LIMIT 1), 0) AS current_streak,
-    (SELECT count(*) FROM themes t
-     WHERE t.is_active
-       AND (SELECT count(*) FROM tasks k WHERE k.theme_id = t.id AND k.is_active) >= 3
-       AND NOT EXISTS (SELECT 1 FROM tasks k
-                       WHERE k.theme_id = t.id AND k.is_active
-                         AND k.id NOT IN (SELECT task_id FROM solved))) AS mastered_themes,
-    (SELECT count(*) FROM olympiad_places WHERE user_id = $1) AS olympiads,
-    (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place <= 3 AND total > 0) AS olympiad_prizes,
-    (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place = 1 AND total > 0) AS olympiad_wins
+    (SELECT count(*) FROM solved)::int AS solved_tasks,
+    (SELECT COALESCE(sum(k.difficulty), 0) FROM solved s JOIN tasks k ON k.id = s.task_id)::int AS points,
+    (SELECT count(*) FROM olympiad_places WHERE user_id = $1)::int AS olympiads,
+    (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place <= 3 AND total > 0)::int AS olympiad_prizes,
+    (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place = 1 AND total > 0)::int AS olympiad_wins
+"""
+
+# Призовые места и победы сразу для многих пользователей (звания в рейтингах). $1 — массив id.
+TITLE_COUNTS = f"""
+WITH {_OLYMPIAD_PLACES}
+SELECT user_id,
+       count(*) FILTER (WHERE place <= 3 AND total > 0)::int AS prizes,
+       count(*) FILTER (WHERE place = 1 AND total > 0)::int AS wins
+FROM olympiad_places
+WHERE user_id = ANY($1::bigint[])
+GROUP BY user_id
 """
 
 # Активность по дням за последний год: любая отправленная попытка (задачи и олимпиады).

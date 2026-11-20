@@ -208,6 +208,7 @@ export interface LeaderboardRow {
   school: string | null;
   solved_tasks: number;
   points: number;
+  title: UserTitle | null;
 }
 
 export interface SchoolRow {
@@ -228,10 +229,14 @@ export interface CityRow {
   points: number;
 }
 
-export interface AchievementBadge {
+/** Звание за олимпиады (только за призовые места и победы). */
+export interface UserTitle {
   code: string;
   icon: string;
-  title: string;
+  name: string;
+}
+
+export interface TitleProgress extends UserTitle {
   description: string;
   earned: boolean;
   progress: number;
@@ -241,11 +246,11 @@ export interface AchievementBadge {
 export interface Achievements {
   solved_tasks: number;
   points: number;
-  hard_solved: number;
-  best_streak: number;
-  current_streak: number;
-  mastered_themes: number;
-  badges: AchievementBadge[];
+  olympiads: number;
+  olympiad_prizes: number;
+  olympiad_wins: number;
+  title: UserTitle | null;
+  titles: TitleProgress[];
 }
 
 export type CertificateStatus = "pending" | "verified" | "rejected";
@@ -476,6 +481,7 @@ export interface OlympiadLeaderRow {
   gold: number;
   silver: number;
   bronze: number;
+  title: UserTitle | null;
 }
 
 export interface PlatformSettings {
@@ -488,7 +494,6 @@ export interface Activity {
   days: { date: string; count: number }[];
   total: number;
   active_days: number;
-  best_streak: number;
   timezone: string;
 }
 

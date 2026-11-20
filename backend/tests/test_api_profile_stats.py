@@ -9,11 +9,11 @@ def test_activity_heatmap(client: ApiClient) -> None:
     sid = client.get("/api/users/me", student).json()["id"]
 
     empty = client.get(f"/api/stats/activity/{sid}").json()
-    assert empty == {"days": [], "total": 0, "active_days": 0, "best_streak": 0, "timezone": "Asia/Dushanbe"}
+    assert empty == {"days": [], "total": 0, "active_days": 0, "timezone": "Asia/Dushanbe"}
 
     first = client.attempt(student, task["id"], "1").json()  # неверная попытка тоже считается активностью
     client.attempt(student, task["id"], "2")
-    # Переносим одну попытку на вчера, другую — на месяц назад: серия 2 дня.
+    # Переносим одну попытку на вчера, другую — на месяц назад.
     client.sql("UPDATE attempts SET created_at = now() - interval '1 day' WHERE id = $1", first["id"])
     third = client.attempt(student, task["id"], "20").json()
     client.sql("UPDATE attempts SET created_at = now() - interval '30 days' WHERE id = $1", third["id"])
@@ -21,7 +21,6 @@ def test_activity_heatmap(client: ApiClient) -> None:
     activity = client.get(f"/api/stats/activity/{sid}").json()
     assert activity["total"] == 3
     assert activity["active_days"] == 3
-    assert activity["best_streak"] == 2
     assert all(day["count"] == 1 for day in activity["days"])
     assert client.get(f"/api/stats/activity/{sid}", params={"days": 7}).json()["total"] == 2
     assert client.get("/api/stats/activity/999999").status_code == 404

@@ -7,9 +7,8 @@ from fastapi import APIRouter, Query
 
 from app.deps import Conn, SettingsDep, User, not_found
 from app.modules.olympiads import queries as olympiads_q
-from app.modules.settings import service as settings_service
-from app.modules.stats import badges
 from app.modules.stats import queries as q
+from app.modules.stats import titles
 from app.modules.users import queries as user_q
 from app.storage import public_url
 
@@ -37,15 +36,23 @@ async def my_stats(user: User, conn: Conn) -> dict[str, Any]:
     return {"role": "student", **summary, "by_theme": by_theme}
 
 
+async def titles_for(conn: Conn, user_ids: list[int]) -> dict[int, dict[str, str] | None]:
+    """Высшее звание каждого пользователя (или None) — для рейтингов и списков."""
+    if not user_ids:
+        return {}
+    rows = await conn.fetch(q.TITLE_COUNTS, user_ids)
+    counts = {row["user_id"]: (row["prizes"], row["wins"]) for row in rows}
+    return {uid: titles.best(*counts.get(uid, (0, 0))) for uid in user_ids}
+
+
 @router.get("/achievements/{user_id}")
-async def achievements(user_id: int, conn: Conn, settings: SettingsDep) -> dict[str, Any]:
-    """Очки, серии и значки ученика — для кабинета и публичного профиля."""
-    row = await conn.fetchrow(user_q.GET_ACTIVE_BY_ID, user_id)
-    if row is None:
+async def achievements(user_id: int, conn: Conn) -> dict[str, Any]:
+    """Очки, решённые задачи и звания за олимпиады — для кабинета и публичного профиля."""
+    if await conn.fetchrow(user_q.GET_ACTIVE_BY_ID, user_id) is None:
         raise not_found("Пользователь")
-    platform = await settings_service.load(conn)
-    stats = dict(await conn.fetchrow(q.ACHIEVEMENTS, user_id, settings.timezone, platform.difficulty_max))
-    return {**stats, "badges": badges.evaluate(stats)}
+    stats = dict(await conn.fetchrow(q.STUDENT_PROFILE, user_id))
+    prizes, wins = stats["olympiad_prizes"], stats["olympiad_wins"]
+    return {**stats, "title": titles.best(prizes, wins), "titles": titles.evaluate(prizes, wins)}
 
 
 @router.get("/activity/{user_id}")
@@ -60,18 +67,10 @@ async def activity(
         raise not_found("Пользователь")
     rows = await conn.fetch(q.ACTIVITY, user_id, settings.timezone, days)
     counts = [{"date": row["day"].isoformat(), "count": row["count"]} for row in rows]
-    # Самая длинная серия активных дней за период.
-    best = current = 0
-    previous = None
-    for row in rows:
-        current = current + 1 if previous is not None and (row["day"] - previous).days == 1 else 1
-        best = max(best, current)
-        previous = row["day"]
     return {
         "days": counts,
         "total": sum(item["count"] for item in counts),
         "active_days": len(counts),
-        "best_streak": best,
         "timezone": settings.timezone,
     }
 
@@ -97,6 +96,7 @@ async def leaderboard(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[dict[str, Any]]:
     rows = await conn.fetch(q.LEADERBOARD, limit, _since(period), subject_id, _clean(city), _clean(school), metric)
+    user_titles = await titles_for(conn, [row["user_id"] for row in rows])
     return [
         {
             "rank": index,
@@ -108,6 +108,7 @@ async def leaderboard(
             "school": row["school"],
             "solved_tasks": row["solved_tasks"],
             "points": row["points"],
+            "title": user_titles.get(row["user_id"]),
         }
         for index, row in enumerate(rows, start=1)
     ]
@@ -146,11 +147,13 @@ async def olympiad_leaderboard(
 ) -> list[dict[str, Any]]:
     """Рейтинг по олимпиадам: сумма процентов от максимума по всем олимпиадам с опубликованными итогами."""
     rows = await conn.fetch(olympiads_q.LEADERBOARD, limit, _since(period), subject_id, _clean(city))
+    user_titles = await titles_for(conn, [row["user_id"] for row in rows])
     return [
         {
             "rank": index,
             **{k: v for k, v in dict(row).items() if k != "avatar_path"},
             "avatar_url": public_url(row["avatar_path"]),
+            "title": user_titles.get(row["user_id"]),
         }
         for index, row in enumerate(rows, start=1)
     ]

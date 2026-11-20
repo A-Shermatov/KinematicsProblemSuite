@@ -55,8 +55,7 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
           {activity.total} {plural(activity.total, ["попытка", "попытки", "попыток"])}  {t("за год")}
         </h2>
         <p className="text-xs text-muted">
-          {t("Активных дней:")} {activity.active_days}  {t("· лучшая серия:")} {activity.best_streak}{" "}
-          {plural(activity.best_streak, ["день", "дня", "дней"])}
+          {t("Активных дней:")} {activity.active_days}
         </p>
       </div>
       <div className="overflow-x-auto pb-1">
