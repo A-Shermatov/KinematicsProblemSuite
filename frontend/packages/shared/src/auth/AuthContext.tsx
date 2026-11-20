@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, tokenStore, type User } from "../api";
 import { setSessionExpiredHandler } from "../api/client";
+import { t } from "../i18n";
 
 interface AuthState {
   user: User | null;
@@ -60,7 +61,7 @@ export function displayName(user: Pick<User, "first_name" | "last_name" | "usern
 }
 
 export const roleLabel: Record<User["role"], string> = {
-  student: "Ученик",
-  teacher: "Учитель",
-  admin: "Администратор",
+  student: t("Ученик"),
+  teacher: t("Учитель"),
+  admin: t("Администратор"),
 };

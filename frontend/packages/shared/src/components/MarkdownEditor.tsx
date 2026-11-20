@@ -1,6 +1,7 @@
 import { useDeferredValue, useId, useRef, useState } from "react";
 import { Markdown } from "./Markdown";
 import { cx } from "./ui";
+import { t } from "../i18n";
 
 type Mode = "write" | "preview" | "split";
 
@@ -13,13 +14,13 @@ interface Snippet {
 }
 
 const SNIPPETS: Snippet[] = [
-  { label: "B", title: "Жирный", before: "**", after: "**", placeholder: "текст" },
-  { label: "I", title: "Курсив", before: "*", after: "*", placeholder: "текст" },
-  { label: "x²", title: "Формула в строке", before: "$", after: "$", placeholder: "v = \\frac{s}{t}" },
-  { label: "∑", title: "Формула отдельной строкой", before: "\n$$\n", after: "\n$$\n", placeholder: "a = \\frac{v - v_0}{t}" },
-  { label: "•", title: "Список", before: "\n- ", placeholder: "пункт" },
-  { label: "1.", title: "Нумерованный список", before: "\n1. ", placeholder: "пункт" },
-  { label: "❝", title: "Подсказка", before: "\n> ", placeholder: "подсказка" },
+  { label: "B", title: t("Жирный"), before: "**", after: "**", placeholder: t("текст") },
+  { label: "I", title: t("Курсив"), before: "*", after: "*", placeholder: t("текст") },
+  { label: "x²", title: t("Формула в строке"), before: "$", after: "$", placeholder: "v = \\frac{s}{t}" },
+  { label: "∑", title: t("Формула отдельной строкой"), before: "\n$$\n", after: "\n$$\n", placeholder: "a = \\frac{v - v_0}{t}" },
+  { label: "•", title: t("Список"), before: "\n- ", placeholder: t("пункт") },
+  { label: "1.", title: t("Нумерованный список"), before: "\n1. ", placeholder: t("пункт") },
+  { label: "❝", title: t("Подсказка"), before: "\n> ", placeholder: t("подсказка") },
 ];
 
 interface Props {
@@ -54,9 +55,9 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12 
   };
 
   const tabs: { key: Mode; label: string }[] = [
-    { key: "write", label: "Текст" },
-    { key: "preview", label: "Предпросмотр" },
-    { key: "split", label: "Рядом" },
+    { key: "write", label: t("Текст") },
+    { key: "preview", label: t("Предпросмотр") },
+    { key: "split", label: t("Рядом") },
   ];
 
   return (
@@ -68,7 +69,7 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12 
       )}
       <div className="overflow-hidden rounded-xl border border-border bg-surface focus-within:border-primary focus-within:ring-4 focus-within:ring-[var(--ring)]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-2 px-2 py-1.5">
-          <div className="flex flex-wrap gap-0.5" role="toolbar" aria-label="Форматирование">
+          <div className="flex flex-wrap gap-0.5" role="toolbar" aria-label={t("Форматирование")}>
             {SNIPPETS.map((snippet) => (
               <button
                 key={snippet.title}
@@ -126,13 +127,13 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12 
               mode === "split" && "border-t border-border lg:border-t-0",
             )}
           >
-            <Markdown source={deferred} empty="Здесь появится условие задачи в том виде, в каком его увидит ученик." />
+            <Markdown source={deferred} empty={t("Здесь появится условие задачи в том виде, в каком его увидит ученик.")} />
           </div>
         </div>
       </div>
       <p className="text-xs text-muted">
-        Markdown и формулы LaTeX: <code className="rounded bg-surface-2 px-1">$v = s/t$</code> в строке,{" "}
-        <code className="rounded bg-surface-2 px-1">$$…$$</code> отдельным блоком.
+        {t("Markdown и формулы LaTeX:")} <code className="rounded bg-surface-2 px-1">$v = s/t$</code>  {t("в строке,")}{" "}
+        <code className="rounded bg-surface-2 px-1">$$…$$</code>  {t("отдельным блоком.")}
       </p>
     </div>
   );

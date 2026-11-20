@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { api } from "../api";
 import { Input } from "./ui";
+import { t } from "../i18n";
 
 /** Города Таджикистана для подсказок; к ним добавляются города, которые уже ввели пользователи. */
 const KNOWN_CITIES = [
@@ -39,12 +40,12 @@ export function PlaceFields({ city, school, onChange }: Props) {
     <div className="grid gap-4 sm:grid-cols-2">
       <div>
         <Input
-          label="Город"
+          label={t("Город")}
           list={cityList}
           value={city}
           onChange={(e) => onChange({ city: e.target.value, school })}
           maxLength={60}
-          placeholder="Необязательно"
+          placeholder={t("Необязательно")}
           autoComplete="address-level2"
         />
         <datalist id={cityList}>
@@ -55,13 +56,13 @@ export function PlaceFields({ city, school, onChange }: Props) {
       </div>
       <div>
         <Input
-          label="Школа / лицей"
+          label={t("Школа / лицей")}
           list={schoolList}
           value={school}
           onChange={(e) => onChange({ city, school: e.target.value })}
           maxLength={120}
-          placeholder="Необязательно"
-          hint="Для рейтинга школ"
+          placeholder={t("Необязательно")}
+          hint={t("Для рейтинга школ")}
         />
         <datalist id={schoolList}>
           {schools.map((item) => (

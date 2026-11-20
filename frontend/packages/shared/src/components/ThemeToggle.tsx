@@ -2,11 +2,12 @@ import { useRef, useState } from "react";
 import { useClickOutside } from "../lib/hooks";
 import { useTheme, type ThemeMode } from "../theme/ThemeContext";
 import { cx } from "./ui";
+import { t } from "../i18n";
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: string }[] = [
-  { mode: "light", label: "Светлая", icon: "☀" },
-  { mode: "dark", label: "Тёмная", icon: "☾" },
-  { mode: "system", label: "Как в системе", icon: "◐" },
+  { mode: "light", label: t("Светлая"), icon: "☀" },
+  { mode: "dark", label: t("Тёмная"), icon: "☾" },
+  { mode: "system", label: t("Как в системе"), icon: "◐" },
 ];
 
 export function ThemeToggle() {
@@ -21,7 +22,7 @@ export function ThemeToggle() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex h-9 w-9 items-center justify-center rounded-xl text-lg text-muted hover:bg-surface-2 hover:text-fg"
-        aria-label={`Тема: ${resolved === "dark" ? "тёмная" : "светлая"}. Сменить тему`}
+        aria-label={t("Тема: {0}. Сменить тему", [resolved === "dark" ? t("тёмная") : t("светлая")])}
         aria-haspopup="menu"
         aria-expanded={open}
       >

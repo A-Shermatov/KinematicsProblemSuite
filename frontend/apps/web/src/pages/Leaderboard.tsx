@@ -15,20 +15,21 @@ import {
   useAuth,
   useDocumentTitle,
   type Period,
+  t,
 } from "@kps/shared";
 
 type Tab = "students" | "olympiads" | "schools" | "cities";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "students", label: "Ученики" },
-  { key: "olympiads", label: "Олимпиады" },
-  { key: "schools", label: "Школы" },
-  { key: "cities", label: "Города" },
+  { key: "students", label: t("Ученики") },
+  { key: "olympiads", label: t("Олимпиады") },
+  { key: "schools", label: t("Школы") },
+  { key: "cities", label: t("Города") },
 ];
 const PERIODS: { key: Period; label: string }[] = [
-  { key: "week", label: "Неделя" },
-  { key: "month", label: "Месяц" },
-  { key: "all", label: "Всё время" },
+  { key: "week", label: t("Неделя") },
+  { key: "month", label: t("Месяц") },
+  { key: "all", label: t("Всё время") },
 ];
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -53,7 +54,7 @@ function Rank({ rank }: { rank: number }) {
 }
 
 export function Leaderboard() {
-  useDocumentTitle("Рейтинг");
+  useDocumentTitle(t("Рейтинг"));
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = (params.get("tab") as Tab | null) ?? "students";
@@ -87,24 +88,24 @@ export function Leaderboard() {
 
   const subtitle =
     tab === "students"
-      ? "Очки — сумма сложностей решённых задач, каждая задача засчитывается один раз."
+      ? t("Очки — сумма сложностей решённых задач, каждая задача засчитывается один раз.")
       : tab === "olympiads"
-        ? "Очки — сумма процентов от максимума по всем олимпиадам. Медали — призовые места."
+        ? t("Очки — сумма процентов от максимума по всем олимпиадам. Медали — призовые места.")
         : tab === "schools"
-          ? "Сумма очков всех учеников школы. Укажите школу в профиле, чтобы играть за неё."
-          : "Сумма очков всех учеников города.";
+          ? t("Сумма очков всех учеников школы. Укажите школу в профиле, чтобы играть за неё.")
+          : t("Сумма очков всех учеников города.");
 
   return (
     <>
-      <PageHeader title="Рейтинг" subtitle={subtitle} actions={<Segmented items={TABS} value={tab} onChange={(t) => update({ tab: t, school: null })} />} />
+      <PageHeader title={t("Рейтинг")} subtitle={subtitle} actions={<Segmented items={TABS} value={tab} onChange={(t) => update({ tab: t, school: null })} />} />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Segmented items={PERIODS} value={period} onChange={(p) => update({ period: p })} />
         {tab === "students" && (
           <Segmented
             items={[
-              { key: "points", label: "По очкам" },
-              { key: "solved", label: "По задачам" },
+              { key: "points", label: t("По очкам") },
+              { key: "solved", label: t("По задачам") },
             ]}
             value={metric}
             onChange={(m) => update({ metric: m === "points" ? null : m })}
@@ -114,9 +115,9 @@ export function Leaderboard() {
           value={subjectId ?? ""}
           onChange={(e) => update({ subject: e.target.value || null })}
           className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
-          aria-label="Предмет"
+          aria-label={t("Предмет")}
         >
-          <option value="">Все предметы</option>
+          <option value="">{t("Все предметы")}</option>
           {subjects?.map((subject) => (
             <option key={subject.id} value={subject.id}>
               {subject.title}
@@ -131,7 +132,7 @@ export function Leaderboard() {
               update({ city: cityInput.trim() || null, school: null });
             }}
           >
-            <Input placeholder="Город, Enter" value={cityInput} onChange={(e) => setCityInput(e.target.value)} aria-label="Город" className="h-10" />
+            <Input placeholder={t("Город, Enter")} value={cityInput} onChange={(e) => setCityInput(e.target.value)} aria-label={t("Город")} className="h-10" />
           </form>
         )}
         {school && (
@@ -141,14 +142,14 @@ export function Leaderboard() {
         )}
         {user?.school && tab === "students" && !school && (
           <button onClick={() => update({ city: user.city, school: user.school })} className="text-sm text-primary hover:underline">
-            Моя школа
+            {t("Моя школа")}
           </button>
         )}
       </div>
 
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
-      {data && data.rows.length === 0 && <EmptyState icon="🏆" title="За этот период пока никого нет" />}
+      {data && data.rows.length === 0 && <EmptyState icon="🏆" title={t("За этот период пока никого нет")} />}
 
       {data?.tab === "students" && data.rows.length > 0 && (
         <Card className="divide-y divide-border overflow-hidden">
@@ -167,7 +168,7 @@ export function Leaderboard() {
               <div className="text-right">
                 <p className="text-lg font-bold text-primary">{metric === "solved" ? row.solved_tasks : row.points}</p>
                 <p className="text-xs text-muted">
-                  {metric === "solved" ? `${row.points} очк.` : `${row.solved_tasks} ${plural(row.solved_tasks, ["задача", "задачи", "задач"])}`}
+                  {metric === "solved" ? t("{0} очк.", [row.points]) : `${row.solved_tasks} ${plural(row.solved_tasks, ["задача", "задачи", "задач"])}`}
                 </p>
               </div>
             </Link>
@@ -192,7 +193,7 @@ export function Leaderboard() {
                   {(row.school || row.city) && ` · ${[row.school, row.city].filter(Boolean).join(", ")}`}
                 </p>
               </div>
-              <div className="hidden gap-2 text-sm sm:flex" aria-label="Медали">
+              <div className="hidden gap-2 text-sm sm:flex" aria-label={t("Медали")}>
                 {row.gold > 0 && <span>🥇{row.gold}</span>}
                 {row.silver > 0 && <span>🥈{row.silver}</span>}
                 {row.bronze > 0 && <span>🥉{row.bronze}</span>}
@@ -221,12 +222,12 @@ export function Leaderboard() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-fg">{row.school}</p>
                 <p className="text-xs text-muted">
-                  {row.city ?? "Город не указан"} · {row.students} {plural(row.students, ["ученик", "ученика", "учеников"])}
+                  {row.city ?? t("Город не указан")} · {row.students} {plural(row.students, ["ученик", "ученика", "учеников"])}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-lg font-bold text-primary">{row.points}</p>
-                <p className="text-xs text-muted">{row.solved_tasks} решений</p>
+                <p className="text-xs text-muted">{row.solved_tasks}  {t("решений")}</p>
               </div>
             </button>
           ))}

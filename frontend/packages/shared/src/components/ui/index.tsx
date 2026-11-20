@@ -12,6 +12,7 @@ import {
 import { Link, type LinkProps } from "react-router-dom";
 import { difficultyClass } from "../../lib/format";
 import { usePlatformSettings } from "../../settings/SettingsContext";
+import { t } from "../../i18n";
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
@@ -163,7 +164,7 @@ export function PageHeader({
   return (
     <div className="mb-8 space-y-3">
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex flex-wrap items-center gap-1.5 text-sm text-muted" aria-label="Навигация">
+        <nav className="flex flex-wrap items-center gap-1.5 text-sm text-muted" aria-label={t("Навигация")}>
           {breadcrumbs.map((crumb, index) => (
             <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
               {index > 0 && <span aria-hidden>/</span>}
@@ -200,7 +201,7 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
-export function Loading({ label = "Загрузка…" }: { label?: string }) {
+export function Loading({ label = t("Загрузка…") }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-3 py-16 text-muted" role="status">
       <Spinner />
@@ -290,8 +291,8 @@ export function Difficulty({ value }: { value: number }) {
   return (
     <span
       className={cx("inline-flex min-w-11 justify-center rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums", difficultyClass(value, settings.difficulty_max))}
-      title={`Сложность ${value} из ${settings.difficulty_max}`}
-      aria-label={`Сложность ${value}`}
+      title={t("Сложность {0} из {1}", [value, settings.difficulty_max])}
+      aria-label={t("Сложность {0}", [value])}
     >
       {value}
     </span>
@@ -312,7 +313,7 @@ export function Modal({ open, onClose, children, title }: { open: boolean; onClo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
       <div className="relative max-h-[90vh] max-w-4xl overflow-auto rounded-2xl bg-surface p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <button onClick={onClose} className="absolute right-3 top-3 rounded-full p-1.5 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Закрыть">
+        <button onClick={onClose} className="absolute right-3 top-3 rounded-full p-1.5 text-muted hover:bg-surface-2 hover:text-fg" aria-label={t("Закрыть")}>
           ✕
         </button>
         {children}
@@ -327,7 +328,7 @@ export function Stars({ value, size = "md" }: { value: number | null; size?: "sm
   const rating = value ?? 0;
   const text = { sm: "text-sm", md: "text-base", lg: "text-2xl" }[size];
   return (
-    <span className={cx("inline-flex tracking-tight", text)} aria-label={value === null ? "Нет оценок" : `Рейтинг ${value.toFixed(1)} из 5`}>
+    <span className={cx("inline-flex tracking-tight", text)} aria-label={value === null ? t("Нет оценок") : t("Рейтинг {0} из 5", [value.toFixed(1)])}>
       {[1, 2, 3, 4, 5].map((star) => (
         <span key={star} className={star <= Math.round(rating) ? "text-amber-400" : "text-border"} aria-hidden>
           ★
@@ -339,14 +340,14 @@ export function Stars({ value, size = "md" }: { value: number | null; size?: "sm
 
 export function StarInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   return (
-    <div className="inline-flex text-3xl" role="radiogroup" aria-label="Оценка">
+    <div className="inline-flex text-3xl" role="radiogroup" aria-label={t("Оценка")}>
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}
           type="button"
           role="radio"
           aria-checked={value === star}
-          aria-label={`${star} из 5`}
+          aria-label={t("{0} из 5", [star])}
           onClick={() => onChange(star)}
           className={cx("px-0.5 transition-transform hover:scale-110", star <= value ? "text-amber-400" : "text-border")}
         >

@@ -1,4 +1,4 @@
-import { Card, difficultyClass, plural, usePlatformSettings, type DifficultyBreakdown } from "@kps/shared";
+import { Card, difficultyClass, plural, usePlatformSettings, type DifficultyBreakdown, t } from "@kps/shared";
 
 /** Столбчатая диаграмма: сколько задач решено (и пробовалось без успеха) на каждом уровне сложности. */
 export function DifficultyChart({ data }: { data: DifficultyBreakdown }) {
@@ -14,23 +14,23 @@ export function DifficultyChart({ data }: { data: DifficultyBreakdown }) {
     <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
       <Card className="space-y-4 p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-semibold text-fg">Задачи по сложности</h2>
+          <h2 className="font-semibold text-fg">{t("Задачи по сложности")}</h2>
           <div className="flex gap-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-primary" /> решено
+              <span className="h-2.5 w-2.5 rounded-sm bg-primary" />  {t("решено")}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-border" /> пробовал(а)
+              <span className="h-2.5 w-2.5 rounded-sm bg-border" />  {t("пробовал(а)")}
             </span>
           </div>
         </div>
-        <div className="flex h-48 items-end gap-1.5" role="img" aria-label={`Решено ${solvedTotal} задач по уровням сложности`}>
+        <div className="flex h-48 items-end gap-1.5" role="img" aria-label={t("Решено {0} задач по уровням сложности", [solvedTotal])}>
           {levels.map((lvl) => {
             const item = byLevel.get(lvl);
             const solved = item?.solved ?? 0;
             const unsolved = item?.unsolved ?? 0;
             return (
-              <div key={lvl} className="group flex h-full flex-1 flex-col items-center justify-end gap-1" title={`${lvl}: решено ${solved}, без решения ${unsolved}`}>
+              <div key={lvl} className="group flex h-full flex-1 flex-col items-center justify-end gap-1" title={t("{0}: решено {1}, без решения {2}", [lvl, solved, unsolved])}>
                 <span className="text-[10px] font-medium text-muted opacity-0 transition group-hover:opacity-100">{solved || ""}</span>
                 <div className="flex w-full max-w-10 flex-col justify-end overflow-hidden rounded-t-md" style={{ height: `${((solved + unsolved) / top) * 100}%` }}>
                   <div className="w-full bg-border" style={{ flexGrow: unsolved }} />
@@ -49,8 +49,8 @@ export function DifficultyChart({ data }: { data: DifficultyBreakdown }) {
         </div>
       </Card>
       <Card className="space-y-3 p-5">
-        <h2 className="font-semibold text-fg">По предметам</h2>
-        {data.subjects.length === 0 && <p className="text-sm text-muted">Пока нет решённых задач</p>}
+        <h2 className="font-semibold text-fg">{t("По предметам")}</h2>
+        {data.subjects.length === 0 && <p className="text-sm text-muted">{t("Пока нет решённых задач")}</p>}
         {data.subjects.map((subject) => (
           <div key={subject.subject_id} className="space-y-1">
             <div className="flex justify-between text-sm">

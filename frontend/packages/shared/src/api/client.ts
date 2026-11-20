@@ -1,3 +1,6 @@
+import { getLang } from "../i18n";
+import { t } from "../i18n";
+
 /**
  * Тонкая обёртка над fetch: базовый URL, токены, автоматический refresh при 401
  * и понятные сообщения об ошибках из ответов FastAPI.
@@ -69,12 +72,12 @@ export function extractErrorMessage(status: number, body: unknown): string {
   if (Array.isArray(detail) && detail.length > 0) {
     const first = detail[0] as { msg?: string; loc?: unknown[] };
     const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : undefined;
-    const msg = (first.msg ?? "Некорректные данные").replace(/^Value error, /, "");
+    const msg = (first.msg ?? t("Некорректные данные")).replace(/^Value error, /, "");
     return field && typeof field === "string" && !msg.includes(field) ? `${field}: ${msg}` : msg;
   }
-  if (status === 0) return "Нет соединения с сервером";
-  if (status >= 500) return "Ошибка сервера, попробуйте позже";
-  return `Ошибка ${status}`;
+  if (status === 0) return t("Нет соединения с сервером");
+  if (status >= 500) return t("Ошибка сервера, попробуйте позже");
+  return t("Ошибка {0}", [status]);
 }
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -109,6 +112,7 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
   if (json !== undefined) headers["Content-Type"] = "application/json";
   const access = tokenStore.access;
   if (auth && access) headers.Authorization = `Bearer ${access}`;
+  headers["X-Lang"] = getLang();
 
   let response: Response;
   try {

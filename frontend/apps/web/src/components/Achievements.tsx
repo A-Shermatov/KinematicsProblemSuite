@@ -1,4 +1,4 @@
-import { Card, ProgressBar, cx, plural, type Achievements as AchievementsData } from "@kps/shared";
+import { Card, ProgressBar, cx, plural, type Achievements as AchievementsData, t } from "@kps/shared";
 
 /** Очки, серия дней и значки ученика. */
 export function Achievements({ data, compact }: { data: AchievementsData; compact?: boolean }) {
@@ -10,20 +10,20 @@ export function Achievements({ data, compact }: { data: AchievementsData; compac
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-4 text-center">
           <p className="text-2xl font-bold text-primary">{data.points}</p>
-          <p className="text-xs text-muted">очков</p>
+          <p className="text-xs text-muted">{t("очков")}</p>
         </Card>
         <Card className="p-4 text-center">
           <p className="text-2xl font-bold text-fg">
             {data.current_streak > 0 && "🔥"}
             {data.current_streak}
           </p>
-          <p className="text-xs text-muted">{plural(data.current_streak, ["день", "дня", "дней"])} подряд</p>
+          <p className="text-xs text-muted">{plural(data.current_streak, ["день", "дня", "дней"])}  {t("подряд")}</p>
         </Card>
         <Card className="p-4 text-center">
           <p className="text-2xl font-bold text-fg">
             {earned.length}/{data.badges.length}
           </p>
-          <p className="text-xs text-muted">значков</p>
+          <p className="text-xs text-muted">{t("значков")}</p>
         </Card>
       </div>
       <div className={cx("grid gap-3", compact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5")}>

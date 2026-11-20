@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { Card, cx, plural, type Activity } from "@kps/shared";
+import { Card, cx, plural, type Activity, intlLocale, t } from "@kps/shared";
 
-const MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const MONTHS = [t("янв"), t("фев"), t("мар"), t("апр"), t("май"), t("июн"), t("июл"), t("авг"), t("сен"), t("окт"), t("ноя"), t("дек")];
 const LEVELS = [
   "bg-surface-2",
   "bg-emerald-200 dark:bg-emerald-900",
@@ -9,7 +9,7 @@ const LEVELS = [
   "bg-emerald-500 dark:bg-emerald-500",
   "bg-emerald-700 dark:bg-emerald-300",
 ];
-const dayFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+const dayFormat = new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "long", year: "numeric" });
 
 function level(count: number): number {
   if (count === 0) return 0;
@@ -52,10 +52,10 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
     <Card className="space-y-3 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-semibold text-fg">
-          {activity.total} {plural(activity.total, ["попытка", "попытки", "попыток"])} за год
+          {activity.total} {plural(activity.total, ["попытка", "попытки", "попыток"])}  {t("за год")}
         </h2>
         <p className="text-xs text-muted">
-          Активных дней: {activity.active_days} · лучшая серия: {activity.best_streak}{" "}
+          {t("Активных дней:")} {activity.active_days}  {t("· лучшая серия:")} {activity.best_streak}{" "}
           {plural(activity.best_streak, ["день", "дня", "дней"])}
         </p>
       </div>
@@ -70,7 +70,7 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
           </div>
           <div className="flex gap-[3px]">
             <div className="mr-1 grid w-6 grid-rows-7 gap-[3px] text-[10px] leading-[11px] text-muted">
-              {["пн", "", "ср", "", "пт", "", ""].map((label, i) => (
+              {[t("пн"), "", t("ср"), "", t("пт"), "", ""].map((label, i) => (
                 <span key={i}>{label}</span>
               ))}
             </div>
@@ -89,11 +89,11 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
         </div>
       </div>
       <div className="flex items-center justify-end gap-1 text-[10px] text-muted">
-        меньше
+        {t("меньше")}
         {LEVELS.map((cls) => (
           <span key={cls} className={cx("h-[11px] w-[11px] rounded-[3px]", cls)} />
         ))}
-        больше
+        {t("больше")}
       </div>
     </Card>
   );

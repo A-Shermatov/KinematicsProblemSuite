@@ -7,12 +7,14 @@ import {
   ButtonLink,
   Loading,
   ThemeToggle,
+  LangSwitcher,
   cx,
   displayName,
   roleLabel,
   useAuth,
   useClickOutside,
   type Role,
+  t,
 } from "@kps/shared";
 import { ADMIN_URL } from "../config";
 
@@ -23,12 +25,12 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: "/catalog", label: "Задачи" },
-  { to: "/olympiads", label: "Олимпиады" },
-  { to: "/teachers", label: "Учителя" },
-  { to: "/leaderboard", label: "Рейтинг" },
-  { to: "/attempts", label: "Решения", roles: ["student", "teacher", "admin"] },
-  { to: "/manage/tasks", label: "Мои задачи", roles: ["teacher", "admin"] },
+  { to: "/catalog", label: t("Задачи") },
+  { to: "/olympiads", label: t("Олимпиады") },
+  { to: "/teachers", label: t("Учителя") },
+  { to: "/leaderboard", label: t("Рейтинг") },
+  { to: "/attempts", label: t("Решения"), roles: ["student", "teacher", "admin"] },
+  { to: "/manage/tasks", label: t("Мои задачи"), roles: ["teacher", "admin"] },
 ];
 
 function Logo() {
@@ -56,7 +58,7 @@ function UserMenu() {
   const item = "block w-full rounded-lg px-3 py-2 text-left text-sm text-fg hover:bg-surface-2";
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-full p-0.5 hover:ring-4 hover:ring-[var(--ring)]" aria-label="Меню пользователя" aria-expanded={open}>
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-full p-0.5 hover:ring-4 hover:ring-[var(--ring)]" aria-label={t("Меню пользователя")} aria-expanded={open}>
         <Avatar src={user.avatar_url} name={displayName(user)} size={36} />
       </button>
       {open && (
@@ -69,19 +71,19 @@ function UserMenu() {
           </div>
           <div className="my-1 h-px bg-border" />
           <Link to="/dashboard" className={item}>
-            Личный кабинет
+            {t("Личный кабинет")}
           </Link>
           {user.role === "teacher" && (
             <Link to={`/teachers/${user.id}`} className={item}>
-              Мой профиль учителя
+              {t("Мой профиль учителя")}
             </Link>
           )}
           <Link to="/profile" className={item}>
-            Настройки профиля
+            {t("Настройки профиля")}
           </Link>
           {user.role === "admin" && (
             <a href={ADMIN_URL} className={cx(item, "text-primary")}>
-              Админ-панель ↗
+              {t("Админ-панель ↗")}
             </a>
           )}
           <div className="my-1 h-px bg-border" />
@@ -92,7 +94,7 @@ function UserMenu() {
               navigate("/login");
             }}
           >
-            Выйти
+            {t("Выйти")}
           </button>
         </div>
       )}
@@ -114,7 +116,7 @@ function Navbar() {
     <header className="sticky top-0 z-20 border-b border-border bg-bg/80 backdrop-blur-lg print:hidden">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Logo />
-        <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label="Основное меню">
+        <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label={t("Основное меню")}>
           {items.map((item) => (
             <NavLink key={item.to} to={item.to} className={linkClass}>
               {item.label}
@@ -122,23 +124,24 @@ function Navbar() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <LangSwitcher />
           <ThemeToggle />
           {user ? (
             <UserMenu />
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
               <ButtonLink to="/login" variant="ghost" size="sm">
-                Войти
+                {t("Войти")}
               </ButtonLink>
               <ButtonLink to="/register" size="sm">
-                Регистрация
+                {t("Регистрация")}
               </ButtonLink>
             </div>
           )}
           <button
             className="flex h-9 w-9 items-center justify-center rounded-xl text-muted hover:bg-surface-2 md:hidden"
             onClick={() => setMobileOpen((v) => !v)}
-            aria-label="Открыть меню"
+            aria-label={t("Открыть меню")}
             aria-expanded={mobileOpen}
           >
             ☰
@@ -146,7 +149,7 @@ function Navbar() {
         </div>
       </div>
       {mobileOpen && (
-        <nav className="border-t border-border px-4 py-3 md:hidden" aria-label="Мобильное меню">
+        <nav className="border-t border-border px-4 py-3 md:hidden" aria-label={t("Мобильное меню")}>
           <div className="flex flex-col gap-1">
             {items.map((item) => (
               <NavLink key={item.to} to={item.to} className={linkClass}>
@@ -156,10 +159,10 @@ function Navbar() {
             {!user && (
               <>
                 <NavLink to="/login" className={linkClass}>
-                  Войти
+                  {t("Войти")}
                 </NavLink>
                 <NavLink to="/register" className={linkClass}>
-                  Регистрация
+                  {t("Регистрация")}
                 </NavLink>
               </>
             )}

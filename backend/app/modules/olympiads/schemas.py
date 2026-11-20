@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.i18n import DEFAULT_LANG, Lang, TranslationIn, TranslationLang, localize
 from app.modules.content.schemas import AnswerType
 from app.modules.solutions.checker import validate_expected_answer
 from app.storage import public_url
@@ -68,6 +69,7 @@ class OlympiadTaskIn(BaseModel):
     unit: str | None = Field(default=None, max_length=30)
     tolerance: float = Field(default=0.01, ge=0, lt=1)
     max_points: int = Field(default=10, ge=1, le=100)
+    translations: dict[TranslationLang, TranslationIn] = Field(default_factory=dict)
 
     @field_validator("title", "answer")
     @classmethod
@@ -98,10 +100,14 @@ class OlympiadTaskOut(BaseModel):
     max_points: int
     answer: str | None = None
     tolerance: float | None = None
+    lang: str = "ru"
+    available_langs: list[str] = ["ru"]
+    translations: dict[str, dict[str, str]] | None = None
 
     @classmethod
-    def from_row(cls, row: Any, *, reveal: bool) -> OlympiadTaskOut:
-        data = dict(row)
+    def from_row(cls, row: Any, *, reveal: bool, lang: Lang = DEFAULT_LANG, manage: bool = False) -> OlympiadTaskOut:
+        # Организатору — русский оригинал и переводы отдельно (для редактора), остальным — перевод с фолбэком.
+        data = localize(row, DEFAULT_LANG if manage else lang, keep_translations=manage)
         if not reveal:
             data["answer"] = None
             data["tolerance"] = None

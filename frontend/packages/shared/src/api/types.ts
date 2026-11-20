@@ -50,6 +50,9 @@ export interface Theme {
   tasks_count: number;
 }
 
+export type TranslationLang = "en" | "tg";
+export type TaskTranslations = Partial<Record<TranslationLang, { title: string; condition: string }>>;
+
 export interface Task extends TaskSource {
   id: number;
   theme_id: number;
@@ -67,11 +70,16 @@ export interface Task extends TaskSource {
   solved: boolean;
   created_at: string;
   updated_at: string;
+  /** На каком языке фактически показано условие (нет перевода — ru). */
+  lang: string;
+  available_langs: string[];
 }
 
 export interface TaskFull extends Task {
   answer: string;
   tolerance: number;
+  /** Переводы для редактора; title/condition при этом — русский оригинал. */
+  translations: TaskTranslations;
 }
 
 export interface TaskInput extends TaskSource {
@@ -84,6 +92,7 @@ export interface TaskInput extends TaskSource {
   answer: string;
   unit: string | null;
   tolerance: number;
+  translations: TaskTranslations;
 }
 
 export interface Attempt {
@@ -297,6 +306,10 @@ export interface OlympiadTask {
   max_points: number;
   answer: string | null;
   tolerance: number | null;
+  lang: string;
+  available_langs: string[];
+  /** Только организатору. */
+  translations: TaskTranslations | null;
 }
 
 export interface OlympiadDetail extends Olympiad {
@@ -322,6 +335,7 @@ export interface OlympiadTaskInput {
   unit: string | null;
   tolerance: number;
   max_points: number;
+  translations: TaskTranslations;
 }
 
 export interface OlympiadSubmission {

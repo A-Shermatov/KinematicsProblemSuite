@@ -18,10 +18,11 @@ import {
   useAsync,
   useAuth,
   useDocumentTitle,
+  t,
 } from "@kps/shared";
 
 export function ManageTasks() {
-  useDocumentTitle("Мои задачи");
+  useDocumentTitle(t("Мои задачи"));
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
@@ -36,7 +37,7 @@ export function ManageTasks() {
   }, [data, search]);
 
   const remove = async (id: number, title: string) => {
-    if (!window.confirm(`Удалить задачу «${title}»? Решения учеников сохранятся в истории.`)) return;
+    if (!window.confirm(t("Удалить задачу «{0}»? Решения учеников сохранятся в истории.", [title]))) return;
     try {
       await api.tasks.remove(id);
       setData((prev) => (prev ?? []).filter((task) => task.id !== id));
@@ -48,20 +49,20 @@ export function ManageTasks() {
   return (
     <>
       <PageHeader
-        title={isAdmin ? "Все задачи" : "Мои задачи"}
-        subtitle="Создавайте задачи с формулами и автопроверкой ответа"
-        actions={<ButtonLink to="/manage/tasks/new">+ Новая задача</ButtonLink>}
+        title={isAdmin ? t("Все задачи") : t("Мои задачи")}
+        subtitle={t("Создавайте задачи с формулами и автопроверкой ответа")}
+        actions={<ButtonLink to="/manage/tasks/new">{t("+ Новая задача")}</ButtonLink>}
       />
       <div className="mb-4 w-full sm:w-80">
-        <Input placeholder="Поиск по названию или теме…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Поиск" />
+        <Input placeholder={t("Поиск по названию или теме…")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("Поиск")} />
       </div>
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && tasks.length === 0 && (
-        <EmptyState title={data.length === 0 ? "Вы ещё не создали ни одной задачи" : "Ничего не найдено"}>
+        <EmptyState title={data.length === 0 ? t("Вы ещё не создали ни одной задачи") : t("Ничего не найдено")}>
           {data.length === 0 && (
             <Link to="/manage/tasks/new" className="text-primary hover:underline">
-              Создать первую задачу
+              {t("Создать первую задачу")}
             </Link>
           )}
         </EmptyState>
@@ -76,17 +77,17 @@ export function ManageTasks() {
                 </Link>
                 <p className="text-xs text-muted">
                   {task.subject_title} → {task.theme_title}
-                  {isAdmin && ` · ${task.author_name}`} · изменена {formatDateTime(task.updated_at)}
+                  {isAdmin && ` · ${task.author_name}`}  {t("· изменена")} {formatDateTime(task.updated_at)}
                 </p>
               </div>
-              <Badge tone={task.check_mode === "auto" ? "primary" : "warning"}>{task.check_mode === "auto" ? "Автопроверка" : "Вручную"}</Badge>
+              <Badge tone={task.check_mode === "auto" ? "primary" : "warning"}>{task.check_mode === "auto" ? t("Автопроверка") : t("Вручную")}</Badge>
               <Difficulty value={task.difficulty} />
               <div className="flex gap-2">
                 <ButtonLink to={`/manage/tasks/${task.id}/edit`} variant="secondary" size="sm">
-                  Изменить
+                  {t("Изменить")}
                 </ButtonLink>
                 <Button variant="danger" size="sm" onClick={() => remove(task.id, task.title)}>
-                  Удалить
+                  {t("Удалить")}
                 </Button>
               </div>
             </div>
@@ -104,7 +105,7 @@ export function TaskEditorPage() {
     <TaskEditor
       taskId={taskId ? Number(taskId) : null}
       listPath="/manage/tasks"
-      listLabel="Мои задачи"
+      listLabel={t("Мои задачи")}
       onSaved={(task) => navigate(`/tasks/${task.id}`)}
     />
   );

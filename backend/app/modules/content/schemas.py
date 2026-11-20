@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.i18n import TranslationIn, TranslationLang
 from app.modules.solutions.checker import validate_expected_answer
 
 CheckMode = Literal["auto", "manual"]
@@ -63,6 +64,9 @@ class TaskIn(BaseModel):
     source_title: str | None = Field(default=None, max_length=200, description="Например: «Рымкевич. Задачник»")
     source_year: int | None = Field(default=None, ge=1800, le=2100)
     source_number: str | None = Field(default=None, max_length=30, description="Номер задачи в источнике")
+    translations: dict[TranslationLang, TranslationIn] = Field(
+        default_factory=dict, description="Переводы условия; русский — основной язык (title/condition)"
+    )
 
     @field_validator("title", "answer")
     @classmethod
@@ -107,6 +111,8 @@ class TaskOut(BaseModel):
     solved: bool = False
     created_at: datetime
     updated_at: datetime
+    lang: str = "ru"
+    available_langs: list[str] = ["ru"]
 
 
 class TaskFull(TaskOut):
@@ -114,3 +120,4 @@ class TaskFull(TaskOut):
 
     answer: str
     tolerance: float
+    translations: dict[str, dict[str, str]] = {}

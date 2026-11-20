@@ -8,34 +8,31 @@ import {
   useAsync,
   useAuth,
   useDocumentTitle,
+  t,
 } from "@kps/shared";
 
 const FEATURES = [
   {
     icon: "✓",
-    title: "Умная автопроверка",
-    text: "Ответ «72 км/ч» засчитается в задаче, где ждут «20 м/с»: система понимает числа, погрешность и единицы измерения.",
+    title: t("Умная автопроверка"),
+    text: t("Ответ «72 км/ч» засчитается в задаче, где ждут «20 м/с»: система понимает числа, погрешность и единицы измерения."),
   },
   {
     icon: "∫",
-    title: "Формулы как в учебнике",
-    text: "Условия задач поддерживают Markdown и LaTeX — учитель видит предпросмотр прямо во время набора.",
+    title: t("Формулы как в учебнике"),
+    text: t("Условия задач поддерживают Markdown и LaTeX — учитель видит предпросмотр прямо во время набора."),
   },
   {
     icon: "↗",
-    title: "Прогресс и рейтинг",
-    text: "Статистика по темам, история решений и рейтинг учеников за неделю, месяц и всё время.",
+    title: t("Прогресс и рейтинг"),
+    text: t("Статистика по темам, история решений и рейтинг учеников за неделю, месяц и всё время."),
   },
 ];
 
-const SAMPLE = `Автомобиль разгоняется из состояния покоя с ускорением $a = 2\\ \\text{м/с}^2$.
-
-$$s = \\frac{a t^2}{2}$$
-
-Какой путь он пройдёт за $t = 5$ с?`;
+const SAMPLE = t("Автомобиль разгоняется из состояния покоя с ускорением $a = 2\\ \\text{м/с}^2$.\n\n$$s = \\frac{a t^2}{2}$$\n\nКакой путь он пройдёт за $t = 5$ с?");
 
 export function Home() {
-  useDocumentTitle("Главная");
+  useDocumentTitle(t("Главная"));
   const { user } = useAuth();
   const { data: subjects } = useAsync(() => api.subjects.list(), []);
 
@@ -44,22 +41,22 @@ export function Home() {
       <section className="grid items-center gap-10 pt-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-6">
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
-            <span className="h-2 w-2 rounded-full bg-success" /> Подготовка к олимпиадам и экзаменам
+            <span className="h-2 w-2 rounded-full bg-success" />  {t("Подготовка к олимпиадам и экзаменам")}
           </span>
           <h1 className="text-4xl font-extrabold leading-[1.1] tracking-tight text-fg sm:text-5xl">
-            Решайте задачи по физике и математике —{" "}
-            <span className="bg-gradient-to-r from-indigo-500 to-violet-500 bg-clip-text text-transparent">с мгновенной проверкой</span>
+            {t("Решайте задачи по физике и математике —")}{" "}
+            <span className="bg-gradient-to-r from-indigo-500 to-violet-500 bg-clip-text text-transparent">{t("с мгновенной проверкой")}</span>
           </h1>
           <p className="max-w-xl text-lg text-muted">
-            Кинематика, динамика, алгебра и олимпиадные задачи. Тренируйтесь в своём темпе, а учителя создают задачи и проверяют решения в одном месте.
+            {t("Кинематика, динамика, алгебра и олимпиадные задачи. Тренируйтесь в своём темпе, а учителя создают задачи и проверяют решения в одном месте.")}
           </p>
           <div className="flex flex-wrap gap-3">
             <ButtonLink to="/catalog" size="lg">
-              Начать решать
+              {t("Начать решать")}
             </ButtonLink>
             {!user && (
               <ButtonLink to="/register" size="lg" variant="secondary">
-                Создать аккаунт
+                {t("Создать аккаунт")}
               </ButtonLink>
             )}
           </div>
@@ -67,11 +64,11 @@ export function Home() {
 
         <Card className="relative overflow-hidden p-6">
           <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" aria-hidden />
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">Пример задачи</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">{t("Пример задачи")}</p>
           <Markdown source={SAMPLE} />
           <div className="mt-5 flex items-center gap-3 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm">
-            <span className="font-mono text-fg">25 м</span>
-            <span className="ml-auto font-medium text-success">✓ Верно!</span>
+            <span className="font-mono text-fg">{t("25 м")}</span>
+            <span className="ml-auto font-medium text-success">{t("✓ Верно!")}</span>
           </div>
         </Card>
       </section>
@@ -90,7 +87,7 @@ export function Home() {
 
       {subjects && subjects.length > 0 && (
         <section className="space-y-5">
-          <h2 className="text-2xl font-bold tracking-tight text-fg">Предметы</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-fg">{t("Предметы")}</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {subjects.map((subject) => (
               <Link key={subject.id} to={`/catalog#subject-${subject.id}`} className="group">
