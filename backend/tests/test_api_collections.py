@@ -40,7 +40,7 @@ def test_collections(client: ApiClient) -> None:
     # Удалённая задача пропадает из подборки.
     client.delete(f"/api/tasks/{tasks[1]['id']}", teacher)
     assert client.get(url, teacher).json()["tasks"] == []
-    assert client.delete(url, other).status_code == 403
+    assert client.delete(url, other).status_code == 404  # скрытая подборка для чужих не существует
     assert client.delete(url, teacher).status_code == 204
     assert client.get(url, teacher).status_code == 404
 
