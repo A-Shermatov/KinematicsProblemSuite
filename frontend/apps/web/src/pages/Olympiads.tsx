@@ -32,12 +32,14 @@ import {
   type OlympiadResults,
   type OlympiadSubmission,
   type OlympiadTask,
+  type VirtualRun,
+  type VirtualStandingRow,
 } from "@kps/shared";
 
 const PHASE_TABS: { key: OlympiadPhase; label: string }[] = [
   { key: "running", label: "Идут сейчас" },
   { key: "upcoming", label: "Скоро" },
-  { key: "finished", label: "Завершены" },
+  { key: "finished", label: "Архив" },
 ];
 const DIPLOMA = { 1: "Диплом I степени", 2: "Диплом II степени", 3: "Диплом III степени" } as const;
 const MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" } as const;
@@ -90,7 +92,7 @@ export function Olympiads() {
     <>
       <PageHeader
         title="Олимпиады"
-        subtitle="Решайте в общее время со всеми, прикладывайте фото решения — жюри проверит и выдаст дипломы призёрам"
+        subtitle="Решайте в общее время со всеми, прикладывайте фото решения — жюри проверит и выдаст дипломы призёрам. Прошедшие олимпиады можно решить виртуально."
         actions={
           user?.role === "teacher" && (
             <ButtonLink to="/manage/olympiads" variant="secondary">
@@ -112,8 +114,13 @@ export function Olympiads() {
       </div>
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
+      {phase === "finished" && data && data.length > 0 && (
+        <p className="mb-4 text-sm text-muted">
+          ⏱ Любую олимпиаду из архива можно решить виртуально: личный таймер той же длительности, только ответы, автопроверка.
+        </p>
+      )}
       {data && data.length === 0 && (
-        <EmptyState icon="🏁" title={phase === "running" ? "Сейчас олимпиад нет" : phase === "upcoming" ? "Скоро олимпиад нет" : "Пока нет завершённых олимпиад"}>
+        <EmptyState icon="🏁" title={phase === "running" ? "Сейчас олимпиад нет" : phase === "upcoming" ? "Скоро олимпиад нет" : "В архиве пока пусто"}>
           {phase === "running" && (
             <button className="text-primary hover:underline" onClick={() => setPhase("upcoming")}>
               Посмотреть ближайшие
@@ -193,6 +200,139 @@ function SubmitForm({ olympiadId, task, submission, onSaved }: { olympiadId: num
   );
 }
 
+function formatDuration(ms: number): string {
+  const minutes = Math.round(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours} ${plural(hours, ["час", "часа", "часов"])}`);
+  if (rest) parts.push(`${rest} ${plural(rest, ["минута", "минуты", "минут"])}`);
+  return parts.join(" ") || "меньше минуты";
+}
+
+function VirtualAnswerForm({ olympiadId, task, saved, onSaved }: { olympiadId: number; task: OlympiadTask; saved?: string; onSaved: (run: VirtualRun) => void }) {
+  const [answer, setAnswer] = useState(saved ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      onSaved(await api.olympiads.submitVirtual(olympiadId, task.id, answer));
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-3 border-t border-border pt-4">
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
+        <Input
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          placeholder={task.answer_type === "number" ? `Ответ${task.unit ? `, ${task.unit}` : ""}` : "Ответ"}
+          aria-label={`Ответ к задаче ${task.title}`}
+          className="font-mono"
+          required
+        />
+        <Button type="submit" loading={saving} variant={saved !== undefined && saved === answer.trim() ? "secondary" : "primary"}>
+          {saved !== undefined ? "Изменить ответ" : "Сохранить ответ"}
+        </Button>
+      </div>
+      {saved !== undefined && (
+        <p className="text-xs text-success">
+          ✓ Сохранён ответ <span className="font-mono">{saved}</span> — результат увидите после окончания
+        </p>
+      )}
+    </form>
+  );
+}
+
+function VirtualStartCard({ olympiad, onStarted }: { olympiad: OlympiadDetail; onStarted: (run: VirtualRun) => void }) {
+  const [busy, setBusy] = useState(false);
+  const duration = formatDuration(new Date(olympiad.ends_at).getTime() - new Date(olympiad.starts_at).getTime());
+  const start = async () => {
+    if (!window.confirm(`Таймер на ${duration} запустится сразу и не остановится. Начать?`)) return;
+    setBusy(true);
+    try {
+      onStarted(await api.olympiads.startVirtual(olympiad.id));
+    } catch (err) {
+      window.alert(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="flex flex-wrap items-center gap-5 border-primary/30 bg-primary-soft/40 p-5">
+      <span className="text-4xl" aria-hidden>
+        ⏱
+      </span>
+      <div className="min-w-[14rem] flex-1 space-y-1">
+        <p className="font-semibold text-fg">Решите эту олимпиаду виртуально</p>
+        <p className="text-sm text-muted">
+          Личный таймер на {duration}, как у участников. Только ответы, без фото — проверка автоматическая. Ответы и итоги скроются, пока идёт ваше время. На
+          официальные места, дипломы и рейтинг не влияет.
+        </p>
+      </div>
+      <Button onClick={start} loading={busy} size="lg">
+        Решить виртуально
+      </Button>
+    </Card>
+  );
+}
+
+function VirtualResultCard({ run }: { run: VirtualRun }) {
+  return (
+    <Card className="flex flex-wrap items-center gap-4 border-primary/30 p-5">
+      <span className="text-4xl" aria-hidden>
+        ⏱
+      </span>
+      <div className="flex-1">
+        <p className="font-semibold text-fg">
+          Виртуальный результат: {run.total} из {run.max_score}
+        </p>
+        <p className="text-sm text-muted">
+          {run.official_participants > 0
+            ? `Среди официальных участников это было бы ${run.would_place} место из ${run.official_participants + 1}`
+            : "Официальных участников не было"}
+          {" · "}
+          {formatDateTime(run.started_at)}
+        </p>
+      </div>
+      <Badge tone="primary">вне зачёта</Badge>
+    </Card>
+  );
+}
+
+function VirtualStandings({ rows, maxScore, highlight }: { rows: VirtualStandingRow[]; maxScore: number; highlight?: number }) {
+  return (
+    <Card className="divide-y divide-border">
+      {rows.map((row, index) => (
+        <div key={row.user_id} className={cx("flex items-center gap-3 px-4 py-3 text-sm", row.user_id === highlight && "bg-primary-soft/60")}>
+          <span className="w-6 text-center font-bold text-muted">{index + 1}</span>
+          <Avatar src={row.avatar_url} name={row.name || row.username} size={32} />
+          <div className="min-w-0 flex-1">
+            <Link to={`/users/${row.user_id}`} className="font-medium text-fg hover:text-primary">
+              {row.name || row.username}
+            </Link>
+            <p className="truncate text-xs text-muted">{[row.school, row.city].filter(Boolean).join(", ")}</p>
+          </div>
+          <span className="hidden text-xs text-muted sm:inline">было бы {row.would_place} место</span>
+          <span className="w-16 text-right font-bold tabular-nums text-primary">
+            {row.total}
+            <span className="text-xs font-normal text-muted"> / {maxScore}</span>
+          </span>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function ResultsTable({ results, tasks, highlight }: { results: OlympiadResults; tasks: OlympiadTask[]; highlight?: number }) {
   if (results.rows.length === 0) return <EmptyState title="Никто не отправил решений" />;
   return (
@@ -250,24 +390,44 @@ export function OlympiadPage() {
   const [busy, setBusy] = useState(false);
   const { data, error, loading, setData, reload } = useAsync(async () => {
     const olympiad = await api.olympiads.get(olympiadId);
-    const [submissions, results] = await Promise.all([
+    const finished = olympiad.phase === "finished";
+    const [submissions, results, run, virtualRows] = await Promise.all([
       olympiad.is_registered ? api.olympiads.mySubmissions(olympiadId) : Promise.resolve([] as OlympiadSubmission[]),
-      olympiad.phase === "finished" ? api.olympiads.results(olympiadId) : Promise.resolve(null),
+      finished ? api.olympiads.results(olympiadId) : Promise.resolve(null),
+      finished && user ? api.olympiads.virtual(olympiadId) : Promise.resolve(null),
+      finished ? api.olympiads.virtualStandings(olympiadId) : Promise.resolve([] as VirtualStandingRow[]),
     ]);
-    return { olympiad, submissions, results };
+    return { olympiad, submissions, results, run, virtualRows };
   }, [olympiadId, user?.id]);
   useDocumentTitle(data?.olympiad.title);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? "Олимпиада не найдена"}</ErrorMessage>;
-  const { olympiad, submissions, results } = data;
+  const { olympiad, submissions, results, run, virtualRows } = data;
+  const virtualActive = !!run?.active;
+  const virtualByTask = new Map(run?.submissions.map((s) => [s.task_id, s]));
+  const canVirtual = !!user && olympiad.phase === "finished" && !olympiad.can_manage && !olympiad.is_registered && !run;
+  const setRun = (next: VirtualRun) => {
+    // Начало и конец виртуального участия меняют то, что видно на странице (ответы), — перезагружаем.
+    if (next.active !== run?.active) reload();
+    else setData((prev) => ({ ...prev!, run: next }));
+  };
+  const finishVirtual = async () => {
+    if (!window.confirm("Завершить досрочно? Изменить ответы будет нельзя.")) return;
+    try {
+      setRun(await api.olympiads.finishVirtual(olympiad.id));
+    } catch (err) {
+      window.alert(errorText(err));
+    }
+  };
   const phase = olympiadPhaseMeta[olympiad.phase];
   const byTask = new Map(submissions.map((s) => [s.task_id, s]));
   const myRow = results?.rows.find((row) => row.user_id === user?.id);
   // Этап мог смениться, пока страница открыта.
   const phaseChanged =
     (olympiad.phase === "upcoming" && now >= new Date(olympiad.starts_at).getTime()) ||
-    (olympiad.phase === "running" && now >= new Date(olympiad.ends_at).getTime());
+    (olympiad.phase === "running" && now >= new Date(olympiad.ends_at).getTime()) ||
+    (virtualActive && now >= new Date(run!.ends_at).getTime());
 
   const toggleRegistration = async () => {
     setBusy(true);
@@ -296,6 +456,7 @@ export function OlympiadPage() {
               <Badge tone={phase.tone}>{phase.label}</Badge>
               {olympiad.subject_title && <Badge>{olympiad.subject_title}</Badge>}
               {olympiad.is_registered && <Badge tone="primary">✓ Вы участник</Badge>}
+              {virtualActive && <Badge tone="warning">⏱ Виртуальное участие</Badge>}
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-fg sm:text-3xl">{olympiad.title}</h1>
             <p className="text-sm text-muted">
@@ -312,14 +473,20 @@ export function OlympiadPage() {
           <div className="flex flex-col items-center gap-3">
             {olympiad.phase === "upcoming" && <Countdown to={olympiad.starts_at} label="До начала" />}
             {olympiad.phase === "running" && <Countdown to={olympiad.ends_at} label="До конца" />}
+            {virtualActive && <Countdown to={run!.ends_at} label="Ваше время" />}
+            {virtualActive && (
+              <Button variant="secondary" size="sm" onClick={finishVirtual}>
+                Завершить досрочно
+              </Button>
+            )}
             {user?.role === "student" && (olympiad.phase === "upcoming" || (olympiad.phase === "running" && !olympiad.is_registered)) && (
               <Button onClick={toggleRegistration} loading={busy} variant={olympiad.is_registered ? "secondary" : "primary"} size="lg">
                 {olympiad.is_registered ? "Отменить участие" : "Участвовать"}
               </Button>
             )}
-            {!user && olympiad.phase !== "finished" && (
+            {!user && (
               <ButtonLink to="/login" state={{ from: `/olympiads/${olympiad.id}` }} size="lg">
-                Войти, чтобы участвовать
+                {olympiad.phase === "finished" ? "Войти, чтобы решить виртуально" : "Войти, чтобы участвовать"}
               </ButtonLink>
             )}
             {olympiad.can_manage && (
@@ -333,7 +500,9 @@ export function OlympiadPage() {
 
       {phaseChanged && (
         <Card className="flex flex-wrap items-center gap-4 border-primary/40 bg-primary-soft p-4">
-          <p className="flex-1 text-sm text-fg">{olympiad.phase === "upcoming" ? "Олимпиада началась!" : "Время вышло — олимпиада завершена."}</p>
+          <p className="flex-1 text-sm text-fg">
+            {olympiad.phase === "upcoming" ? "Олимпиада началась!" : virtualActive ? "Ваше время вышло — посмотрите результат." : "Время вышло — олимпиада завершена."}
+          </p>
           <Button size="sm" onClick={reload}>
             Обновить
           </Button>
@@ -358,7 +527,10 @@ export function OlympiadPage() {
         </EmptyState>
       )}
 
-      {myRow && (
+      {canVirtual && <VirtualStartCard olympiad={olympiad} onStarted={setRun} />}
+      {run && !run.active && <VirtualResultCard run={run} />}
+
+      {myRow && !virtualActive && (
         <Card className="flex flex-wrap items-center gap-4 border-primary/30 p-5">
           <span className="text-4xl" aria-hidden>
             {myRow.diploma ? MEDAL[myRow.diploma] : "🎓"}
@@ -373,10 +545,20 @@ export function OlympiadPage() {
         </Card>
       )}
 
-      {results && (
+      {results && !virtualActive && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-fg">Итоговая таблица</h2>
           <ResultsTable results={results} tasks={olympiad.tasks} highlight={user?.id} />
+        </section>
+      )}
+
+      {virtualRows.length > 0 && !virtualActive && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-fg">Виртуальные участники</h2>
+            <p className="text-sm text-muted">Решали после олимпиады, вне зачёта</p>
+          </div>
+          <VirtualStandings rows={virtualRows} maxScore={olympiad.max_score} highlight={user?.id} />
         </section>
       )}
 
@@ -402,7 +584,10 @@ export function OlympiadPage() {
                     onSaved={(saved) => setData((prev) => ({ ...prev!, submissions: [...prev!.submissions.filter((s) => s.task_id !== saved.task_id), saved] }))}
                   />
                 )}
-                {olympiad.phase === "finished" && (
+                {virtualActive && (
+                  <VirtualAnswerForm olympiadId={olympiad.id} task={task} saved={virtualByTask.get(task.id)?.answer} onSaved={setRun} />
+                )}
+                {olympiad.phase === "finished" && !virtualActive && (
                   <div className="space-y-2 border-t border-border pt-4 text-sm">
                     {task.answer && (
                       <p className="text-muted">
@@ -419,6 +604,15 @@ export function OlympiadPage() {
                           моё фото
                         </button>
                         {submission.jury_comment && <span className="text-muted">Жюри: «{submission.jury_comment}»</span>}
+                      </div>
+                    )}
+                    {virtualByTask.has(task.id) && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={virtualByTask.get(task.id)!.correct ? "success" : "danger"}>
+                          {virtualByTask.get(task.id)!.points} / {task.max_points}
+                        </Badge>
+                        <span className="font-mono text-fg">{virtualByTask.get(task.id)!.answer}</span>
+                        <span className="text-xs text-muted">виртуально</span>
                       </div>
                     )}
                   </div>

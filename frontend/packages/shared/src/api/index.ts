@@ -10,6 +10,8 @@ import type {
   OlympiadLeaderRow,
   OlympiadPhase,
   OlympiadResults,
+  VirtualRun,
+  VirtualStandingRow,
   OlympiadStatus,
   OlympiadSubmission,
   OlympiadTask,
@@ -194,6 +196,13 @@ export const api = {
     },
     mySubmissions: (id: number) => request<OlympiadSubmission[]>(`/api/olympiads/${id}/my-submissions`),
     results: (id: number) => request<OlympiadResults>(`/api/olympiads/${id}/results`),
+    virtual: (id: number) => request<VirtualRun | null>(`/api/olympiads/${id}/virtual`),
+    startVirtual: (id: number) => request<VirtualRun>(`/api/olympiads/${id}/virtual`, { method: "POST" }),
+    submitVirtual: (id: number, taskId: number, answer: string) =>
+      request<VirtualRun>(`/api/olympiads/${id}/virtual/tasks/${taskId}`, { method: "POST", json: { answer } }),
+    finishVirtual: (id: number) => request<VirtualRun>(`/api/olympiads/${id}/virtual/finish`, { method: "POST" }),
+    virtualStandings: (id: number) =>
+      request<VirtualStandingRow[]>(`/api/olympiads/${id}/virtual/standings`, { auth: false }),
     jury: (id: number, query: { task_id?: number; ungraded?: boolean } = {}) =>
       request<OlympiadSubmission[]>(`/api/olympiads/${id}/submissions`, { query }),
     grade: (id: number, submissionId: number, points: number, comment: string) =>

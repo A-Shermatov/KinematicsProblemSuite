@@ -24,6 +24,9 @@ from app.modules.olympiads.schemas import (
     OlympiadTaskOut,
     Phase,
     SubmissionOut,
+    VirtualAnswerIn,
+    VirtualRunOut,
+    VirtualSubmissionOut,
 )
 from app.modules.solutions.checker import check_answer
 from app.storage import delete_file, public_url, save_image
@@ -68,6 +71,10 @@ async def _detail(conn: asyncpg.Connection, row: asyncpg.Record, viewer: Current
     show_tasks = manage or phase == "finished" or (phase in ("running", "checking") and row["is_registered"])
     tasks = await conn.fetch(q.LIST_TASKS, row["id"]) if show_tasks else []
     reveal = manage or phase == "finished"
+    if reveal and not manage and viewer is not None:
+        # Пока идёт виртуальное участие, ответы скрыты — иначе это не тренировка.
+        run = await conn.fetchrow(q.GET_RUN, row["id"], viewer.id)
+        reveal = not (run and run["active"])
     return OlympiadDetail(
         **dict(row),
         tasks=[OlympiadTaskOut.from_row(t, reveal=reveal) for t in tasks],
@@ -347,3 +354,110 @@ async def publish_results(
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Жюри ещё не проверило {ungraded} решений")
     await conn.execute(q.PUBLISH_RESULTS, olympiad_id)
     return await _detail(conn, await _get(conn, olympiad_id, user), user)
+
+
+# ---------- Архив: виртуальное участие ----------
+
+
+async def _finished_for_virtual(conn: asyncpg.Connection, olympiad_id: int, user: CurrentUser) -> asyncpg.Record:
+    row = await _get(conn, olympiad_id, user)
+    if row["status"] != "published":
+        raise not_found("Олимпиада")
+    if row["phase"] != "finished":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="Виртуально можно решать только олимпиады с опубликованными итогами"
+        )
+    return row
+
+
+async def _run_out(conn: asyncpg.Connection, olympiad: asyncpg.Record, run: asyncpg.Record) -> VirtualRunOut:
+    rows = await conn.fetch(q.RUN_SUBMISSIONS, run["id"])
+    finished = not run["active"]
+    submissions = [
+        VirtualSubmissionOut(
+            **{
+                **dict(r),
+                "correct": r["correct"] if finished else None,
+                "points": r["points"] if finished else None,
+                "correct_answer": r["correct_answer"] if finished else None,
+            }
+        )
+        for r in rows
+    ]
+    total = sum(r["points"] for r in rows) if finished else None
+    official = await conn.fetch(q.RESULTS, olympiad["id"])
+    return VirtualRunOut(
+        started_at=run["started_at"],
+        ends_at=run["ends_at"],
+        active=run["active"],
+        submissions=submissions,
+        total=total,
+        max_score=olympiad["max_score"],
+        would_place=await conn.fetchval(q.WOULD_PLACE, olympiad["id"], total) if total is not None else None,
+        official_participants=len(official),
+    )
+
+
+@router.get("/{olympiad_id}/virtual", response_model=VirtualRunOut | None)
+async def my_virtual_run(olympiad_id: int, user: User, conn: Conn) -> VirtualRunOut | None:
+    olympiad = await _get(conn, olympiad_id, user)
+    run = await conn.fetchrow(q.GET_RUN, olympiad_id, user.id)
+    return await _run_out(conn, olympiad, run) if run else None
+
+
+@router.post("/{olympiad_id}/virtual", response_model=VirtualRunOut, status_code=status.HTTP_201_CREATED)
+async def start_virtual(olympiad_id: int, user: User, conn: Conn) -> VirtualRunOut:
+    """Начать виртуальное участие: личный таймер той же длительности, что у официальной олимпиады."""
+    olympiad = await _finished_for_virtual(conn, olympiad_id, user)
+    if _can_manage(olympiad, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Организатор не может участвовать в своей олимпиаде")
+    if olympiad["is_registered"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Вы участвовали в этой олимпиаде официально")
+    duration = olympiad["ends_at"] - olympiad["starts_at"]
+    if await conn.fetchval(q.START_RUN, olympiad_id, user.id, duration) is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Вы уже участвовали в этой олимпиаде виртуально")
+    return await _run_out(conn, olympiad, await conn.fetchrow(q.GET_RUN, olympiad_id, user.id))
+
+
+@router.post("/{olympiad_id}/virtual/tasks/{task_id}", response_model=VirtualRunOut)
+async def submit_virtual(
+    olympiad_id: int, task_id: int, data: VirtualAnswerIn, user: User, conn: Conn
+) -> VirtualRunOut:
+    """Ответ без фото. Проверяется автоматически, результат виден после окончания личного времени."""
+    olympiad = await _finished_for_virtual(conn, olympiad_id, user)
+    run = await conn.fetchrow(q.GET_RUN, olympiad_id, user.id)
+    if run is None or not run["active"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Виртуальное участие не идёт")
+    task = await conn.fetchrow(q.GET_TASK, task_id, olympiad_id)
+    if task is None:
+        raise not_found("Задача")
+    answer = data.answer.strip()
+    correct = check_answer(
+        answer, expected=task["answer"], answer_type=task["answer_type"], unit=task["unit"], tolerance=task["tolerance"]
+    ).correct
+    await conn.execute(
+        q.UPSERT_VIRTUAL_SUBMISSION, run["id"], task_id, answer, correct, task["max_points"] if correct else 0
+    )
+    return await _run_out(conn, olympiad, await conn.fetchrow(q.GET_RUN, olympiad_id, user.id))
+
+
+@router.post("/{olympiad_id}/virtual/finish", response_model=VirtualRunOut)
+async def finish_virtual(olympiad_id: int, user: User, conn: Conn) -> VirtualRunOut:
+    olympiad = await _get(conn, olympiad_id, user)
+    run = await conn.fetchrow(q.GET_RUN, olympiad_id, user.id)
+    if run is None:
+        raise not_found("Виртуальное участие")
+    await conn.execute(q.FINISH_RUN, run["id"])
+    return await _run_out(conn, olympiad, await conn.fetchrow(q.GET_RUN, olympiad_id, user.id))
+
+
+@router.get("/{olympiad_id}/virtual/standings")
+async def virtual_standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> list[dict[str, Any]]:
+    """Таблица виртуальных участников (отдельно от официальной) с местом, которое они заняли бы."""
+    row = await _get(conn, olympiad_id, viewer)
+    if row["status"] != "published" or row["phase"] != "finished":
+        raise not_found("Олимпиада")
+    return [
+        {**{k: v for k, v in dict(r).items() if k != "avatar_path"}, "avatar_url": public_url(r["avatar_path"])}
+        for r in await conn.fetch(q.VIRTUAL_STANDINGS, olympiad_id)
+    ]

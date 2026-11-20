@@ -161,3 +161,33 @@ class GradeIn(BaseModel):
 class ReviewIn(BaseModel):
     status: Literal["published", "rejected"]
     reason: str = Field(default="", max_length=500)
+
+
+class VirtualSubmissionOut(BaseModel):
+    task_id: int
+    task_title: str
+    task_position: int
+    max_points: int
+    answer: str
+    correct: bool | None
+    points: int | None
+    submitted_at: datetime
+    correct_answer: str | None
+    task_unit: str | None
+
+
+class VirtualRunOut(BaseModel):
+    """Виртуальное участие. Результаты открываются, когда личное время закончилось."""
+
+    started_at: datetime
+    ends_at: datetime
+    active: bool
+    submissions: list[VirtualSubmissionOut]
+    total: int | None
+    max_score: int
+    would_place: int | None
+    official_participants: int
+
+
+class VirtualAnswerIn(BaseModel):
+    answer: str = Field(min_length=1, max_length=500)
