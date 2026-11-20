@@ -12,6 +12,7 @@ from app.modules.content.params import values_for as param_values
 from app.modules.solutions import queries as q
 from app.modules.solutions.checker import check_answer, mistake_hint
 from app.modules.solutions.schemas import AttemptOut, AttemptStatus, GradeIn, Scope
+from app.modules.telegram import notify
 from app.storage import delete_file, save_image
 
 router = APIRouter(prefix="/attempts", tags=["attempts"])
@@ -138,4 +139,5 @@ async def grade_attempt(attempt_id: int, data: GradeIn, user: User, conn: Conn) 
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Оценивать можно только решения своих задач")
     await conn.execute(q.GRADE_ATTEMPT, attempt_id, data.grade, data.feedback.strip(), user.id)
     row = await conn.fetchrow(q.GET_ATTEMPT, attempt_id)
+    await notify.attempt_graded(conn, row)
     return AttemptOut.from_row(row, viewer_id=user.id, viewer_is_admin=user.is_admin)

@@ -30,6 +30,7 @@ from app.modules.olympiads.schemas import (
     VirtualSubmissionOut,
 )
 from app.modules.solutions.checker import check_answer
+from app.modules.telegram import notify
 from app.storage import delete_file, public_url, save_image
 
 router = APIRouter(prefix="/olympiads", tags=["olympiads"])
@@ -358,6 +359,7 @@ async def publish_results(
     if ungraded and not force:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Жюри ещё не проверило {ungraded} решений")
     await conn.execute(q.PUBLISH_RESULTS, olympiad_id)
+    await notify.olympiad_results(conn, row, await conn.fetch(q.RESULTS, olympiad_id))
     return await _detail(conn, await _get(conn, olympiad_id, user), user)
 
 
