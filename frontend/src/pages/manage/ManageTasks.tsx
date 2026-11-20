@@ -1,10 +1,10 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, type AnswerType, type CheckMode, type TaskInput } from "../../api";
+import { api, type AnswerType, type CheckMode, type SourceType, type TaskInput } from "../../api";
 import { useAuth } from "../../auth/AuthContext";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 import { Badge, Button, ButtonLink, Card, Difficulty, EmptyState, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../../components/ui";
-import { difficultyLabel, formatDateTime } from "../../lib/format";
+import { difficultyLabel, formatDateTime, formatSource, sourceTypeLabel } from "../../lib/format";
 import { errorText, useAsync, useDocumentTitle } from "../../lib/hooks";
 
 export function ManageTasks() {
@@ -94,6 +94,10 @@ const EMPTY: TaskInput = {
   answer: "",
   unit: null,
   tolerance: 0.01,
+  source_type: null,
+  source_title: null,
+  source_year: null,
+  source_number: null,
 };
 
 export function TaskEditor() {
@@ -119,6 +123,10 @@ export function TaskEditor() {
         answer: task.answer,
         unit: task.unit,
         tolerance: task.tolerance,
+        source_type: task.source_type,
+        source_title: task.source_title,
+        source_year: task.source_year,
+        source_number: task.source_number,
       });
     } else if (themeList.length > 0) {
       setForm((prev) => (prev && prev.theme_id === 0 ? { ...prev, theme_id: themeList[0].id } : prev));
@@ -198,6 +206,65 @@ export function TaskEditor() {
               ))}
             </div>
           </div>
+        </Card>
+
+        <Card className="space-y-5 p-6">
+          <div>
+            <h2 className="font-semibold text-fg">Источник</h2>
+            <p className="text-sm text-muted">Необязательно. Ученики увидят, откуда взята задача.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-[1fr_2fr]">
+            <Select
+              label="Тип"
+              value={form.source_type ?? ""}
+              onChange={(e) => set("source_type", (e.target.value || null) as SourceType | null)}
+            >
+              <option value="">Не указан</option>
+              {(Object.keys(sourceTypeLabel) as SourceType[]).map((type) => (
+                <option key={type} value={type}>
+                  {sourceTypeLabel[type]}
+                </option>
+              ))}
+            </Select>
+            {form.source_type && (
+              <Input
+                label={form.source_type === "own" ? "Название (необязательно)" : "Название"}
+                value={form.source_title ?? ""}
+                onChange={(e) => set("source_title", e.target.value || null)}
+                required={form.source_type !== "own"}
+                maxLength={200}
+                placeholder={
+                  form.source_type === "book"
+                    ? "Рымкевич. Задачник по физике 10–11"
+                    : form.source_type === "olympiad"
+                      ? "Республиканская олимпиада, финал"
+                      : form.source_type === "exam"
+                        ? "Вступительный тест ЦТТ"
+                        : "Мой сборник"
+                }
+              />
+            )}
+          </div>
+          {form.source_type && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Год"
+                type="number"
+                min={1800}
+                max={2100}
+                value={form.source_year ?? ""}
+                onChange={(e) => set("source_year", e.target.value ? Number(e.target.value) : null)}
+              />
+              <Input
+                label="Номер задачи"
+                value={form.source_number ?? ""}
+                onChange={(e) => set("source_number", e.target.value || null)}
+                maxLength={30}
+                placeholder="123 или 5.14"
+              />
+            </div>
+          )}
+          {formatSource(form) && <p className="text-sm text-muted">Будет показано: «Источник: {formatSource(form)}»</p>}
         </Card>
 
         <Card className="space-y-5 p-6">

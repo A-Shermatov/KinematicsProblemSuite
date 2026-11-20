@@ -3,6 +3,14 @@ export type CheckMode = "auto" | "manual";
 export type AnswerType = "number" | "text";
 export type AttemptStatus = "correct" | "incorrect" | "pending" | "graded";
 export type AttemptScope = "mine" | "authored" | "all";
+export type SourceType = "book" | "olympiad" | "exam" | "own";
+
+export interface TaskSource {
+  source_type: SourceType | null;
+  source_title: string | null;
+  source_year: number | null;
+  source_number: string | null;
+}
 
 export interface User {
   id: number;
@@ -40,7 +48,7 @@ export interface Theme {
   tasks_count: number;
 }
 
-export interface Task {
+export interface Task extends TaskSource {
   id: number;
   theme_id: number;
   theme_title: string;
@@ -64,7 +72,7 @@ export interface TaskFull extends Task {
   tolerance: number;
 }
 
-export interface TaskInput {
+export interface TaskInput extends TaskSource {
   theme_id: number;
   title: string;
   condition: string;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { api, type Task, type Theme } from "../api";
+import { api, type SourceType, type Task, type Theme } from "../api";
 import { Badge, Card, Difficulty, EmptyState, ErrorMessage, Input, Loading, PageHeader, cx } from "../components/ui";
-import { difficultyLabel, plural } from "../lib/format";
+import { difficultyLabel, formatSource, plural, sourceTypeLabel } from "../lib/format";
 import { useAsync, useDocumentTitle } from "../lib/hooks";
 
 export function Catalog() {
@@ -77,7 +77,10 @@ export function TaskRow({ task, to }: { task: Task; to: string }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-fg group-hover:text-primary">{task.title}</p>
-        <p className="text-xs text-muted">{task.author_name}</p>
+        <p className="truncate text-xs text-muted">
+          {task.author_name}
+          {formatSource(task) && ` · ${formatSource(task)}`}
+        </p>
       </div>
       {task.check_mode === "manual" && <Badge tone="warning">Проверка учителем</Badge>}
       <div className="hidden w-28 flex-col items-end gap-1 sm:flex">
@@ -92,6 +95,7 @@ export function ThemeTasks() {
   const themeId = Number(useParams().themeId);
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [source, setSource] = useState<SourceType | "">("");
   const { data, error, loading } = useAsync(async () => {
     const [theme, tasks] = await Promise.all([api.themes.get(themeId), api.tasks.list({ theme_id: themeId })]);
     return { theme, tasks };
@@ -101,9 +105,12 @@ export function ThemeTasks() {
   const tasks = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (data?.tasks ?? []).filter(
-      (task) => (difficulty === null || task.difficulty === difficulty) && (!query || task.title.toLowerCase().includes(query)),
+      (task) =>
+        (difficulty === null || task.difficulty === difficulty) &&
+        (!source || task.source_type === source) &&
+        (!query || `${task.title} ${task.source_title ?? ""}`.toLowerCase().includes(query)),
     );
-  }, [data, difficulty, search]);
+  }, [data, difficulty, search, source]);
 
   if (loading) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? "Тема не найдена"}</ErrorMessage>;
@@ -125,8 +132,21 @@ export function ThemeTasks() {
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="w-full sm:w-72">
-          <Input placeholder="Поиск по названию…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Поиск задач" />
+          <Input placeholder="Поиск по названию или источнику…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Поиск задач" />
         </div>
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value as SourceType | "")}
+          className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
+          aria-label="Источник"
+        >
+          <option value="">Любой источник</option>
+          {(Object.keys(sourceTypeLabel) as SourceType[]).map((type) => (
+            <option key={type} value={type}>
+              {sourceTypeLabel[type]}
+            </option>
+          ))}
+        </select>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Фильтр по сложности">
           {[null, 1, 2, 3, 4, 5].map((level) => (
             <button

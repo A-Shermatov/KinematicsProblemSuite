@@ -5,6 +5,7 @@ import type {
   AttemptStatus,
   LeaderboardRow,
   Role,
+  SourceType,
   Stats,
   Subject,
   Task,
@@ -70,7 +71,16 @@ export const api = {
   },
 
   tasks: {
-    list: (query: { theme_id?: number; subject_id?: number; author_id?: number; difficulty?: number; search?: string } = {}) =>
+    list: (
+      query: {
+        theme_id?: number;
+        subject_id?: number;
+        author_id?: number;
+        difficulty?: number;
+        search?: string;
+        source_type?: SourceType;
+      } = {},
+    ) =>
       request<Task[]>("/api/tasks", { query: { ...query, limit: 200 } }),
     get: (id: number) => request<Task>(`/api/tasks/${id}`),
     getFull: (id: number) => request<TaskFull>(`/api/tasks/${id}/full`),
