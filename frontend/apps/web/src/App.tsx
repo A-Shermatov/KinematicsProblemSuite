@@ -10,7 +10,7 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { ManageOlympiads, OlympiadEditor, OlympiadJury } from "./pages/manage/ManageOlympiads";
 import { ManageTasks, TaskEditorPage } from "./pages/manage/ManageTasks";
 import { OlympiadArchive } from "./pages/OlympiadArchive";
-import { DiplomaPage, OlympiadMySubmissions, OlympiadPage, OlympiadProblem, OlympiadProblems, OlympiadStandingsTab, Olympiads } from "./pages/Olympiads";
+import { DiplomaPage, OlympiadEditorialPage, OlympiadMySubmissions, OlympiadPage, OlympiadProblem, OlympiadProblems, OlympiadStandingsTab, Olympiads } from "./pages/Olympiads";
 import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
 import { TeacherPage, TeacherSettings, Teachers } from "./pages/Teachers";
@@ -53,6 +53,7 @@ export function AppRoutes() {
           <Route index element={<OlympiadProblems />} />
           <Route path="problems/:label" element={<OlympiadProblem />} />
           <Route path="standings" element={<OlympiadStandingsTab />} />
+          <Route path="editorial" element={<OlympiadEditorialPage />} />
           <Route path="submissions" element={<RequireAuth><OlympiadMySubmissions /></RequireAuth>} />
           <Route path="jury" element={<RequireAuth roles={["teacher", "admin"]}><OlympiadJury embedded /></RequireAuth>} />
         </Route>

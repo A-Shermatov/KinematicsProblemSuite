@@ -44,6 +44,7 @@ import {
 } from "@kps/shared";
 import { OlympiadStandingsTable } from "../components/OlympiadStandings";
 import { ChangeDiff, OlympiadAnnouncements } from "../components/OlympiadAnnouncements";
+import { EditorialTab } from "../components/OlympiadEditorial";
 
 const PHASE_TABS: { key: OlympiadPhase; label: string }[] = [
   { key: "running", label: t("Идут сейчас") },
@@ -495,6 +496,11 @@ export function OlympiadPage() {
     { to: base, label: t("Задачи"), end: true, show: true },
     { to: `${base}/standings`, label: t("Таблица"), show: olympiad.phase !== "upcoming" },
     { to: `${base}/submissions`, label: t("Мои отправки"), show: olympiad.is_registered || !!run },
+    {
+      to: `${base}/editorial`,
+      label: t("Разбор"),
+      show: olympiad.can_manage || ((olympiad.phase === "checking" || olympiad.phase === "finished") && olympiad.has_editorial),
+    },
     { to: `${base}/jury`, label: t("Проверка"), show: olympiad.can_manage && olympiad.phase !== "upcoming" },
   ].filter((tab) => tab.show);
 
@@ -855,6 +861,12 @@ export function OlympiadStandingsTab() {
       )}
     </div>
   );
+}
+
+/** Вкладка «Разбор» — через сутки после окончания. */
+export function OlympiadEditorialPage() {
+  const { olympiad, virtualActive } = useOlympiad();
+  return <EditorialTab olympiad={olympiad} virtualActive={virtualActive} />;
 }
 
 /** Вкладка «Мои отправки» — все попытки, как «Мои посылки» на Codeforces. */
