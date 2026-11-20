@@ -19,6 +19,7 @@ from app.modules.olympiads import corrections, photos
 from app.modules.olympiads import queries as q
 from app.modules.olympiads.schemas import (
     AnnouncementIn,
+    EditorialIn,
     GradeIn,
     LevelOut,
     OlympiadDetail,
@@ -565,6 +566,55 @@ def _json(value: Any) -> Any:
 
 def _announcement_out(row: asyncpg.Record) -> dict[str, Any]:
     return {**dict(row), "changes": json.loads(row["changes"])}
+
+
+@router.get("/{olympiad_id}/editorial")
+async def editorial(olympiad_id: int, conn: Conn, viewer: OptionalUser, lang: RequestLang) -> dict[str, Any]:
+    """Разбор: организатору — всегда (для редактирования), остальным — через сутки после окончания олимпиады."""
+    row = await _get(conn, olympiad_id, viewer)
+    if not _visible(row, viewer):
+        raise not_found("Олимпиада")
+    manage = _can_manage(row, viewer)
+    if not manage:
+        if row["status"] != "published" or datetime.now(UTC) < row["editorial_at"]:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Разбор откроется через сутки после окончания")
+        if viewer is not None:
+            run = await conn.fetchrow(q.GET_RUN, olympiad_id, viewer.id)
+            if run and run["active"]:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT, detail="Разбор откроется, когда закончится ваше виртуальное участие"
+                )
+    tasks = await conn.fetch(q.EDITORIAL_TASKS, olympiad_id)
+    return {
+        "available_at": row["editorial_at"],
+        "text": await conn.fetchval(q.GET_EDITORIAL, olympiad_id),
+        "tasks": [
+            {
+                "id": t["id"],
+                "label": _label(i),
+                "title": (None if manage else (_json(t["translations"]).get(lang) or {}).get("title")) or t["title"],
+                "answer": t["answer"],
+                "unit": t["unit"],
+                "max_points": t["max_points"],
+                "solution": t["solution"],
+            }
+            for i, t in enumerate(tasks)
+        ],
+    }
+
+
+@router.put("/{olympiad_id}/editorial")
+async def save_editorial(olympiad_id: int, data: EditorialIn, user: User, conn: Conn) -> dict[str, Any]:
+    """Организатор пишет разбор в любой момент — участникам он откроется через сутки после окончания."""
+    await _managed(conn, olympiad_id, user)
+    task_ids = {t["id"] for t in await conn.fetch(q.EDITORIAL_TASKS, olympiad_id)}
+    if set(data.solutions) - task_ids:
+        raise HTTPException(422, detail="В разборе есть задачи не из этой олимпиады")
+    async with conn.transaction():
+        await conn.execute(q.SET_EDITORIAL, olympiad_id, data.text.strip())
+        for task_id, text in data.solutions.items():
+            await conn.execute(q.SET_SOLUTION, olympiad_id, task_id, text)
+    return {"saved": True}
 
 
 @router.get("/{olympiad_id}/announcements")

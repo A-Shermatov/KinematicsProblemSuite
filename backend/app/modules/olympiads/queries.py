@@ -8,6 +8,9 @@ CASE WHEN now() < o.starts_at THEN 'upcoming'
      ELSE 'finished' END
 """
 
+# Разбор открывается через сутки после окончания олимпиады.
+EDITORIAL_DELAY = "interval '24 hours'"
+
 # $viewer — параметр с id текущего пользователя (или NULL), подставляется в каждом запросе.
 _COLUMNS = f"""
 o.id, o.title, o.description, o.subject_id, s.title AS subject_title,
@@ -15,6 +18,9 @@ o.level_id, lv.title AS level_title, lv.min_rating AS level_min_rating, lv.max_r
 o.organizer_id, trim(u.first_name || ' ' || u.last_name) AS organizer_name,
 o.starts_at, o.ends_at, o.status, o.reject_reason, o.results_published, o.created_at,
 {PHASE} AS phase,
+o.ends_at + {EDITORIAL_DELAY} AS editorial_at,
+(o.editorial <> '' OR EXISTS (SELECT 1 FROM olympiad_tasks et WHERE et.olympiad_id = o.id AND et.solution <> ''))
+    AS has_editorial,
 (SELECT count(*) FROM olympiad_participants p WHERE p.olympiad_id = o.id) AS participants_count,
 (SELECT count(*) FROM olympiad_tasks t WHERE t.olympiad_id = o.id) AS tasks_count,
 (SELECT COALESCE(sum(t.max_points), 0) FROM olympiad_tasks t WHERE t.olympiad_id = o.id)::int AS max_score
@@ -140,6 +146,16 @@ RETURNING id
 # Перепроверка после исправления ответа: новые баллы автопроверки (балл жюри остаётся).
 TASK_SUBMISSIONS = "SELECT id, answer FROM olympiad_submissions WHERE task_id = $1"
 REJUDGE = "UPDATE olympiad_submissions SET auto_correct = $2, auto_points = $3 WHERE id = $1"
+
+# ---------- Разбор ----------
+
+GET_EDITORIAL = "SELECT editorial FROM olympiads WHERE id = $1"
+EDITORIAL_TASKS = (
+    "SELECT id, title, translations, answer, unit, max_points, solution FROM olympiad_tasks "
+    "WHERE olympiad_id = $1 ORDER BY position, id"
+)
+SET_EDITORIAL = "UPDATE olympiads SET editorial = $2, updated_at = now() WHERE id = $1"
+SET_SOLUTION = "UPDATE olympiad_tasks SET solution = $3 WHERE id = $2 AND olympiad_id = $1"
 
 # ---------- Объявления ----------
 

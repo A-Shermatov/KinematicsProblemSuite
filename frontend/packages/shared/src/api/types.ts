@@ -399,6 +399,9 @@ export interface Olympiad {
   reject_reason: string;
   results_published: boolean;
   phase: OlympiadPhase;
+  /** Разбор открывается через сутки после окончания. */
+  editorial_at: string | null;
+  has_editorial: boolean;
   participants_count: number;
   tasks_count: number;
   max_score: number;
@@ -816,3 +819,10 @@ export type ArchiveQuery = {
   limit?: number;
   offset?: number;
 };
+
+/** Разбор олимпиады: общий текст и решение каждой задачи. */
+export interface OlympiadEditorial {
+  available_at: string;
+  text: string;
+  tasks: { id: number; label: string; title: string; answer: string; unit: string | null; max_points: number; solution: string }[];
+}

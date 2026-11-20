@@ -58,6 +58,9 @@ class OlympiadOut(BaseModel):
     reject_reason: str
     results_published: bool
     phase: Phase
+    # Когда откроется разбор (через сутки после окончания) и написан ли он.
+    editorial_at: datetime | None = None
+    has_editorial: bool = False
     participants_count: int
     tasks_count: int
     max_score: int
@@ -258,3 +261,15 @@ class AnnouncementIn(BaseModel):
     @classmethod
     def strip(cls, value: str) -> str:
         return value.strip()
+
+
+class EditorialIn(BaseModel):
+    text: str = Field(default="", max_length=50_000, description="Markdown: общий разбор олимпиады")
+    solutions: dict[int, str] = Field(default_factory=dict, description="id задачи → разбор решения (Markdown)")
+
+    @field_validator("solutions")
+    @classmethod
+    def limit(cls, value: dict[int, str]) -> dict[int, str]:
+        if any(len(text) > 30_000 for text in value.values()):
+            raise ValueError("Разбор одной задачи — не длиннее 30 000 символов")
+        return {task_id: text.strip() for task_id, text in value.items()}

@@ -112,6 +112,22 @@ WHERE o.status = 'published' AND o.starts_at > now() AND o.starts_at <= now() + 
 ON CONFLICT (user_id, kind, ref) DO NOTHING
 """
 
+# Через сутки после окончания — разбор готов: сообщаем участникам (если организатор его написал).
+EDITORIALS = """
+INSERT INTO notifications (user_id, kind, ref, text, url)
+SELECT p.user_id, 'editorial', o.id::text,
+       '📖 Опубликован разбор олимпиады «' || replace(replace(o.title, '&', '&amp;'), '<', '&lt;')
+       || '»: решения всех задач.',
+       $1 || '/olympiads/' || o.id || '/editorial'
+FROM olympiads o
+JOIN olympiad_participants p ON p.olympiad_id = o.id
+JOIN telegram_links l ON l.user_id = p.user_id AND l.notify
+WHERE o.status = 'published'
+  AND now() BETWEEN o.ends_at + interval '24 hours' AND o.ends_at + interval '48 hours'
+  AND (o.editorial <> '' OR EXISTS (SELECT 1 FROM olympiad_tasks t WHERE t.olympiad_id = o.id AND t.solution <> ''))
+ON CONFLICT (user_id, kind, ref) DO NOTHING
+"""
+
 PENDING = """
 SELECT n.id, n.text, n.url, l.chat_id
 FROM notifications n JOIN telegram_links l ON l.user_id = n.user_id
@@ -204,6 +220,7 @@ async def enqueue_daily_tasks(conn: asyncpg.Connection, now: datetime) -> int:
 
 async def enqueue_reminders(conn: asyncpg.Connection) -> None:
     await conn.execute(REMINDERS, site_url())
+    await conn.execute(EDITORIALS, site_url())
 
 
 # ---------- Telegram Bot API ----------
