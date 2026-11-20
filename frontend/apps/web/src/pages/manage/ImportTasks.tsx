@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  AiModelSelect,
   Badge,
   Button,
   ButtonLink,
@@ -18,6 +19,8 @@ import {
   errorText,
   plural,
   t,
+  aiModelLabel,
+  useAiModel,
   useAsync,
   useDocumentTitle,
   usePlatformSettings,
@@ -143,13 +146,16 @@ export function ImportTasks() {
     if (themes.length) setThemeId((prev) => prev || themes[0].id);
     return { capabilities, themes };
   }, []);
+  const [aiModel, setAiModel] = useAiModel(data?.capabilities.ai_models);
+  const [usedModel, setUsedModel] = useState<string | null>(null);
 
   const upload = async (file: File) => {
     setBusy(true);
     setError(null);
     setResult(null);
     try {
-      const parsed = await api.imports.parse(file);
+      const parsed = await api.imports.parse(file, aiModel);
+      setUsedModel(parsed.model);
       setMethod(parsed.method);
       setNotes(parsed.notes);
       setRows(parsed.drafts.map((draft) => ({ ...draft, include: !draft.duplicate })));
@@ -235,7 +241,7 @@ export function ImportTasks() {
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}
 
-      <Card className="flex flex-wrap items-center gap-4 border-dashed p-6">
+      <Card className="flex flex-wrap items-end gap-4 border-dashed p-6">
         <span className="text-4xl" aria-hidden>
           📥
         </span>
@@ -252,6 +258,9 @@ export function ImportTasks() {
           accept={[...data.capabilities.file_formats, ...(data.capabilities.ai_enabled ? data.capabilities.ai_formats : [])].join(",")}
           onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
         />
+        {data.capabilities.ai_enabled && data.capabilities.ai_models.length > 0 && (
+          <AiModelSelect models={data.capabilities.ai_models} value={aiModel} onChange={setAiModel} className="w-full sm:w-80" />
+        )}
         <Button size="lg" loading={busy && !rows} onClick={() => fileRef.current?.click()}>
           {rows ? t("Загрузить другой файл") : t("Выбрать файл")}
         </Button>
@@ -265,6 +274,7 @@ export function ImportTasks() {
           {method === "ai" && (
             <Card className="border-warning/40 bg-warning-soft/40 p-4 text-sm text-fg">
               🤖 {t("Задачи распознаны ИИ. Сверьте условия, формулы и ответы с оригиналом перед импортом.")}
+              {usedModel && <p className="mt-1 text-muted">{t("Распознала модель: {0}.", [aiModelLabel(data.capabilities.ai_models, usedModel)])}</p>}
               {notes && <p className="mt-1 text-muted">{notes}</p>}
             </Card>
           )}

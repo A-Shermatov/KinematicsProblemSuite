@@ -131,9 +131,10 @@ export const api = {
 
   imports: {
     capabilities: () => request<ImportCapabilities>("/api/tasks/import/capabilities"),
-    parse: (file: File) => {
+    parse: (file: File, model?: string) => {
       const form = new FormData();
       form.append("file", file);
+      if (model) form.append("model", model);
       return request<ImportParseResult>("/api/tasks/import/parse", { method: "POST", form });
     },
     commit: (data: ImportInput) => request<ImportResult>("/api/tasks/import/commit", { method: "POST", json: data }),

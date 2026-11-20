@@ -12,6 +12,7 @@ export { PlaceFields } from "./components/PlaceFields";
 export { ThemeToggle } from "./components/ThemeToggle";
 export { LangSwitcher, UntranslatedNote } from "./components/LangSwitcher";
 export { TaskEditor } from "./features/TaskEditor";
+export { AiModelSelect, aiModelLabel, useAiModel } from "./features/AiModelSelect";
 export { SourcePicker, sourceMeta, type PickedSource } from "./features/SourcePicker";
 export { GradeDialog } from "./features/GradeDialog";
 export * from "./lib/format";

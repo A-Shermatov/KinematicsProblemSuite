@@ -26,6 +26,7 @@ class ParseResult(BaseModel):
     method: Literal["file", "ai"]
     drafts: list[TaskDraft]
     notes: str = ""
+    model: str | None = None
 
 
 class ImportItem(BaseModel):
