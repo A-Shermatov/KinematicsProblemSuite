@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated
+from typing import Annotated, Literal
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
@@ -98,6 +98,10 @@ async def list_tasks(
     search: Annotated[str | None, Query(max_length=100)] = None,
     source_type: SourceType | None = None,
     source_id: int | None = None,
+    progress: Annotated[
+        Literal["solved", "unsolved", "new"] | None,
+        Query(description="Мой прогресс: решённые, нерешённые (были попытки), новые"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[TaskOut]:
@@ -113,6 +117,7 @@ async def list_tasks(
         offset,
         source_type,
         source_id,
+        progress if user else None,
     )
     return [_public_task(row, lang, user) for row in rows]
 

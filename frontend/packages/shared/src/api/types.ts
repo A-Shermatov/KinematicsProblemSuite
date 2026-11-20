@@ -594,3 +594,33 @@ export interface ImportResult {
   created: number[];
   failed: { index: number; title: string; error: string }[];
 }
+
+// ---------- Подборки ----------
+
+export interface Collection {
+  id: number;
+  title: string;
+  description: string;
+  author_id: number;
+  author_name: string;
+  is_public: boolean;
+  tasks_count: number;
+  /** Сколько задач подборки решил текущий пользователь. */
+  solved_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionDetail extends Collection {
+  tasks: Task[];
+  can_edit: boolean;
+}
+
+export interface CollectionInput {
+  title: string;
+  description: string;
+  is_public: boolean;
+  task_ids: number[];
+}
+
+export type TaskProgress = "solved" | "unsolved" | "new";

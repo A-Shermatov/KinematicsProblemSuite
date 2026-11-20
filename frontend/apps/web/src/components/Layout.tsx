@@ -26,6 +26,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/catalog", label: t("Задачи") },
+  { to: "/collections", label: t("Подборки") },
   { to: "/olympiads", label: t("Олимпиады") },
   { to: "/teachers", label: t("Учителя") },
   { to: "/leaderboard", label: t("Рейтинг") },

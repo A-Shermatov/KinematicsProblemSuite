@@ -14,6 +14,8 @@ import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
 import { TeacherPage, TeacherSettings, Teachers } from "./pages/Teachers";
 import { ImportTasks } from "./pages/manage/ImportTasks";
+import { CollectionEditor, ManageCollections } from "./pages/manage/ManageCollections";
+import { CollectionPage, CollectionsPage, PracticePage } from "./pages/Collections";
 
 setDocumentTitleSuffix(APP_NAME);
 
@@ -35,6 +37,10 @@ export function AppRoutes() {
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="catalog" element={<Catalog />} />
+        <Route path="collections" element={<CollectionsPage />} />
+        <Route path="collections/:collectionId" element={<CollectionPage />} />
+        <Route path="practice" element={<RequireAuth><PracticePage /></RequireAuth>} />
+        <Route path="practice/:progress" element={<RequireAuth><PracticePage /></RequireAuth>} />
         <Route path="themes/:themeId" element={<ThemeTasks />} />
         <Route path="sources" element={<SourcesPage />} />
         <Route path="sources/:sourceId" element={<SourceTasksPage />} />
@@ -57,6 +63,9 @@ export function AppRoutes() {
         <Route path="manage/tasks" element={<RequireAuth roles={["teacher", "admin"]}><ManageTasks /></RequireAuth>} />
         <Route path="manage/tasks/new" element={<RequireAuth roles={["teacher", "admin"]}><TaskEditorPage /></RequireAuth>} />
         <Route path="manage/tasks/import" element={<RequireAuth roles={["teacher", "admin"]}><ImportTasks /></RequireAuth>} />
+        <Route path="manage/collections" element={<RequireAuth roles={["teacher", "admin"]}><ManageCollections /></RequireAuth>} />
+        <Route path="manage/collections/new" element={<RequireAuth roles={["teacher", "admin"]}><CollectionEditor /></RequireAuth>} />
+        <Route path="manage/collections/:collectionId/edit" element={<RequireAuth roles={["teacher", "admin"]}><CollectionEditor /></RequireAuth>} />
         <Route path="manage/tasks/:taskId/edit" element={<RequireAuth roles={["teacher", "admin"]}><TaskEditorPage /></RequireAuth>} />
         <Route path="*" element={<NotFound />} />
       </Route>
