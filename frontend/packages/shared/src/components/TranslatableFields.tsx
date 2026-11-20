@@ -51,7 +51,7 @@ export function TranslatableFields({ title, condition, translations, onChange, c
           {lang === "ru" ? t("Русский — основной язык, обязателен") : t("Необязательно: без перевода ученики увидят русский вариант")}
         </p>
       </div>
-      <div className={cx("grid gap-4", aside && (asideClassName ?? "md:grid-cols-[2fr_1fr]"))}>
+      <div className={cx("grid gap-4", aside ? (asideClassName ?? "md:grid-cols-[2fr_1fr]") : null)}>
         {current ? (
           <Input
             key={lang}
