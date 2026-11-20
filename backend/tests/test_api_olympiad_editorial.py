@@ -26,7 +26,11 @@ def test_editorial_opens_day_after_end(client: ApiClient) -> None:
     detail = client.get(f"/api/olympiads/{oid}", ali).json()
     assert detail["has_editorial"] is True and detail["editorial_at"]
 
-    client.sql("UPDATE olympiads SET ends_at = now() - interval '25 hours' WHERE id = $1", oid)
+    client.sql(
+        "UPDATE olympiads SET starts_at = now() - interval '28 hours', ends_at = now() - interval '25 hours' "
+        "WHERE id = $1",
+        oid,
+    )
     opened = client.get(url, ali).json()
     assert opened["text"].startswith("Общие замечания")
     assert (opened["tasks"][0]["solution"], opened["tasks"][0]["answer"]) == (solution, "20")
