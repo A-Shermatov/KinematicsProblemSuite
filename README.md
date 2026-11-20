@@ -1,6 +1,14 @@
-# Kinematics Problem Suite
+# Donish
 
-Платформа для решения задач по физике и математике: каталог «предмет → тема → задача», условия с формулами LaTeX, автопроверка числовых ответов с единицами измерения, ручная проверка учителем, статистика и рейтинг.
+**Donish** («дониш» — «знание» по-таджикски) — платформа для решения задач и олимпиад по физике, математике и другим предметам: каталог «предмет → тема → задача», условия с формулами LaTeX, автопроверка числовых ответов с единицами измерения, ручная проверка учителем, статистика и рейтинг.
+
+**Возможности:**
+- каталог «предмет → тема → задача» с источником задачи (учебник, олимпиада, экзамен);
+- автопроверка ответов с единицами измерения и ручная проверка учителем;
+- профили учителей: сертификаты с проверкой админом, задачи, отзывы учеников;
+- олимпиады в общем окне: модерация админом, обязательное фото решения, автопроверка + жюри, итоги и дипломы;
+- рейтинги учеников, школ, городов и по олимпиадам, серии и значки;
+- отдельная админ-панель.
 
 **Стек:** FastAPI + PostgreSQL (asyncpg, чистый SQL) · React 19 + TypeScript + Vite + Tailwind CSS 4 · Docker · GitHub Actions.
 
@@ -11,8 +19,12 @@ cp .env.example .env      # поменяйте пароли и SECRET_KEY
 docker compose up --build
 ```
 
-Откройте http://localhost:8080 и войдите под `ADMIN_USERNAME` / `ADMIN_PASSWORD` из `.env`.
-Учителей назначает администратор в разделе «Пользователи» — при регистрации все получают роль «ученик».
+- Сайт: http://localhost:8080
+- Админ-панель: http://localhost:8081 — вход под `ADMIN_USERNAME` / `ADMIN_PASSWORD` из `.env`.
+
+Учителей назначает администратор в админ-панели («Пользователи») — при регистрации все получают роль «ученик».
+
+Сайт и админ-панель — два отдельных приложения с отдельными Docker-образами. В продакшене выставляйте админку на свой домен (например `admin.example.tj`) и по возможности закрывайте по IP/VPN. Публичный nginx не пропускает запросы к `/api/admin/`.
 
 ## Разработка без Docker
 
@@ -24,15 +36,16 @@ docker compose -f docker-compose.dev.yml up -d
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-export DATABASE_URL=postgresql://kinematics:kinematics@localhost:5432/kinematics
+export DATABASE_URL=postgresql://donish:donish@localhost:5432/donish
 export SECRET_KEY=dev-secret-key-dev-secret-key-dev-secret
 export ADMIN_USERNAME=admin ADMIN_PASSWORD=admin12345
 uvicorn app.main:app_factory --factory --reload      # http://localhost:8000/docs
 
-# 3. Фронтенд (Node 22)
+# 3. Фронтенд (Node 22): npm workspaces — сайт, админка и общий пакет
 cd frontend
 npm install
-npm run dev                                           # http://localhost:5173, /api проксируется на :8000
+npm run dev                                           # сайт: http://localhost:5173
+npm run dev:admin                                     # админка: http://localhost:5174
 ```
 
 Миграции из `backend/app/migrations/*.sql` применяются автоматически при старте бэкенда.
@@ -42,8 +55,8 @@ npm run dev                                           # http://localhost:5173, /
 ```bash
 # бэкенд: интеграционные тесты нужна отдельная база (её схема очищается!)
 cd backend
-createdb kinematics_test   # или через docker
-TEST_DATABASE_URL=postgresql://kinematics:kinematics@localhost:5432/kinematics_test pytest
+createdb donish_test   # или через docker
+TEST_DATABASE_URL=postgresql://donish:donish@localhost:5432/donish_test pytest
 ruff check . && ruff format --check .
 
 # фронтенд
@@ -70,13 +83,16 @@ backend/
       solutions/       попытки, автопроверка (checker.py), оценки учителя
       stats/           личная статистика и рейтинг
   tests/               pytest: юнит-тесты + интеграционные через HTTP
-frontend/
-  src/
-    api/               типизированный клиент API с авто-refresh токена
-    auth/, theme/      контексты авторизации и светлой/тёмной темы
-    components/        UI-кит, layout, Markdown и редактор с предпросмотром
-    pages/             страницы приложения
+frontend/              npm workspaces
+  packages/shared/     общий код: API-клиент, авторизация, тема, UI-кит,
+                       Markdown-редактор, форма задачи, оценка решения
+  apps/web/            публичный сайт (ученики и учителя)
+  apps/admin/          админ-панель (только роль admin)
+  nginx/               конфиги nginx для web и admin
+  Dockerfile           --build-arg APP=web | admin
 ```
+
+Админские методы API собраны в модуле `admin` под префиксом `/api/admin` и доступны только роли `admin`.
 
 Каждый модуль бэкенда — это `queries.py` (только SQL-строки), `schemas.py` (Pydantic) и `router.py` (HTTP). Подробнее о решениях — в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), план развития — в [docs/ROADMAP.md](docs/ROADMAP.md).
 

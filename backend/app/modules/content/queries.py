@@ -97,7 +97,8 @@ THEME_EXISTS = "SELECT EXISTS (SELECT 1 FROM themes WHERE id = $1 AND is_active)
 TASK_PUBLIC_COLUMNS = """
 k.id, k.theme_id, t.title AS theme_title, t.subject_id, s.title AS subject_title,
 k.author_id, trim(u.first_name || ' ' || u.last_name) AS author_name,
-k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.unit, k.created_at, k.updated_at
+k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.unit,
+k.source_type, k.source_title, k.source_year, k.source_number, k.created_at, k.updated_at, k.translations
 """
 
 TASK_FROM = """
@@ -108,7 +109,7 @@ JOIN users u ON u.id = k.author_id
 """
 
 # $1 theme_id, $2 subject_id, $3 author_id, $4 difficulty, $5 поиск, $6 id текущего пользователя (для отметки «решено»),
-# $7 limit, $8 offset. NULL — без фильтра.
+# $7 limit, $8 offset, $9 тип источника. NULL — без фильтра.
 LIST_TASKS = f"""
 SELECT {TASK_PUBLIC_COLUMNS},
        EXISTS (SELECT 1 FROM attempts a
@@ -120,7 +121,9 @@ WHERE k.is_active
   AND ($2::bigint IS NULL OR t.subject_id = $2)
   AND ($3::bigint IS NULL OR k.author_id = $3)
   AND ($4::smallint IS NULL OR k.difficulty = $4)
-  AND ($5::text IS NULL OR k.title ILIKE '%' || $5 || '%' OR k.condition ILIKE '%' || $5 || '%')
+  AND ($5::text IS NULL OR k.title ILIKE '%' || $5 || '%' OR k.condition ILIKE '%' || $5 || '%'
+       OR k.source_title ILIKE '%' || $5 || '%' OR k.translations::text ILIKE '%' || $5 || '%')
+  AND ($9::text IS NULL OR k.source_type = $9)
 ORDER BY t.position, k.difficulty, k.id
 LIMIT $7 OFFSET $8
 """
@@ -141,15 +144,18 @@ WHERE k.id = $1 AND k.is_active
 """
 
 INSERT_TASK = """
-INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit, tolerance)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit, tolerance,
+                   source_type, source_title, source_year, source_number, translations)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)
 RETURNING id
 """
 
 UPDATE_TASK = """
 UPDATE tasks
 SET theme_id = $2, title = $3, condition = $4, difficulty = $5, check_mode = $6,
-    answer_type = $7, answer = $8, unit = $9, tolerance = $10, updated_at = now()
+    answer_type = $7, answer = $8, unit = $9, tolerance = $10,
+    source_type = $11, source_title = $12, source_year = $13, source_number = $14,
+    translations = $15::jsonb, updated_at = now()
 WHERE id = $1 AND is_active
 RETURNING id
 """

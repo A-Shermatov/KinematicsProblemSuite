@@ -13,11 +13,15 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings
 from app.db import apply_migrations, create_pool
+from app.modules.admin.router import router as admin_router
 from app.modules.auth import queries as auth_q
 from app.modules.auth.router import router as auth_router
 from app.modules.content.router import router as content_router
+from app.modules.olympiads.router import router as olympiads_router
+from app.modules.settings.router import router as settings_router
 from app.modules.solutions.router import router as solutions_router
 from app.modules.stats.router import router as stats_router
+from app.modules.teachers.router import router as teachers_router
 from app.modules.users import queries as user_q
 from app.modules.users.router import router as users_router
 from app.security import hash_password
@@ -40,6 +44,8 @@ async def ensure_admin(pool: asyncpg.Pool, settings: Settings) -> None:
             "",
             hash_password(settings.admin_password),
             "admin",
+            None,
+            None,
         )
         logger.info("Created admin user %s", settings.admin_username)
 
@@ -62,7 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await pool.close()
 
-    app = FastAPI(title="Kinematics Problem Suite API", version="2.0.0", lifespan=lifespan)
+    app = FastAPI(title="Donish API", version="2.1.0", lifespan=lifespan)
     app.state.settings = settings
 
     app.add_middleware(
@@ -74,7 +80,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     api = APIRouter(prefix="/api")
-    for router in (auth_router, users_router, content_router, solutions_router, stats_router):
+    for router in (
+        auth_router,
+        users_router,
+        content_router,
+        solutions_router,
+        stats_router,
+        teachers_router,
+        olympiads_router,
+        settings_router,
+        admin_router,
+    ):
         api.include_router(router)
 
     @api.get("/health", tags=["system"])

@@ -34,6 +34,7 @@ class Settings:
     admin_username: str | None = None
     admin_password: str | None = None
     run_migrations: bool = True
+    timezone: str = "Asia/Dushanbe"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -57,4 +58,5 @@ class Settings:
             admin_username=os.getenv("ADMIN_USERNAME") or None,
             admin_password=os.getenv("ADMIN_PASSWORD") or None,
             run_migrations=_env_bool("RUN_MIGRATIONS", True),
+            timezone=os.getenv("TIMEZONE", "Asia/Dushanbe"),
         )

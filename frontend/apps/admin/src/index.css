@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@kps/shared/styles.css";
+
+/* Tailwind должен видеть классы из общего пакета. */
+@source "../../../packages/shared/src";

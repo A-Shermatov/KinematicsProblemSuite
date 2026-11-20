@@ -53,7 +53,14 @@ async def register(data: RegisterIn, conn: Conn) -> UserOut:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Имя пользователя уже занято")
     try:
         row = await conn.fetchrow(
-            user_q.INSERT, data.username, data.first_name, data.last_name, hash_password(data.password), "student"
+            user_q.INSERT,
+            data.username,
+            data.first_name,
+            data.last_name,
+            hash_password(data.password),
+            "student",
+            data.city,
+            data.school,
         )
     except asyncpg.UniqueViolationError as exc:  # гонка двух одинаковых регистраций
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Имя пользователя уже занято") from exc

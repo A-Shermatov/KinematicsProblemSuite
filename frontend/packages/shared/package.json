@@ -1,0 +1,22 @@
+{
+  "name": "@kps/shared",
+  "private": true,
+  "version": "2.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.4",
+    "katex": "^0.16.21",
+    "marked": "^18.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.0"
+  }
+}

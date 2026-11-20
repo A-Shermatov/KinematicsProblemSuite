@@ -85,8 +85,9 @@ def test_attempt_visibility(client: ApiClient) -> None:
     assert client.get(f"/api/attempts/{attempt['id']}", teacher).status_code == 200
     assert client.get(f"/api/attempts/{attempt['id']}", stranger).status_code == 403
     assert client.get("/api/attempts", stranger).json() == []
-    assert client.get("/api/attempts", student, params={"scope": "all"}).status_code == 403
-    assert len(client.get("/api/attempts", client.admin_token()).json()) == 1
+    assert client.get("/api/attempts", student, params={"scope": "authored"}).status_code == 403
+    assert client.get("/api/admin/attempts", student).status_code == 403
+    assert len(client.get("/api/admin/attempts", client.admin_token()).json()) == 1
 
 
 def test_rate_limit(client: ApiClient) -> None:
@@ -97,7 +98,7 @@ def test_rate_limit(client: ApiClient) -> None:
 
 
 def test_stats_and_leaderboard(client: ApiClient) -> None:
-    teacher, student, task = setup_task(client, difficulty=3)
+    teacher, student, task = setup_task(client, difficulty=300)
     client.attempt(student, task["id"], "1")
     client.attempt(student, task["id"], "20")
 
@@ -113,11 +114,11 @@ def test_stats_and_leaderboard(client: ApiClient) -> None:
     assert teacher_stats["attempts"] == 2
     assert teacher_stats["students"] == 1
 
-    admin_stats = client.get("/api/stats/me", client.admin_token()).json()
+    admin_stats = client.get("/api/admin/stats", client.admin_token()).json()
     assert admin_stats["students"] == 1
     assert admin_stats["teachers"] == 1
 
     board = client.get("/api/stats/leaderboard").json()
     assert board[0]["username"] == "student"
-    assert board[0]["points"] == 3
+    assert board[0]["points"] == 300
     assert client.get("/api/stats/leaderboard", params={"period": "week"}).json()[0]["rank"] == 1

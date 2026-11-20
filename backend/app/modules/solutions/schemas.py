@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from app.storage import public_url
 
 AttemptStatus = Literal["correct", "incorrect", "pending", "graded"]
-Scope = Literal["mine", "authored", "all"]
+Scope = Literal["mine", "authored"]
 
 
 class AttemptOut(BaseModel):

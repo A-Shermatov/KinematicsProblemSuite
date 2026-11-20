@@ -5,17 +5,18 @@ from typing import Annotated
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, not_found
+from app.deps import Conn, CurrentUser, OptionalUser, Staff, not_found
+from app.i18n import DEFAULT_LANG, RequestLang, clean_translations, localize
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
-    SubjectIn,
+    SourceType,
     SubjectOut,
     TaskFull,
     TaskIn,
     TaskOut,
-    ThemeIn,
     ThemeOut,
 )
+from app.modules.settings import service as settings_service
 
 router = APIRouter(tags=["content"])
 
@@ -34,32 +35,6 @@ async def get_subject(subject_id: int, conn: Conn) -> SubjectOut:
     if row is None:
         raise not_found("Предмет")
     return SubjectOut(**dict(row))
-
-
-@router.post("/subjects", response_model=SubjectOut, status_code=status.HTTP_201_CREATED)
-async def create_subject(data: SubjectIn, _: Admin, conn: Conn) -> SubjectOut:
-    if await conn.fetchval(q.SUBJECT_TITLE_TAKEN, data.title, None):
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Предмет с таким названием уже есть")
-    row = await conn.fetchrow(q.INSERT_SUBJECT, data.title, data.description, data.position)
-    return SubjectOut(**dict(row))
-
-
-@router.put("/subjects/{subject_id}", response_model=SubjectOut)
-async def update_subject(subject_id: int, data: SubjectIn, _: Admin, conn: Conn) -> SubjectOut:
-    if await conn.fetchval(q.SUBJECT_TITLE_TAKEN, data.title, subject_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Предмет с таким названием уже есть")
-    row = await conn.fetchrow(q.UPDATE_SUBJECT, subject_id, data.title, data.description, data.position)
-    if row is None:
-        raise not_found("Предмет")
-    return SubjectOut(**dict(row))
-
-
-@router.delete("/subjects/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_subject(subject_id: int, _: Admin, conn: Conn) -> None:
-    if await conn.fetchval(q.DEACTIVATE_SUBJECT, subject_id) is None:
-        if await conn.fetchrow(q.GET_SUBJECT, subject_id) is None:
-            raise not_found("Предмет")
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Сначала удалите темы этого предмета")
 
 
 # ---------- Темы ----------
@@ -82,31 +57,6 @@ async def get_theme(theme_id: int, conn: Conn) -> ThemeOut:
     return await _theme_or_404(conn, theme_id)
 
 
-@router.post("/themes", response_model=ThemeOut, status_code=status.HTTP_201_CREATED)
-async def create_theme(data: ThemeIn, _: Admin, conn: Conn) -> ThemeOut:
-    theme_id = await conn.fetchval(q.INSERT_THEME, data.subject_id, data.title, data.description, data.position)
-    if theme_id is None:
-        raise not_found("Предмет")
-    return await _theme_or_404(conn, theme_id)
-
-
-@router.put("/themes/{theme_id}", response_model=ThemeOut)
-async def update_theme(theme_id: int, data: ThemeIn, _: Admin, conn: Conn) -> ThemeOut:
-    updated = await conn.fetchval(
-        q.UPDATE_THEME, theme_id, data.subject_id, data.title, data.description, data.position
-    )
-    if updated is None:
-        raise not_found("Тема или предмет")
-    return await _theme_or_404(conn, theme_id)
-
-
-@router.delete("/themes/{theme_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_theme(theme_id: int, _: Admin, conn: Conn) -> None:
-    if await conn.fetchval(q.DEACTIVATE_THEME, theme_id) is None:
-        await _theme_or_404(conn, theme_id)
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Сначала удалите задачи этой темы")
-
-
 # ---------- Задачи ----------
 
 
@@ -122,18 +72,21 @@ async def _task_full(conn: asyncpg.Connection, task_id: int) -> TaskFull:
     row = await conn.fetchrow(q.GET_TASK_FULL, task_id)
     if row is None:
         raise not_found("Задача")
-    return TaskFull(**dict(row))
+    # Редактору — оригинал на русском и все переводы отдельно.
+    return TaskFull(**localize(row, DEFAULT_LANG, keep_translations=True))
 
 
 @router.get("/tasks", response_model=list[TaskOut])
 async def list_tasks(
     conn: Conn,
     user: OptionalUser,
+    lang: RequestLang,
     theme_id: int | None = None,
     subject_id: int | None = None,
     author_id: int | None = None,
-    difficulty: Annotated[int | None, Query(ge=1, le=5)] = None,
+    difficulty: Annotated[int | None, Query(ge=100, le=10_000, multiple_of=100)] = None,
     search: Annotated[str | None, Query(max_length=100)] = None,
+    source_type: SourceType | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[TaskOut]:
@@ -147,16 +100,17 @@ async def list_tasks(
         user.id if user else None,
         limit,
         offset,
+        source_type,
     )
-    return [TaskOut(**dict(row)) for row in rows]
+    return [TaskOut(**localize(row, lang)) for row in rows]
 
 
 @router.get("/tasks/{task_id}", response_model=TaskOut)
-async def get_task(task_id: int, conn: Conn, user: OptionalUser) -> TaskOut:
+async def get_task(task_id: int, conn: Conn, user: OptionalUser, lang: RequestLang) -> TaskOut:
     row = await conn.fetchrow(q.GET_TASK_PUBLIC, task_id, user.id if user else None)
     if row is None:
         raise not_found("Задача")
-    return TaskOut(**dict(row))
+    return TaskOut(**localize(row, lang))
 
 
 @router.get("/tasks/{task_id}/full", response_model=TaskFull)
@@ -165,8 +119,15 @@ async def get_task_full(task_id: int, user: Staff, conn: Conn) -> TaskFull:
     return await _task_full(conn, task_id)
 
 
+async def _check_difficulty(conn: asyncpg.Connection, difficulty: int) -> None:
+    settings = await settings_service.load(conn)
+    if difficulty > settings.difficulty_max:
+        raise HTTPException(422, detail=f"Максимальная сложность на платформе — {settings.difficulty_max}")
+
+
 @router.post("/tasks", response_model=TaskFull, status_code=status.HTTP_201_CREATED)
 async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
+    await _check_difficulty(conn, data.difficulty)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
     task_id = await conn.fetchval(
@@ -181,6 +142,11 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
         data.answer,
         data.unit,
         data.tolerance,
+        data.source_type,
+        data.source_title,
+        data.source_year,
+        data.source_number,
+        clean_translations(data.translations),
     )
     return await _task_full(conn, task_id)
 
@@ -188,6 +154,7 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
 @router.put("/tasks/{task_id}", response_model=TaskFull)
 async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
     await _check_can_edit(conn, task_id, user)
+    await _check_difficulty(conn, data.difficulty)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
     await conn.execute(
@@ -202,6 +169,11 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
         data.answer,
         data.unit,
         data.tolerance,
+        data.source_type,
+        data.source_title,
+        data.source_year,
+        data.source_number,
+        clean_translations(data.translations),
     )
     return await _task_full(conn, task_id)
 

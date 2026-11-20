@@ -117,6 +117,20 @@ class ApiClient:
 
     # ---- хелперы ----
 
+    def sql(self, query: str, *args: object) -> None:
+        """Прямой SQL в тестовую базу — например, чтобы «перемотать время» олимпиады."""
+
+        async def run() -> None:
+            import asyncpg
+
+            conn = await asyncpg.connect(TEST_DATABASE_URL)
+            try:
+                await conn.execute(query, *args)
+            finally:
+                await conn.close()
+
+        asyncio.run(run())
+
     def login(self, username: str, password: str = PASSWORD) -> dict:
         response = self.post("/api/auth/login", json={"username": username, "password": password})
         assert response.status_code == 200, response.text
@@ -139,14 +153,14 @@ class ApiClient:
 
     def teacher(self, username: str = "teacher") -> str:
         user = self.register(username)
-        response = self.patch(f"/api/users/{user['id']}/role", self.admin_token(), json={"role": "teacher"})
+        response = self.patch(f"/api/admin/users/{user['id']}/role", self.admin_token(), json={"role": "teacher"})
         assert response.status_code == 200, response.text
         return self.login(username)["access_token"]
 
     def theme(self) -> dict:
         admin = self.admin_token()
-        subject = self.post("/api/subjects", admin, json={"title": "Физика"}).json()
-        response = self.post("/api/themes", admin, json={"subject_id": subject["id"], "title": "Кинематика"})
+        subject = self.post("/api/admin/subjects", admin, json={"title": "Физика"}).json()
+        response = self.post("/api/admin/themes", admin, json={"subject_id": subject["id"], "title": "Кинематика"})
         assert response.status_code == 201, response.text
         return response.json()
 
