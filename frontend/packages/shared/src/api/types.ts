@@ -368,6 +368,43 @@ export interface OlympiadResults {
   rows: OlympiadResultRow[];
 }
 
+export interface VirtualSubmission {
+  task_id: number;
+  task_title: string;
+  task_position: number;
+  max_points: number;
+  answer: string;
+  correct: boolean | null;
+  points: number | null;
+  submitted_at: string;
+  correct_answer: string | null;
+  task_unit: string | null;
+}
+
+/** Виртуальное участие в прошедшей олимпиаде. Баллы и место — после окончания личного времени. */
+export interface VirtualRun {
+  started_at: string;
+  ends_at: string;
+  active: boolean;
+  submissions: VirtualSubmission[];
+  total: number | null;
+  max_score: number;
+  would_place: number | null;
+  official_participants: number;
+}
+
+export interface VirtualStandingRow {
+  user_id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  city: string | null;
+  school: string | null;
+  total: number;
+  started_at: string;
+  would_place: number;
+}
+
 export interface OlympiadLeaderRow {
   rank: number;
   user_id: number;
