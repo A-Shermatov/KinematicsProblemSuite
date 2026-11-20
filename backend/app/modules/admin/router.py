@@ -19,6 +19,7 @@ from app.modules.olympiads import queries as olympiads_q
 from app.modules.olympiads.schemas import OlympiadOut
 from app.modules.olympiads.schemas import ReviewIn as OlympiadReviewIn
 from app.modules.olympiads.schemas import Status as OlympiadStatus
+from app.modules.rating import service as rating_service
 from app.modules.settings import service as settings_service
 from app.modules.settings.service import PlatformSettings
 from app.modules.solutions import queries as solutions_q
@@ -239,3 +240,9 @@ async def review_olympiad(olympiad_id: int, data: OlympiadReviewIn, admin: Admin
     if await conn.fetchval(olympiads_q.REVIEW, olympiad_id, data.status, reason) is None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Олимпиада не ожидает проверки")
     return OlympiadOut(**dict(await conn.fetchrow(olympiads_q.GET, olympiad_id, admin.id)))
+
+
+@router.post("/rating/recompute")
+async def recompute_rating(conn: Conn) -> dict[str, int]:
+    """Пересчитать рейтинг олимпиадников с нуля по всем олимпиадам с опубликованными итогами."""
+    return {"olympiads": await rating_service.recompute_all(conn)}

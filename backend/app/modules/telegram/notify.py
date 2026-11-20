@@ -40,19 +40,27 @@ async def attempt_graded(conn: asyncpg.Connection, attempt: asyncpg.Record) -> N
 
 
 async def olympiad_results(conn: asyncpg.Connection, olympiad: asyncpg.Record, results: list[asyncpg.Record]) -> None:
-    from app.modules.stats.router import titles_for
+    from app.modules.rating import queries as rating_q
+    from app.modules.rating.ranks import rank_for
 
     total = len(results)
+    changes = {row["user_id"]: row for row in await conn.fetch(rating_q.OLYMPIAD_CHANGES, olympiad["id"])}
     for row in results:
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(row["place"], "🏁")
         text = (
             f"{medal} Итоги олимпиады «{esc(olympiad['title'])}» опубликованы: "
             f"ваше место <b>{row['place']}</b> из {total}, {row['total']} баллов."
         )
+        change = changes.get(row["user_id"])
+        if change:
+            delta = change["new_rating"] - change["old_rating"]
+            text += f"\n📈 Рейтинг: {change['old_rating']} → <b>{change['new_rating']}</b> ({delta:+d})."
         await enqueue(conn, row["user_id"], "results", str(olympiad["id"]), text, f"/olympiads/{olympiad['id']}")
-    # Новые звания: ключ — код звания, поэтому каждое приходит один раз.
-    user_titles = await titles_for(conn, [row["user_id"] for row in results])
-    for user_id, title in user_titles.items():
-        if title:
-            text = f"{title['icon']} Новое звание: <b>{esc(title['name'])}</b>! Оно теперь видно рядом с вашим именем."
-            await enqueue(conn, user_id, "title", title["code"], text, f"/users/{user_id}")
+        # Новое звание: после первой рейтинговой олимпиады и при каждом повышении. Ключ — код звания,
+        # поэтому о каждом сообщаем один раз.
+        if change:
+            first = await conn.fetchval(rating_q.CHANGES_COUNT, row["user_id"]) == 1
+            old, new = rank_for(change["old_rating"]), rank_for(change["new_rating"])
+            if new and old and (first or new.min_rating > old.min_rating):
+                text = f"{new.icon} Новое звание: <b>{esc(new.name)}</b>! Оно теперь видно рядом с вашим именем."
+                await enqueue(conn, row["user_id"], "title", new.code, text, f"/users/{row['user_id']}")

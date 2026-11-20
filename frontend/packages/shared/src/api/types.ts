@@ -262,18 +262,38 @@ export interface CityRow {
   points: number;
 }
 
-/** Звание за олимпиады (только за призовые места и победы). */
+/** Код звания по рейтингу олимпиадника — от него зависит цвет имени, как на Codeforces. */
+export type RankCode = "newbie" | "pupil" | "specialist" | "expert" | "candidate" | "master" | "grandmaster" | "legend";
+
+/** Звание по рейтингу олимпиадника. */
 export interface UserTitle {
-  code: string;
+  code: RankCode;
   icon: string;
   name: string;
+  rating: number;
 }
 
-export interface TitleProgress extends UserTitle {
-  description: string;
+/** Ступень лестницы званий. */
+export interface RankStep {
+  code: RankCode;
+  icon: string;
+  name: string;
+  min_rating: number;
+  max_rating: number | null;
   earned: boolean;
-  progress: number;
-  target: number;
+  current: boolean;
+}
+
+/** Изменение рейтинга после одной олимпиады. */
+export interface RatingHistoryItem {
+  olympiad_id: number;
+  title: string;
+  ends_at: string;
+  place: number;
+  total: number;
+  participants: number;
+  old_rating: number;
+  new_rating: number;
 }
 
 export interface Achievements {
@@ -282,8 +302,12 @@ export interface Achievements {
   olympiads: number;
   olympiad_prizes: number;
   olympiad_wins: number;
+  /** null — ещё не участвовал в олимпиадах с опубликованными итогами. */
+  rating: number | null;
+  max_rating: number | null;
+  history: RatingHistoryItem[];
   title: UserTitle | null;
-  titles: TitleProgress[];
+  titles: RankStep[];
 }
 
 export type CertificateStatus = "pending" | "verified" | "rejected";
@@ -512,7 +536,8 @@ export interface OlympiadLeaderRow {
   city: string | null;
   school: string | null;
   olympiads: number;
-  points: number;
+  rating: number;
+  max_rating: number;
   gold: number;
   silver: number;
   bronze: number;
@@ -657,6 +682,9 @@ export interface StandingsRow {
   total: number;
   penalty: number;
   cells: Record<string, StandingsCell>;
+  title: UserTitle | null;
+  /** После публикации итогов — как изменился рейтинг. */
+  rating_change: { old: number; new: number } | null;
 }
 
 export interface OlympiadStandings {
@@ -664,6 +692,8 @@ export interface OlympiadStandings {
   starts_at: string;
   max_score: number;
   provisional: boolean;
+  /** Итоги учтены в рейтинге. */
+  rated: boolean;
   tasks: { id: number; label: string; max_points: number }[];
   rows: StandingsRow[];
 }

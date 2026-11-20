@@ -199,10 +199,21 @@ def test_full_lifecycle(client: ApiClient) -> None:
         == 409
     )
 
+    # Рейтинг олимпиадника: оба начинали с 1200, ali победил — рейтинг вырос, у vali упал.
     board = client.get("/api/stats/leaderboard/olympiads").json()
-    assert [r["username"] for r in board] == ["ali", "vali"]
-    assert board[0]["gold"] == 1 and board[0]["points"] == 87  # 13 из 15 = 86.7%
+    assert [(r["username"], r["rating"], r["title"]["code"]) for r in board] == [
+        ("ali", 1296, "pupil"),
+        ("vali", 1102, "newbie"),
+    ]
+    assert board[0]["gold"] == 1 and board[0]["olympiads"] == 1 and board[1]["silver"] == 1
     ali_id = client.get("/api/users/me", ali).json()["id"]
     profile = client.get(f"/api/stats/achievements/{ali_id}").json()
-    assert profile["title"]["code"] == "win_1" and profile["olympiad_wins"] == 1 and profile["olympiads"] == 1
-    assert board[0]["title"]["name"] == "Победитель олимпиады"
+    assert (profile["rating"], profile["max_rating"], profile["title"]["name"]) == (1296, 1296, "Ученик")
+    assert [(h["place"], h["old_rating"], h["new_rating"]) for h in profile["history"]] == [(1, 1200, 1296)]
+    assert profile["olympiad_wins"] == 1 and profile["olympiads"] == 1
+    standings = client.get(f"/api/olympiads/{oid}/standings").json()
+    assert standings["rated"] is True
+    assert standings["rows"][0]["rating_change"] == {"old": 1200, "new": 1296}
+    # Пересчёт с нуля даёт то же самое.
+    assert client.post("/api/admin/rating/recompute", admin).json() == {"olympiads": 1}
+    assert client.get("/api/stats/leaderboard/olympiads").json() == board

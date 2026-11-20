@@ -115,8 +115,9 @@ def test_olympiad_reminder_results_and_title(client: ApiClient, monkeypatch: pyt
     task = add_task(client, teacher, oid)
     client.post(f"/api/olympiads/{oid}/submit-for-review", teacher)
     client.post(f"/api/admin/olympiads/{oid}/review", client.admin_token(), json={"status": "published"})
-    ali = client.student("ali")
+    ali, vali = client.student("ali"), client.student("vali")
     client.post(f"/api/olympiads/{oid}/register", ali)
+    client.post(f"/api/olympiads/{oid}/register", vali)
     link(client, ali, 2002, monkeypatch)
     ali_id = client.get("/api/users/me", ali).json()["id"]
 
@@ -128,13 +129,16 @@ def test_olympiad_reminder_results_and_title(client: ApiClient, monkeypatch: pyt
 
     set_phase(client, oid, "running")
     client.post(f"/api/olympiads/{oid}/tasks/{task['id']}/submit", ali, data={"answer": "20"}, files=photo())
+    client.post(f"/api/olympiads/{oid}/tasks/{task['id']}/submit", vali, data={"answer": "1"}, files=photo())
     set_phase(client, oid, "checking")
     for item in client.get(f"/api/olympiads/{oid}/submissions", teacher).json():
-        client.post(f"/api/olympiads/{oid}/submissions/{item['id']}/grade", teacher, json={"points": 10})
+        points = 10 if item["username"] == "ali" else 0
+        client.post(f"/api/olympiads/{oid}/submissions/{item['id']}/grade", teacher, json={"points": points})
     client.post(f"/api/olympiads/{oid}/publish-results", teacher)
 
     kinds = {
         row["kind"]: row["text"] for row in fetch("SELECT kind, text FROM notifications WHERE user_id = $1", ali_id)
     }
-    assert "место <b>1</b> из 1" in kinds["results"]
-    assert "Победитель олимпиады" in kinds["title"]
+    assert "место <b>1</b> из 2" in kinds["results"]
+    assert "Рейтинг: 1200 → <b>1296</b> (+96)" in kinds["results"]
+    assert "Ученик" in kinds["title"]  # первое звание приходит после первой рейтинговой олимпиады

@@ -23,7 +23,7 @@ import {
   type ThemeMode,
   t,
   TitleBadge,
-  plural,
+  rankTextClass,
 } from "@kps/shared";
 import { Achievements } from "../components/Achievements";
 import { TelegramCard } from "../components/TelegramCard";
@@ -221,7 +221,7 @@ export function UserPage() {
         <Avatar src={user.avatar_url} name={displayName(user)} size={96} />
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
+            <h1 className={cx("text-2xl font-bold", rankTextClass(data?.achievements?.title?.code) || "text-fg")}>{displayName(user)}</h1>
             <TitleBadge title={data?.achievements?.title} className="text-sm" />
           </div>
           <p className="text-muted">
@@ -242,8 +242,8 @@ export function UserPage() {
               <p className="text-xs text-muted">{t("решено")}</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-fg">{data.achievements.olympiad_prizes}</p>
-              <p className="text-xs text-muted">{plural(data.achievements.olympiad_prizes, ["призовое место", "призовых места", "призовых мест"])}</p>
+              <p className={cx("text-2xl font-bold", rankTextClass(data.achievements.title?.code) || "text-muted")}>{data.achievements.rating ?? "—"}</p>
+              <p className="text-xs text-muted">{t("рейтинг")}</p>
             </div>
           </div>
         )}
@@ -252,7 +252,7 @@ export function UserPage() {
       {data?.difficulty && <DifficultyChart data={data.difficulty} />}
       {data?.achievements && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-fg">{t("Звания за олимпиады")}</h2>
+          <h2 className="text-lg font-semibold text-fg">{t("Рейтинг олимпиадника")}</h2>
           <Achievements data={data.achievements} />
         </section>
       )}

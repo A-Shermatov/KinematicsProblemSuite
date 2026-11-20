@@ -29,6 +29,8 @@ from app.modules.olympiads.schemas import (
     VirtualRunOut,
     VirtualSubmissionOut,
 )
+from app.modules.rating import queries as rating_q
+from app.modules.rating import service as rating
 from app.modules.solutions.checker import check_answer
 from app.modules.telegram import notify
 from app.storage import delete_file, public_url, save_image
@@ -257,7 +259,11 @@ async def standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[
     tasks = await conn.fetch(q.LIST_TASKS, olympiad_id)
     rows = await conn.fetch(q.RESULTS, olympiad_id)
     cells = [{int(k): v for k, v in json.loads(r["cells"]).items()} for r in rows]
+    badges = await rating.badges_for(conn, [r["user_id"] for r in rows])
+    # После публикации итогов — изменение рейтинга, как в таблице Codeforces.
+    changes = {c["user_id"]: c for c in await conn.fetch(rating_q.OLYMPIAD_CHANGES, olympiad_id)}
     return {
+        "rated": bool(changes),
         "phase": row["phase"],
         "starts_at": row["starts_at"],
         "max_score": row["max_score"],
@@ -279,6 +285,12 @@ async def standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[
                 "total": r["total"],
                 "penalty": r["penalty"],
                 "cells": cell,
+                "title": badges.get(r["user_id"]),
+                "rating_change": (
+                    {"old": changes[r["user_id"]]["old_rating"], "new": changes[r["user_id"]]["new_rating"]}
+                    if r["user_id"] in changes
+                    else None
+                ),
             }
             for r, cell in zip(rows, cells, strict=True)
         ],
@@ -423,6 +435,7 @@ async def publish_results(
     if ungraded and not force:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Жюри ещё не проверило {ungraded} решений")
     await conn.execute(q.PUBLISH_RESULTS, olympiad_id)
+    await rating.apply_pending(conn)
     await notify.olympiad_results(conn, row, await conn.fetch(q.RESULTS, olympiad_id))
     return await _detail(conn, await _get(conn, olympiad_id, user), user)
 
