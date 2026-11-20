@@ -17,6 +17,7 @@ from app.modules.admin.router import router as admin_router
 from app.modules.auth import queries as auth_q
 from app.modules.auth.router import router as auth_router
 from app.modules.content.router import router as content_router
+from app.modules.imports.router import router as imports_router
 from app.modules.olympiads.router import router as olympiads_router
 from app.modules.settings.router import router as settings_router
 from app.modules.solutions.router import router as solutions_router
@@ -83,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for router in (
         auth_router,
         users_router,
+        imports_router,
         content_router,
         solutions_router,
         stats_router,
