@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { APP_NAME, AuthProvider, SettingsProvider, ButtonLink, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
+import { APP_NAME, AuthProvider, SettingsProvider, ButtonLink, EmptyState, ThemeProvider, setDocumentTitleSuffix, t } from "@kps/shared";
 import { Layout, RequireAuth } from "./components/Layout";
 import { Attempts } from "./pages/Attempts";
 import { Login, Register } from "./pages/Auth";
@@ -18,9 +18,9 @@ setDocumentTitleSuffix(APP_NAME);
 
 function NotFound() {
   return (
-    <EmptyState icon="🔭" title="Страница не найдена">
+    <EmptyState icon="🔭" title={t("Страница не найдена")}>
       <ButtonLink to="/" variant="secondary" size="sm" className="mt-3">
-        На главную
+        {t("На главную")}
       </ButtonLink>
     </EmptyState>
   );

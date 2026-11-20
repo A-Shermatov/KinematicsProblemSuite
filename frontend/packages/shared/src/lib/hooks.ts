@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList, type RefObject } from "react";
+import { t } from "../i18n";
 
 interface AsyncState<T> {
   data: T | undefined;
@@ -27,7 +28,7 @@ export function useAsync<T>(loader: () => Promise<T>, deps: DependencyList): Asy
         if (!cancelled) setDataState(result);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Неизвестная ошибка");
+        if (!cancelled) setError(err instanceof Error ? err.message : t("Неизвестная ошибка"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -46,7 +47,7 @@ export function useAsync<T>(loader: () => Promise<T>, deps: DependencyList): Asy
 }
 
 export function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : "Неизвестная ошибка";
+  return error instanceof Error ? error.message : t("Неизвестная ошибка");
 }
 
 let titleSuffix = "Donish";

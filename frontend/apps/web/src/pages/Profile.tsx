@@ -21,6 +21,7 @@ import {
   useDocumentTitle,
   useTheme,
   type ThemeMode,
+  t,
 } from "@kps/shared";
 import { Achievements } from "../components/Achievements";
 import { ActivityHeatmap } from "../components/ActivityHeatmap";
@@ -31,7 +32,7 @@ function Notice({ text }: { text: string | null }) {
 }
 
 export function Profile() {
-  useDocumentTitle("Настройки профиля");
+  useDocumentTitle(t("Настройки профиля"));
   const { user, setUser } = useAuth();
   const { mode, setMode } = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,7 +75,7 @@ export function Profile() {
           school: form.school.trim() || null,
         }),
       );
-      return "Профиль сохранён";
+      return t("Профиль сохранён");
     });
   };
 
@@ -83,7 +84,7 @@ export function Profile() {
     void run("password", async () => {
       await api.users.changePassword(passwords.current, passwords.next);
       setPasswords({ current: "", next: "" });
-      return "Пароль изменён. На других устройствах нужно будет войти заново.";
+      return t("Пароль изменён. На других устройствах нужно будет войти заново.");
     });
   };
 
@@ -91,26 +92,26 @@ export function Profile() {
     if (!file) return;
     void run("avatar", async () => {
       setUser(await api.users.uploadAvatar(file));
-      return "Аватар обновлён";
+      return t("Аватар обновлён");
     });
   };
 
   const themes: { mode: ThemeMode; label: string }[] = [
-    { mode: "light", label: "☀ Светлая" },
-    { mode: "dark", label: "☾ Тёмная" },
-    { mode: "system", label: "◐ Как в системе" },
+    { mode: "light", label: t("☀ Светлая") },
+    { mode: "dark", label: t("☾ Тёмная") },
+    { mode: "system", label: t("◐ Как в системе") },
   ];
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Настройки профиля" />
+      <PageHeader title={t("Настройки профиля")} />
       <div className="space-y-6">
         <Card className="flex flex-wrap items-center gap-5 p-6">
           <Avatar src={user.avatar_url} name={displayName(user)} size={72} />
           <div className="flex-1 space-y-1">
             <p className="font-semibold text-fg">{displayName(user)}</p>
             <p className="text-sm text-muted">
-              {roleLabel[user.role]} · с {formatDate(user.created_at)}
+              {roleLabel[user.role]}  {t("· с")} {formatDate(user.created_at)}
             </p>
             <Notice text={status.avatar ?? null} />
             {errors.avatar && <ErrorMessage>{errors.avatar}</ErrorMessage>}
@@ -118,11 +119,11 @@ export function Profile() {
           <div className="flex gap-2">
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadAvatar(e.target.files?.[0])} />
             <Button variant="secondary" size="sm" loading={busy === "avatar"} onClick={() => fileRef.current?.click()}>
-              Загрузить фото
+              {t("Загрузить фото")}
             </Button>
             {user.avatar_url && (
-              <Button variant="ghost" size="sm" onClick={() => void run("avatar", async () => (setUser(await api.users.deleteAvatar()), "Фото удалено"))}>
-                Удалить
+              <Button variant="ghost" size="sm" onClick={() => void run("avatar", async () => (setUser(await api.users.deleteAvatar()), t("Фото удалено")))}>
+                {t("Удалить")}
               </Button>
             )}
           </div>
@@ -130,15 +131,15 @@ export function Profile() {
 
         {user.role === "teacher" && (
           <Card className="flex flex-wrap items-center gap-4 border-primary/30 bg-primary-soft p-5">
-            <p className="flex-1 text-sm text-fg">Описание, предметы, сертификаты и отзывы — в профиле учителя.</p>
+            <p className="flex-1 text-sm text-fg">{t("Описание, предметы, сертификаты и отзывы — в профиле учителя.")}</p>
             <ButtonLink to="/profile/teacher" size="sm">
-              Профиль учителя
+              {t("Профиль учителя")}
             </ButtonLink>
           </Card>
         )}
 
         <Card className="p-6">
-          <h2 className="mb-4 font-semibold text-fg">Оформление</h2>
+          <h2 className="mb-4 font-semibold text-fg">{t("Оформление")}</h2>
           <div className="flex flex-wrap gap-2">
             {themes.map((item) => (
               <button
@@ -156,33 +157,33 @@ export function Profile() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="mb-4 font-semibold text-fg">Личные данные</h2>
+          <h2 className="mb-4 font-semibold text-fg">{t("Личные данные")}</h2>
           <form onSubmit={saveProfile} className="space-y-4">
             <Notice text={status.profile ?? null} />
             {errors.profile && <ErrorMessage>{errors.profile}</ErrorMessage>}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Имя" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required />
-              <Input label="Фамилия" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+              <Input label={t("Имя")} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required />
+              <Input label={t("Фамилия")} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
             </div>
-            <Input label="Имя пользователя" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
+            <Input label={t("Имя пользователя")} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
             <PlaceFields city={form.city} school={form.school} onChange={(place) => setForm({ ...form, ...place })} />
             <Button type="submit" loading={busy === "profile"}>
-              Сохранить
+              {t("Сохранить")}
             </Button>
           </form>
         </Card>
 
         <Card className="p-6">
-          <h2 className="mb-4 font-semibold text-fg">Смена пароля</h2>
+          <h2 className="mb-4 font-semibold text-fg">{t("Смена пароля")}</h2>
           <form onSubmit={changePassword} className="space-y-4">
             <Notice text={status.password ?? null} />
             {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Текущий пароль" type="password" autoComplete="current-password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} required />
-              <Input label="Новый пароль" type="password" autoComplete="new-password" minLength={8} maxLength={72} value={passwords.next} onChange={(e) => setPasswords({ ...passwords, next: e.target.value })} required />
+              <Input label={t("Текущий пароль")} type="password" autoComplete="current-password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} required />
+              <Input label={t("Новый пароль")} type="password" autoComplete="new-password" minLength={8} maxLength={72} value={passwords.next} onChange={(e) => setPasswords({ ...passwords, next: e.target.value })} required />
             </div>
             <Button type="submit" variant="secondary" loading={busy === "password"}>
-              Изменить пароль
+              {t("Изменить пароль")}
             </Button>
           </form>
         </Card>
@@ -207,7 +208,7 @@ export function UserPage() {
   useDocumentTitle(user ? displayName(user) : undefined);
 
   if (loading) return <Loading />;
-  if (error || !user) return <ErrorMessage>{error ?? "Пользователь не найден"}</ErrorMessage>;
+  if (error || !user) return <ErrorMessage>{error ?? t("Пользователь не найден")}</ErrorMessage>;
   if (user.role === "teacher") return <Navigate to={`/teachers/${user.id}`} replace />;
   return (
     <div className="space-y-8">
@@ -219,25 +220,25 @@ export function UserPage() {
             @{user.username} · {roleLabel[user.role]}
           </p>
           {(user.school || user.city) && <p className="text-sm text-fg">🏫 {[user.school, user.city].filter(Boolean).join(", ")}</p>}
-          <p className="text-sm text-muted">На платформе с {formatDate(user.created_at)}</p>
-          {!user.is_active && <p className="text-sm font-medium text-danger">Аккаунт заблокирован</p>}
+          <p className="text-sm text-muted">{t("На платформе с")} {formatDate(user.created_at)}</p>
+          {!user.is_active && <p className="text-sm font-medium text-danger">{t("Аккаунт заблокирован")}</p>}
         </div>
         {data?.achievements && (
           <div className="grid grid-cols-3 gap-6 text-center">
             <div>
               <p className="text-2xl font-bold text-primary">{data.achievements.points}</p>
-              <p className="text-xs text-muted">очков</p>
+              <p className="text-xs text-muted">{t("очков")}</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-fg">{data.achievements.solved_tasks}</p>
-              <p className="text-xs text-muted">решено</p>
+              <p className="text-xs text-muted">{t("решено")}</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-fg">
                 {data.achievements.current_streak > 0 && "🔥"}
                 {data.achievements.current_streak}
               </p>
-              <p className="text-xs text-muted">дней подряд</p>
+              <p className="text-xs text-muted">{t("дней подряд")}</p>
             </div>
           </div>
         )}
@@ -246,7 +247,7 @@ export function UserPage() {
       {data?.difficulty && <DifficultyChart data={data.difficulty} />}
       {data?.achievements && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-fg">Значки</h2>
+          <h2 className="text-lg font-semibold text-fg">{t("Значки")}</h2>
           <Achievements data={data.achievements} />
         </section>
       )}

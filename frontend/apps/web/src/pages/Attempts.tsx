@@ -20,12 +20,13 @@ import {
   type Attempt,
   type AttemptScope,
   type AttemptStatus,
+  t,
 } from "@kps/shared";
 
 const STATUS_FILTERS: (AttemptStatus | null)[] = [null, "pending", "correct", "incorrect", "graded"];
 
 export function Attempts() {
-  useDocumentTitle("Решения");
+  useDocumentTitle(t("Решения"));
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const defaultScope: AttemptScope = user?.role === "student" ? "mine" : "authored";
@@ -50,16 +51,16 @@ export function Attempts() {
   const scopes: { key: AttemptScope; label: string }[] =
     user && user.role !== "student"
       ? [
-          { key: "authored", label: "По моим задачам" },
-          { key: "mine", label: "Мои решения" },
+          { key: "authored", label: t("По моим задачам") },
+          { key: "mine", label: t("Мои решения") },
         ]
       : [];
 
   return (
     <>
       <PageHeader
-        title={scope === "mine" ? "Мои решения" : "Решения учеников"}
-        subtitle={scope === "authored" ? "Проверяйте решения, ожидающие оценки, и оставляйте комментарии" : undefined}
+        title={scope === "mine" ? t("Мои решения") : t("Решения учеников")}
+        subtitle={scope === "authored" ? t("Проверяйте решения, ожидающие оценки, и оставляйте комментарии") : undefined}
       />
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -86,7 +87,7 @@ export function Attempts() {
                 status === item ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface text-muted hover:text-fg",
               )}
             >
-              {item ? statusMeta[item].label : "Все статусы"}
+              {item ? statusMeta[item].label : t("Все статусы")}
             </button>
           ))}
         </div>
@@ -95,13 +96,13 @@ export function Attempts() {
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && (
-        <EmptyState title="Решений пока нет">
+        <EmptyState title={t("Решений пока нет")}>
           {scope === "mine" ? (
             <Link to="/catalog" className="text-primary hover:underline">
-              Перейти к задачам
+              {t("Перейти к задачам")}
             </Link>
           ) : (
-            "Когда ученики отправят решения, они появятся здесь."
+            t("Когда ученики отправят решения, они появятся здесь.")
           )}
         </EmptyState>
       )}
@@ -110,11 +111,11 @@ export function Attempts() {
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-5 py-3 font-medium">Задача</th>
-                {showStudent && <th className="px-5 py-3 font-medium">Ученик</th>}
-                <th className="px-5 py-3 font-medium">Ответ</th>
-                <th className="px-5 py-3 font-medium">Статус</th>
-                <th className="px-5 py-3 font-medium">Дата</th>
+                <th className="px-5 py-3 font-medium">{t("Задача")}</th>
+                {showStudent && <th className="px-5 py-3 font-medium">{t("Ученик")}</th>}
+                <th className="px-5 py-3 font-medium">{t("Ответ")}</th>
+                <th className="px-5 py-3 font-medium">{t("Статус")}</th>
+                <th className="px-5 py-3 font-medium">{t("Дата")}</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -144,13 +145,13 @@ export function Attempts() {
                       </p>
                       {attempt.image_url && (
                         <button className="text-xs text-primary hover:underline" onClick={() => setZoom(attempt.image_url)}>
-                          📎 фото решения
+                          {t("📎 фото решения")}
                         </button>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
                       <Badge tone={meta.tone}>{meta.label}</Badge>
-                      {attempt.teacher_grade !== null && <p className="mt-1 text-xs text-muted">{attempt.teacher_grade} баллов</p>}
+                      {attempt.teacher_grade !== null && <p className="mt-1 text-xs text-muted">{attempt.teacher_grade}  {t("баллов")}</p>}
                       {attempt.status === "graded" && attempt.feedback && (
                         <p className="mt-1 max-w-48 text-xs text-muted" title={attempt.feedback}>
                           «{attempt.feedback}»
@@ -161,7 +162,7 @@ export function Attempts() {
                     <td className="px-5 py-3.5 text-right">
                       {canGrade && scope !== "mine" && (
                         <Button size="sm" variant={attempt.status === "pending" ? "primary" : "secondary"} onClick={() => setGrading(attempt)}>
-                          {attempt.status === "pending" ? "Оценить" : "Изменить"}
+                          {attempt.status === "pending" ? t("Оценить") : t("Изменить")}
                         </Button>
                       )}
                     </td>
@@ -183,8 +184,8 @@ export function Attempts() {
           }}
         />
       )}
-      <Modal open={!!zoom} onClose={() => setZoom(null)} title="Фото решения">
-        {zoom && <img src={zoom} alt="Фото решения" className="max-h-[80vh] rounded-lg object-contain" />}
+      <Modal open={!!zoom} onClose={() => setZoom(null)} title={t("Фото решения")}>
+        {zoom && <img src={zoom} alt={t("Фото решения")} className="max-h-[80vh] rounded-lg object-contain" />}
       </Modal>
     </>
   );

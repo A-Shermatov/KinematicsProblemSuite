@@ -30,11 +30,12 @@ import {
   type Certificate,
   type Review,
   type TeacherProfile,
+  t,
 } from "@kps/shared";
 import { TaskRow } from "./Catalog";
 
 export function Teachers() {
-  useDocumentTitle("Учителя");
+  useDocumentTitle(t("Учителя"));
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [subjectId, setSubjectId] = useState<number | null>(null);
@@ -47,7 +48,7 @@ export function Teachers() {
 
   return (
     <>
-      <PageHeader title="Учителя" subtitle="Авторы задач платформы: опыт, подтверждённые достижения и отзывы учеников" />
+      <PageHeader title={t("Учителя")} subtitle={t("Авторы задач платформы: опыт, подтверждённые достижения и отзывы учеников")} />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <form
           className="w-full sm:w-72"
@@ -56,15 +57,15 @@ export function Teachers() {
             setQuery(search.trim());
           }}
         >
-          <Input placeholder="Имя или школа, Enter" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Поиск учителей" />
+          <Input placeholder={t("Имя или школа, Enter")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("Поиск учителей")} />
         </form>
         <select
           value={subjectId ?? ""}
           onChange={(e) => setSubjectId(e.target.value ? Number(e.target.value) : null)}
           className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
-          aria-label="Предмет"
+          aria-label={t("Предмет")}
         >
-          <option value="">Все предметы</option>
+          <option value="">{t("Все предметы")}</option>
           {subjects?.map((subject) => (
             <option key={subject.id} value={subject.id}>
               {subject.title}
@@ -75,16 +76,16 @@ export function Teachers() {
           value={sort}
           onChange={(e) => setSort(e.target.value as typeof sort)}
           className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
-          aria-label="Сортировка"
+          aria-label={t("Сортировка")}
         >
-          <option value="rating">По рейтингу</option>
-          <option value="tasks">По числу задач</option>
-          <option value="new">Сначала новые</option>
+          <option value="rating">{t("По рейтингу")}</option>
+          <option value="tasks">{t("По числу задач")}</option>
+          <option value="new">{t("Сначала новые")}</option>
         </select>
       </div>
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
-      {data && data.length === 0 && <EmptyState icon="🎓" title="Учителя не найдены" />}
+      {data && data.length === 0 && <EmptyState icon="🎓" title={t("Учителя не найдены")} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data?.map((teacher) => (
           <Link key={teacher.id} to={`/teachers/${teacher.id}`} className="group">
@@ -95,12 +96,12 @@ export function Teachers() {
                   <p className="flex items-center gap-1.5 truncate font-semibold text-fg group-hover:text-primary">
                     {teacher.name}
                     {teacher.verified_certificates > 0 && (
-                      <span className="text-success" title="Есть подтверждённые достижения">
+                      <span className="text-success" title={t("Есть подтверждённые достижения")}>
                         ✓
                       </span>
                     )}
                   </p>
-                  <p className="line-clamp-2 text-xs text-muted">{teacher.headline || "Учитель"}</p>
+                  <p className="line-clamp-2 text-xs text-muted">{teacher.headline || t("Учитель")}</p>
                 </div>
               </div>
               {teacher.subjects.length > 0 && (
@@ -137,7 +138,7 @@ function CertificateCard({ certificate, showStatus, onOpen }: { certificate: Cer
       <button
         onClick={onOpen}
         className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 text-xs font-bold text-muted"
-        aria-label={`Открыть «${certificate.title}»`}
+        aria-label={t("Открыть «{0}»", [certificate.title])}
       >
         {certificate.is_pdf ? "PDF" : <img src={certificate.file_url} alt="" className="h-full w-full object-cover" />}
       </button>
@@ -145,10 +146,10 @@ function CertificateCard({ certificate, showStatus, onOpen }: { certificate: Cer
         <p className="font-medium text-fg">{certificate.title}</p>
         <p className="text-xs text-muted">{[certificate.issuer, certificate.year].filter(Boolean).join(", ") || "—"}</p>
         {showStatus && certificate.status === "rejected" && certificate.reject_reason && (
-          <p className="mt-1 text-xs text-danger">Причина: {certificate.reject_reason}</p>
+          <p className="mt-1 text-xs text-danger">{t("Причина:")} {certificate.reject_reason}</p>
         )}
         <div className="mt-1.5">
-          {showStatus ? <Badge tone={meta.tone}>{meta.label}</Badge> : <Badge tone="success">✓ Проверено</Badge>}
+          {showStatus ? <Badge tone={meta.tone}>{meta.label}</Badge> : <Badge tone="success">{t("✓ Проверено")}</Badge>}
         </div>
       </div>
     </Card>
@@ -186,24 +187,24 @@ function ReviewItem({ review, canReply, onReplied }: { review: Review; canReply:
       {review.text && <p className="whitespace-pre-line text-sm text-fg">{review.text}</p>}
       {review.reply && !replying && (
         <div className="ml-6 rounded-xl border-l-2 border-primary bg-primary-soft/60 px-4 py-2.5 text-sm">
-          <p className="mb-0.5 text-xs font-medium text-primary">Ответ учителя</p>
+          <p className="mb-0.5 text-xs font-medium text-primary">{t("Ответ учителя")}</p>
           <p className="whitespace-pre-line text-fg">{review.reply}</p>
         </div>
       )}
       {canReply && !replying && (
         <button className="text-xs font-medium text-primary hover:underline" onClick={() => setReplying(true)}>
-          {review.reply ? "Изменить ответ" : "Ответить"}
+          {review.reply ? t("Изменить ответ") : t("Ответить")}
         </button>
       )}
       {replying && (
         <form onSubmit={save} className="ml-6 space-y-2">
-          <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} placeholder="Ваш ответ ученику" aria-label="Ответ на отзыв" />
+          <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} placeholder={t("Ваш ответ ученику")} aria-label={t("Ответ на отзыв")} />
           <div className="flex gap-2">
             <Button type="submit" size="sm" loading={saving}>
-              Сохранить
+              {t("Сохранить")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setReplying(false)}>
-              Отмена
+              {t("Отмена")}
             </Button>
           </div>
         </form>
@@ -221,7 +222,7 @@ function ReviewForm({ profile, onSaved }: { profile: TeacherProfile; onSaved: ()
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!rating) {
-      setError("Поставьте оценку от 1 до 5");
+      setError(t("Поставьте оценку от 1 до 5"));
       return;
     }
     setSaving(true);
@@ -237,24 +238,24 @@ function ReviewForm({ profile, onSaved }: { profile: TeacherProfile; onSaved: ()
   };
 
   const remove = async () => {
-    if (!window.confirm("Удалить ваш отзыв?")) return;
+    if (!window.confirm(t("Удалить ваш отзыв?"))) return;
     await api.teachers.deleteReview(profile.id).catch((err) => window.alert(errorText(err)));
     onSaved();
   };
 
   return (
     <form onSubmit={submit} className="space-y-3 border-b border-border px-6 py-5">
-      <p className="text-sm font-medium text-fg">{profile.my_review ? "Ваш отзыв" : "Оставьте отзыв"}</p>
+      <p className="text-sm font-medium text-fg">{profile.my_review ? t("Ваш отзыв") : t("Оставьте отзыв")}</p>
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <StarInput value={rating} onChange={setRating} />
-      <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} placeholder="Что понравилось, что можно улучшить?" aria-label="Текст отзыва" />
+      <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} placeholder={t("Что понравилось, что можно улучшить?")} aria-label={t("Текст отзыва")} />
       <div className="flex gap-2">
         <Button type="submit" size="sm" loading={saving}>
-          {profile.my_review ? "Обновить отзыв" : "Отправить"}
+          {profile.my_review ? t("Обновить отзыв") : t("Отправить")}
         </Button>
         {profile.my_review && (
           <Button size="sm" variant="ghost" onClick={remove}>
-            Удалить
+            {t("Удалить")}
           </Button>
         )}
       </div>
@@ -277,7 +278,7 @@ export function TeacherPage() {
   useDocumentTitle(data?.profile.name);
 
   if (loading && !data) return <Loading />;
-  if (error || !data) return <ErrorMessage>{error ?? "Учитель не найден"}</ErrorMessage>;
+  if (error || !data) return <ErrorMessage>{error ?? t("Учитель не найден")}</ErrorMessage>;
   const { profile, reviews, tasks } = data;
   const isOwner = user?.id === profile.id;
   const total = profile.reviews_count;
@@ -291,7 +292,7 @@ export function TeacherPage() {
           <div className="min-w-0 flex-1 space-y-2">
             <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold text-fg sm:text-3xl">
               {profile.name}
-              {profile.verified_certificates > 0 && <Badge tone="success">✓ Достижения подтверждены</Badge>}
+              {profile.verified_certificates > 0 && <Badge tone="success">{t("✓ Достижения подтверждены")}</Badge>}
             </h1>
             {profile.headline && <p className="text-muted">{profile.headline}</p>}
             <div className="flex flex-wrap gap-1.5">
@@ -302,23 +303,23 @@ export function TeacherPage() {
               ))}
               {profile.experience_years !== null && (
                 <Badge>
-                  Стаж {profile.experience_years} {plural(profile.experience_years, ["год", "года", "лет"])}
+                  {t("Стаж")} {profile.experience_years} {plural(profile.experience_years, ["год", "года", "лет"])}
                 </Badge>
               )}
             </div>
           </div>
           {isOwner && (
             <ButtonLink to="/profile/teacher" variant="secondary" size="sm">
-              Редактировать профиль
+              {t("Редактировать профиль")}
             </ButtonLink>
           )}
         </div>
         <div className="relative mt-6 grid grid-cols-2 gap-4 border-t border-border pt-6 sm:grid-cols-4">
           {[
-            { label: "Рейтинг", value: formatRating(profile.rating), extra: <Stars value={profile.rating} size="sm" /> },
-            { label: "Отзывов", value: profile.reviews_count },
-            { label: "Задач", value: profile.tasks_count },
-            { label: "Учеников", value: profile.students_count },
+            { label: t("Рейтинг"), value: formatRating(profile.rating), extra: <Stars value={profile.rating} size="sm" /> },
+            { label: t("Отзывов"), value: profile.reviews_count },
+            { label: t("Задач"), value: profile.tasks_count },
+            { label: t("Учеников"), value: profile.students_count },
           ].map((stat) => (
             <div key={stat.label}>
               <p className="text-xs text-muted">{stat.label}</p>
@@ -334,7 +335,7 @@ export function TeacherPage() {
         <div className="min-w-0 space-y-8">
           {profile.bio && (
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-fg">О себе</h2>
+              <h2 className="text-lg font-semibold text-fg">{t("О себе")}</h2>
               <Card className="p-6">
                 <Markdown source={profile.bio} />
               </Card>
@@ -343,10 +344,10 @@ export function TeacherPage() {
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-fg">
-              Задачи <span className="text-muted">{tasks.length}</span>
+              {t("Задачи")} <span className="text-muted">{tasks.length}</span>
             </h2>
             {tasks.length === 0 ? (
-              <EmptyState title="Пока нет задач" />
+              <EmptyState title={t("Пока нет задач")} />
             ) : (
               <Card className="divide-y divide-border overflow-hidden">
                 {tasks.slice(0, 10).map((task) => (
@@ -358,17 +359,17 @@ export function TeacherPage() {
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-fg">
-              Отзывы учеников <span className="text-muted">{reviews.length}</span>
+              {t("Отзывы учеников")} <span className="text-muted">{reviews.length}</span>
             </h2>
             <Card className="overflow-hidden">
               {profile.can_review && <ReviewForm profile={profile} onSaved={reload} />}
               {user?.role === "student" && !profile.can_review && (
                 <p className="border-b border-border px-6 py-4 text-sm text-muted">
-                  Оставить отзыв можно после того, как вы порешаете задачи этого учителя.
+                  {t("Оставить отзыв можно после того, как вы порешаете задачи этого учителя.")}
                 </p>
               )}
               {reviews.length === 0 ? (
-                <p className="px-6 py-8 text-center text-sm text-muted">Отзывов пока нет</p>
+                <p className="px-6 py-8 text-center text-sm text-muted">{t("Отзывов пока нет")}</p>
               ) : (
                 <ul className="divide-y divide-border">
                   {reviews.map((review) => (
@@ -389,7 +390,7 @@ export function TeacherPage() {
 
         <aside className="space-y-8">
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-fg">Оценки</h2>
+            <h2 className="text-lg font-semibold text-fg">{t("Оценки")}</h2>
             <Card className="space-y-2 p-5">
               {[5, 4, 3, 2, 1].map((star) => {
                 const count = profile.rating_distribution[String(star)] ?? 0;
@@ -406,9 +407,9 @@ export function TeacherPage() {
             </Card>
           </section>
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-fg">Достижения и сертификаты</h2>
+            <h2 className="text-lg font-semibold text-fg">{t("Достижения и сертификаты")}</h2>
             {profile.certificates.length === 0 ? (
-              <p className="text-sm text-muted">Пока нет подтверждённых документов.</p>
+              <p className="text-sm text-muted">{t("Пока нет подтверждённых документов.")}</p>
             ) : (
               <div className="space-y-3">
                 {profile.certificates.map((certificate) => (
@@ -417,7 +418,7 @@ export function TeacherPage() {
               </div>
             )}
           </section>
-          <p className="text-xs text-muted">На платформе с {formatDate(profile.created_at)}</p>
+          <p className="text-xs text-muted">{t("На платформе с")} {formatDate(profile.created_at)}</p>
         </aside>
       </div>
 
@@ -434,7 +435,7 @@ export function TeacherPage() {
 }
 
 export function TeacherSettings() {
-  useDocumentTitle("Профиль учителя");
+  useDocumentTitle(t("Профиль учителя"));
   const { user } = useAuth();
   const [form, setForm] = useState<{ headline: string; bio: string; experience: string; subjectIds: number[] } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -470,7 +471,7 @@ export function TeacherSettings() {
         subject_ids: form.subjectIds,
       });
       setData((prev) => ({ ...prev!, profile }));
-      setStatus("Профиль сохранён");
+      setStatus(t("Профиль сохранён"));
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -481,7 +482,7 @@ export function TeacherSettings() {
   const upload = async (event: FormEvent) => {
     event.preventDefault();
     if (!cert.file) {
-      setCertError("Выберите файл: PDF или фото");
+      setCertError(t("Выберите файл: PDF или фото"));
       return;
     }
     setUploading(true);
@@ -499,7 +500,7 @@ export function TeacherSettings() {
   };
 
   const removeCertificate = async (certificate: Certificate) => {
-    if (!window.confirm(`Удалить «${certificate.title}»?`)) return;
+    if (!window.confirm(t("Удалить «{0}»?", [certificate.title]))) return;
     await api.teachers.deleteCertificate(certificate.id).catch((err) => window.alert(errorText(err)));
     reload();
   };
@@ -510,11 +511,11 @@ export function TeacherSettings() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
-        title="Профиль учителя"
-        subtitle="Так вас видят ученики на странице учителя"
+        title={t("Профиль учителя")}
+        subtitle={t("Так вас видят ученики на странице учителя")}
         actions={
           <ButtonLink to={`/teachers/${data.profile.id}`} variant="secondary" size="sm">
-            Открыть мой профиль
+            {t("Открыть мой профиль")}
           </ButtonLink>
         }
       />
@@ -524,15 +525,15 @@ export function TeacherSettings() {
             {status && <div className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success">{status}</div>}
             {error && <ErrorMessage>{error}</ErrorMessage>}
             <Input
-              label="Кратко о себе"
+              label={t("Кратко о себе")}
               value={form.headline}
               onChange={(e) => setForm({ ...form, headline: e.target.value })}
               maxLength={150}
-              placeholder="Учитель физики, лицей №1 г. Худжанда"
+              placeholder={t("Учитель физики, лицей №1 г. Худжанда")}
             />
             <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
               <Input
-                label="Стаж, лет"
+                label={t("Стаж, лет")}
                 type="number"
                 min={0}
                 max={70}
@@ -540,7 +541,7 @@ export function TeacherSettings() {
                 onChange={(e) => setForm({ ...form, experience: e.target.value })}
               />
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-fg">Предметы</p>
+                <p className="text-sm font-medium text-fg">{t("Предметы")}</p>
                 <div className="flex flex-wrap gap-2">
                   {data.subjects.map((subject) => (
                     <button
@@ -559,23 +560,23 @@ export function TeacherSettings() {
               </div>
             </div>
             <Textarea
-              label="О себе"
+              label={t("О себе")}
               rows={6}
               value={form.bio}
               onChange={(e) => setForm({ ...form, bio: e.target.value })}
               maxLength={10000}
-              hint="Опыт, достижения учеников, подход к обучению. Поддерживается Markdown."
+              hint={t("Опыт, достижения учеников, подход к обучению. Поддерживается Markdown.")}
             />
             <Button type="submit" loading={saving}>
-              Сохранить
+              {t("Сохранить")}
             </Button>
           </form>
         </Card>
 
         <Card className="p-6">
-          <h2 className="font-semibold text-fg">Достижения и сертификаты</h2>
+          <h2 className="font-semibold text-fg">{t("Достижения и сертификаты")}</h2>
           <p className="mb-4 text-sm text-muted">
-            Загрузите дипломы, сертификаты и грамоты. После проверки администратором они появятся в профиле со значком «Проверено».
+            {t("Загрузите дипломы, сертификаты и грамоты. После проверки администратором они появятся в профиле со значком «Проверено».")}
           </p>
           <div className="mb-6 space-y-3">
             {data.profile.certificates.map((certificate) => (
@@ -583,7 +584,7 @@ export function TeacherSettings() {
                 <div className="flex-1">
                   <CertificateCard certificate={certificate} showStatus onOpen={() => window.open(certificate.file_url, "_blank")} />
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => removeCertificate(certificate)} aria-label={`Удалить ${certificate.title}`}>
+                <Button variant="ghost" size="sm" onClick={() => removeCertificate(certificate)} aria-label={t("Удалить {0}", [certificate.title])}>
                   ✕
                 </Button>
               </div>
@@ -592,9 +593,9 @@ export function TeacherSettings() {
           <form onSubmit={upload} className="space-y-4 rounded-xl border border-dashed border-border p-4">
             {certError && <ErrorMessage>{certError}</ErrorMessage>}
             <div className="grid gap-4 sm:grid-cols-[2fr_2fr_1fr]">
-              <Input label="Название" value={cert.title} onChange={(e) => setCert({ ...cert, title: e.target.value })} required minLength={2} placeholder="Победитель конкурса «Учитель года»" />
-              <Input label="Кем выдан" value={cert.issuer} onChange={(e) => setCert({ ...cert, issuer: e.target.value })} placeholder="Министерство образования" />
-              <Input label="Год" type="number" min={1950} max={2100} value={cert.year} onChange={(e) => setCert({ ...cert, year: e.target.value })} />
+              <Input label={t("Название")} value={cert.title} onChange={(e) => setCert({ ...cert, title: e.target.value })} required minLength={2} placeholder={t("Победитель конкурса «Учитель года»")} />
+              <Input label={t("Кем выдан")} value={cert.issuer} onChange={(e) => setCert({ ...cert, issuer: e.target.value })} placeholder={t("Министерство образования")} />
+              <Input label={t("Год")} type="number" min={1950} max={2100} value={cert.year} onChange={(e) => setCert({ ...cert, year: e.target.value })} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <input
@@ -602,10 +603,10 @@ export function TeacherSettings() {
                 accept="application/pdf,image/png,image/jpeg,image/webp"
                 onChange={(e) => setCert({ ...cert, file: e.target.files?.[0] ?? null })}
                 className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:font-medium file:text-fg"
-                aria-label="Файл документа"
+                aria-label={t("Файл документа")}
               />
               <Button type="submit" variant="secondary" loading={uploading}>
-                Загрузить на проверку
+                {t("Загрузить на проверку")}
               </Button>
             </div>
           </form>

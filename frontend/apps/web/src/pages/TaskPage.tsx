@@ -22,6 +22,8 @@ import {
   useAuth,
   useDocumentTitle,
   type Attempt,
+  t,
+  UntranslatedNote,
 } from "@kps/shared";
 
 function AttemptResult({ attempt }: { attempt: Attempt }) {
@@ -36,12 +38,12 @@ function AttemptResult({ attempt }: { attempt: Attempt }) {
     <div className={cx("rounded-xl border px-4 py-3 text-sm", styles)} role="status">
       <p className="font-semibold">
         {meta.label}
-        {attempt.teacher_grade !== null && ` · ${attempt.teacher_grade} баллов`}
+        {attempt.teacher_grade !== null && t(" · {0} баллов", [attempt.teacher_grade])}
       </p>
       {attempt.feedback && <p className="mt-0.5 opacity-90">{attempt.feedback}</p>}
       {attempt.correct_answer && attempt.status === "correct" && (
         <p className="mt-1 text-fg">
-          Ответ: <span className="font-mono">{attempt.correct_answer}{attempt.task_unit ? ` ${attempt.task_unit}` : ""}</span>
+          {t("Ответ:")} <span className="font-mono">{attempt.correct_answer}{attempt.task_unit ? ` ${attempt.task_unit}` : ""}</span>
         </p>
       )}
     </div>
@@ -71,7 +73,7 @@ export function TaskPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (loading) return <Loading />;
-  if (error || !data) return <ErrorMessage>{error ?? "Задача не найдена"}</ErrorMessage>;
+  if (error || !data) return <ErrorMessage>{error ?? t("Задача не найдена")}</ErrorMessage>;
   const { task, siblings, attempts } = data;
 
   const index = siblings.findIndex((t) => t.id === task.id);
@@ -108,8 +110,8 @@ export function TaskPage() {
 
   const answerHint =
     task.answer_type === "number"
-      ? `Число${task.unit ? `, по умолчанию в «${task.unit}»` : ""}. Можно с единицами: «72 км/ч», «2·10^3 м».`
-      : "Текстовый ответ, регистр не важен.";
+      ? t("Число{0}. Можно с единицами: «72 км/ч», «2·10^3 м».", [task.unit ? `, по умолчанию в «${task.unit}»` : ""])
+      : t("Текстовый ответ, регистр не важен.");
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
@@ -117,47 +119,48 @@ export function TaskPage() {
         <PageHeader
           title={task.title}
           breadcrumbs={[
-            { label: "Каталог", to: "/catalog" },
+            { label: t("Каталог"), to: "/catalog" },
             { label: task.subject_title, to: `/catalog#subject-${task.subject_id}` },
             { label: task.theme_title, to: `/themes/${task.theme_id}` },
           ]}
           actions={
             <div className="flex items-center gap-2">
-              {solved && <Badge tone="success">✓ Решено</Badge>}
+              {solved && <Badge tone="success">{t("✓ Решено")}</Badge>}
               <Difficulty value={task.difficulty} />
             </div>
           }
         />
 
         <Card className="p-6 sm:p-8">
-          <Markdown source={task.condition} empty="Условие не указано" className="text-[15px] text-fg" />
+          <UntranslatedNote lang={task.lang} />
+          <Markdown source={task.condition} empty={t("Условие не указано")} className="text-[15px] text-fg" />
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-4 text-xs text-muted">
             <span>
-              Автор:{" "}
+              {t("Автор:")}{" "}
               <Link to={`/teachers/${task.author_id}`} className="text-primary hover:underline">
                 {task.author_name}
               </Link>
             </span>
             {formatSource(task) && (
               <span>
-                Источник: <span className="text-fg">{formatSource(task)}</span>
+                {t("Источник:")} <span className="text-fg">{formatSource(task)}</span>
               </span>
             )}
           </div>
         </Card>
 
         <Card className="p-6">
-          <h2 className="mb-4 font-semibold text-fg">Ваш ответ</h2>
+          <h2 className="mb-4 font-semibold text-fg">{t("Ваш ответ")}</h2>
           {!user ? (
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-              Чтобы отправить ответ, войдите в аккаунт.
+              {t("Чтобы отправить ответ, войдите в аккаунт.")}
               <ButtonLink to="/login" state={{ from: `/tasks/${task.id}` }} size="sm">
-                Войти
+                {t("Войти")}
               </ButtonLink>
             </div>
           ) : !canSubmit ? (
             <p className="text-sm text-muted">
-              {user.role === "admin" ? "Администратор не отправляет решения." : "Это ваша задача — решения учеников смотрите в разделе «Решения»."}
+              {user.role === "admin" ? t("Администратор не отправляет решения.") : t("Это ваша задача — решения учеников смотрите в разделе «Решения».")}
             </p>
           ) : (
             <form onSubmit={submit} className="space-y-4">
@@ -168,26 +171,26 @@ export function TaskPage() {
                   <Input
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
-                    placeholder={task.answer_type === "number" ? `Например: 12.5${task.unit ? ` ${task.unit}` : ""}` : "Ответ"}
+                    placeholder={task.answer_type === "number" ? t("Например: 12.5{0}", [task.unit ? ` ${task.unit}` : ""]) : t("Ответ")}
                     hint={answerHint}
-                    aria-label="Ответ"
+                    aria-label={t("Ответ")}
                     className="font-mono"
                   />
                 </div>
                 <Button type="submit" size="lg" loading={submitting} disabled={!answer.trim() && !image}>
-                  Проверить
+                  {t("Проверить")}
                 </Button>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => pickImage(e.target.files?.[0] ?? null)} />
                 <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
-                  📎 {image ? "Заменить фото" : "Приложить фото решения"}
+                  📎 {image ? t("Заменить фото") : t("Приложить фото решения")}
                 </Button>
                 {preview && (
                   <div className="flex items-center gap-2">
-                    <img src={preview} alt="Фото решения" className="h-12 w-12 cursor-zoom-in rounded-lg object-cover" onClick={() => setZoom(preview)} />
+                    <img src={preview} alt={t("Фото решения")} className="h-12 w-12 cursor-zoom-in rounded-lg object-cover" onClick={() => setZoom(preview)} />
                     <button type="button" className="text-xs text-muted hover:text-danger" onClick={() => pickImage(null)}>
-                      Убрать
+                      {t("Убрать")}
                     </button>
                   </div>
                 )}
@@ -198,7 +201,7 @@ export function TaskPage() {
 
         {attempts.length > 0 && (
           <Card className="overflow-hidden">
-            <h2 className="border-b border-border px-6 py-4 font-semibold text-fg">Мои попытки</h2>
+            <h2 className="border-b border-border px-6 py-4 font-semibold text-fg">{t("Мои попытки")}</h2>
             <ul className="divide-y divide-border">
               {attempts.map((attempt) => (
                 <li key={attempt.id} className="flex flex-wrap items-center gap-3 px-6 py-3 text-sm">
@@ -206,7 +209,7 @@ export function TaskPage() {
                   <span className="font-mono text-fg">{attempt.answer || "—"}</span>
                   {attempt.image_url && (
                     <button className="text-xs text-primary hover:underline" onClick={() => setZoom(attempt.image_url)}>
-                      фото
+                      {t("фото")}
                     </button>
                   )}
                   {attempt.feedback && attempt.status === "graded" && <span className="text-muted">«{attempt.feedback}»</span>}
@@ -254,8 +257,8 @@ export function TaskPage() {
         </Card>
       </aside>
 
-      <Modal open={!!zoom} onClose={() => setZoom(null)} title="Фото решения">
-        {zoom && <img src={zoom} alt="Фото решения" className="max-h-[80vh] rounded-lg object-contain" />}
+      <Modal open={!!zoom} onClose={() => setZoom(null)} title={t("Фото решения")}>
+        {zoom && <img src={zoom} alt={t("Фото решения")} className="max-h-[80vh] rounded-lg object-contain" />}
       </Modal>
     </div>
   );

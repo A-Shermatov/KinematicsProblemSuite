@@ -10,6 +10,7 @@ import {
   errorText,
   useAuth,
   useDocumentTitle,
+  t,
 } from "@kps/shared";
 
 function AuthCard({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode }) {
@@ -26,7 +27,7 @@ function AuthCard({ title, subtitle, children, footer }: { title: string; subtit
 }
 
 export function Login() {
-  useDocumentTitle("Вход");
+  useDocumentTitle(t("Вход"));
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,26 +53,26 @@ export function Login() {
 
   return (
     <AuthCard
-      title="С возвращением"
-      subtitle="Войдите, чтобы продолжить решать задачи"
+      title={t("С возвращением")}
+      subtitle={t("Войдите, чтобы продолжить решать задачи")}
       footer={
         <>
-          Нет аккаунта?{" "}
+          {t("Нет аккаунта?")}{" "}
           <Link to="/register" className="font-medium text-primary hover:underline">
-            Зарегистрируйтесь
+            {t("Зарегистрируйтесь")}
           </Link>
         </>
       }
     >
       <form onSubmit={submit} className="space-y-4">
         {from.registered && !error && (
-          <div className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success">Аккаунт создан — теперь войдите.</div>
+          <div className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success">{t("Аккаунт создан — теперь войдите.")}</div>
         )}
         {error && <ErrorMessage>{error}</ErrorMessage>}
-        <Input label="Имя пользователя" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
-        <Input label="Пароль" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <Input label={t("Имя пользователя")} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
+        <Input label={t("Пароль")} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <Button type="submit" className="w-full" size="lg" loading={loading}>
-          Войти
+          {t("Войти")}
         </Button>
       </form>
     </AuthCard>
@@ -79,7 +80,7 @@ export function Login() {
 }
 
 export function Register() {
-  useDocumentTitle("Регистрация");
+  useDocumentTitle(t("Регистрация"));
   const navigate = useNavigate();
   const [form, setForm] = useState({ first_name: "", last_name: "", username: "", password: "", confirm: "", city: "", school: "" });
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +90,7 @@ export function Register() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (form.password !== form.confirm) {
-      setError("Пароли не совпадают");
+      setError(t("Пароли не совпадают"));
       return;
     }
     setLoading(true);
@@ -113,13 +114,13 @@ export function Register() {
 
   return (
     <AuthCard
-      title="Создать аккаунт"
-      subtitle="Регистрация занимает меньше минуты"
+      title={t("Создать аккаунт")}
+      subtitle={t("Регистрация занимает меньше минуты")}
       footer={
         <>
-          Уже есть аккаунт?{" "}
+          {t("Уже есть аккаунт?")}{" "}
           <Link to="/login" className="font-medium text-primary hover:underline">
-            Войти
+            {t("Войти")}
           </Link>
         </>
       }
@@ -127,27 +128,27 @@ export function Register() {
       <form onSubmit={submit} className="space-y-4">
         {error && <ErrorMessage>{error}</ErrorMessage>}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Имя" value={form.first_name} onChange={set("first_name")} required maxLength={50} autoComplete="given-name" />
-          <Input label="Фамилия" value={form.last_name} onChange={set("last_name")} maxLength={50} autoComplete="family-name" />
+          <Input label={t("Имя")} value={form.first_name} onChange={set("first_name")} required maxLength={50} autoComplete="given-name" />
+          <Input label={t("Фамилия")} value={form.last_name} onChange={set("last_name")} maxLength={50} autoComplete="family-name" />
         </div>
         <Input
-          label="Имя пользователя"
+          label={t("Имя пользователя")}
           value={form.username}
           onChange={set("username")}
           required
           minLength={3}
           maxLength={50}
           pattern="[A-Za-z0-9_.\-]+"
-          hint="Латиница, цифры, точка, дефис и подчёркивание"
+          hint={t("Латиница, цифры, точка, дефис и подчёркивание")}
           autoComplete="username"
         />
-        <Input label="Пароль" type="password" value={form.password} onChange={set("password")} required minLength={8} maxLength={72} hint="Не меньше 8 символов" autoComplete="new-password" />
-        <Input label="Повторите пароль" type="password" value={form.confirm} onChange={set("confirm")} required autoComplete="new-password" />
+        <Input label={t("Пароль")} type="password" value={form.password} onChange={set("password")} required minLength={8} maxLength={72} hint={t("Не меньше 8 символов")} autoComplete="new-password" />
+        <Input label={t("Повторите пароль")} type="password" value={form.confirm} onChange={set("confirm")} required autoComplete="new-password" />
         <PlaceFields city={form.city} school={form.school} onChange={(place) => setForm({ ...form, ...place })} />
         <Button type="submit" className="w-full" size="lg" loading={loading}>
-          Зарегистрироваться
+          {t("Зарегистрироваться")}
         </Button>
-        <p className="text-center text-xs text-muted">Аккаунт учителя выдаёт администратор платформы.</p>
+        <p className="text-center text-xs text-muted">{t("Аккаунт учителя выдаёт администратор платформы.")}</p>
       </form>
     </AuthCard>
   );

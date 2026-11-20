@@ -19,10 +19,11 @@ import {
   type SourceType,
   type Task,
   type Theme,
+  t,
 } from "@kps/shared";
 
 export function Catalog() {
-  useDocumentTitle("Задачи");
+  useDocumentTitle(t("Задачи"));
   const location = useLocation();
   const { data, error, loading } = useAsync(async () => {
     const [subjects, themes] = await Promise.all([api.subjects.list(), api.themes.list()]);
@@ -41,10 +42,10 @@ export function Catalog() {
 
   return (
     <>
-      <PageHeader title="Каталог задач" subtitle="Выберите предмет и тему, чтобы начать решать" />
+      <PageHeader title={t("Каталог задач")} subtitle={t("Выберите предмет и тему, чтобы начать решать")} />
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
-      {data && data.subjects.length === 0 && <EmptyState title="Пока нет ни одного предмета" />}
+      {data && data.subjects.length === 0 && <EmptyState title={t("Пока нет ни одного предмета")} />}
       <div className="space-y-10">
         {data?.subjects.map((subject) => {
           const themes = themesBySubject.get(subject.id) ?? [];
@@ -55,14 +56,14 @@ export function Catalog() {
                 {subject.description && <p className="text-sm text-muted">{subject.description}</p>}
               </div>
               {themes.length === 0 ? (
-                <p className="text-sm text-muted">Темы скоро появятся.</p>
+                <p className="text-sm text-muted">{t("Темы скоро появятся.")}</p>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {themes.map((theme) => (
                     <Link key={theme.id} to={`/themes/${theme.id}`} className="group">
                       <Card className="flex h-full flex-col p-5 transition group-hover:-translate-y-0.5 group-hover:border-primary/50 group-hover:shadow-lg">
                         <p className="font-semibold text-fg group-hover:text-primary">{theme.title}</p>
-                        <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted">{theme.description || "Без описания"}</p>
+                        <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted">{theme.description || t("Без описания")}</p>
                         <p className="mt-4 text-xs font-medium text-muted">
                           {theme.tasks_count} {plural(theme.tasks_count, ["задача", "задачи", "задач"])}
                         </p>
@@ -87,7 +88,7 @@ export function TaskRow({ task, to }: { task: Task; to: string }) {
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold",
           task.solved ? "bg-success-soft text-success" : "bg-surface-2 text-muted",
         )}
-        aria-label={task.solved ? "Решено" : "Не решено"}
+        aria-label={task.solved ? t("Решено") : t("Не решено")}
       >
         {task.solved ? "✓" : "•"}
       </span>
@@ -98,7 +99,7 @@ export function TaskRow({ task, to }: { task: Task; to: string }) {
           {formatSource(task) && ` · ${formatSource(task)}`}
         </p>
       </div>
-      {task.check_mode === "manual" && <Badge tone="warning">Проверка учителем</Badge>}
+      {task.check_mode === "manual" && <Badge tone="warning">{t("Проверка учителем")}</Badge>}
       <div className="hidden w-16 flex-col items-end sm:flex">
         <Difficulty value={task.difficulty} />
       </div>
@@ -128,7 +129,7 @@ export function ThemeTasks() {
   }, [data, difficulty, search, source]);
 
   if (loading) return <Loading />;
-  if (error || !data) return <ErrorMessage>{error ?? "Тема не найдена"}</ErrorMessage>;
+  if (error || !data) return <ErrorMessage>{error ?? t("Тема не найдена")}</ErrorMessage>;
 
   const solved = data.tasks.filter((task) => task.solved).length;
   const levels = [...new Set(data.tasks.map((task) => task.difficulty))].sort((a, b) => a - b);
@@ -137,26 +138,26 @@ export function ThemeTasks() {
       <PageHeader
         title={data.theme.title}
         subtitle={data.theme.description}
-        breadcrumbs={[{ label: "Каталог", to: "/catalog" }, { label: data.theme.subject_title, to: `/catalog#subject-${data.theme.subject_id}` }, { label: data.theme.title }]}
+        breadcrumbs={[{ label: t("Каталог"), to: "/catalog" }, { label: data.theme.subject_title, to: `/catalog#subject-${data.theme.subject_id}` }, { label: data.theme.title }]}
         actions={
           data.tasks.length > 0 && (
             <Badge tone={solved === data.tasks.length ? "success" : "neutral"} className="px-3 py-1 text-sm">
-              Решено {solved} из {data.tasks.length}
+              {t("Решено")} {solved}  {t("из")} {data.tasks.length}
             </Badge>
           )
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="w-full sm:w-72">
-          <Input placeholder="Поиск по названию или источнику…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Поиск задач" />
+          <Input placeholder={t("Поиск по названию или источнику…")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("Поиск задач")} />
         </div>
         <select
           value={source}
           onChange={(e) => setSource(e.target.value as SourceType | "")}
           className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
-          aria-label="Источник"
+          aria-label={t("Источник")}
         >
-          <option value="">Любой источник</option>
+          <option value="">{t("Любой источник")}</option>
           {(Object.keys(sourceTypeLabel) as SourceType[]).map((type) => (
             <option key={type} value={type}>
               {sourceTypeLabel[type]}
@@ -167,18 +168,18 @@ export function ThemeTasks() {
           value={difficulty ?? ""}
           onChange={(e) => setDifficulty(e.target.value ? Number(e.target.value) : null)}
           className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
-          aria-label="Сложность"
+          aria-label={t("Сложность")}
         >
-          <option value="">Любая сложность</option>
+          <option value="">{t("Любая сложность")}</option>
           {levels.map((level) => (
             <option key={level} value={level}>
-              Сложность {level}
+              {t("Сложность")} {level}
             </option>
           ))}
         </select>
       </div>
       {tasks.length === 0 ? (
-        <EmptyState title={data.tasks.length === 0 ? "В этой теме пока нет задач" : "Ничего не найдено"} />
+        <EmptyState title={data.tasks.length === 0 ? t("В этой теме пока нет задач") : t("Ничего не найдено")} />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">
           {tasks.map((task) => (

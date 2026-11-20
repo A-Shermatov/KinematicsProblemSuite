@@ -10,7 +10,8 @@ import {
   Input,
   Loading,
   Markdown,
-  MarkdownEditor,
+  TranslatableFields,
+  cleanTranslations,
   Modal,
   PageHeader,
   Select,
@@ -31,21 +32,22 @@ import {
   type OlympiadSubmission,
   type OlympiadTask,
   type OlympiadTaskInput,
+  t,
 } from "@kps/shared";
 
 export function ManageOlympiads() {
-  useDocumentTitle("Мои олимпиады");
+  useDocumentTitle(t("Мои олимпиады"));
   const { data, error, loading } = useAsync(() => api.olympiads.mine(), []);
   return (
     <>
       <PageHeader
-        title="Мои олимпиады"
-        subtitle="Создайте олимпиаду, добавьте задачи и отправьте на проверку администратору"
-        actions={<ButtonLink to="/manage/olympiads/new">+ Новая олимпиада</ButtonLink>}
+        title={t("Мои олимпиады")}
+        subtitle={t("Создайте олимпиаду, добавьте задачи и отправьте на проверку администратору")}
+        actions={<ButtonLink to="/manage/olympiads/new">{t("+ Новая олимпиада")}</ButtonLink>}
       />
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
-      {data && data.length === 0 && <EmptyState icon="🏁" title="Вы ещё не проводили олимпиад" />}
+      {data && data.length === 0 && <EmptyState icon="🏁" title={t("Вы ещё не проводили олимпиад")} />}
       {data && data.length > 0 && (
         <Card className="divide-y divide-border overflow-hidden">
           {data.map((olympiad) => {
@@ -55,7 +57,7 @@ export function ManageOlympiads() {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-fg">{olympiad.title}</p>
                   <p className="text-xs text-muted">
-                    {formatRange(olympiad.starts_at, olympiad.ends_at)} · {olympiad.tasks_count} задач · {olympiad.participants_count} участников
+                    {formatRange(olympiad.starts_at, olympiad.ends_at)} · {olympiad.tasks_count}  {t("задач ·")} {olympiad.participants_count}  {t("участников")}
                   </p>
                 </div>
                 <Badge tone={status.tone}>{status.label}</Badge>
@@ -78,6 +80,7 @@ const EMPTY_TASK: OlympiadTaskInput = {
   unit: null,
   tolerance: 0.01,
   max_points: 10,
+  translations: {},
 };
 
 function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olympiadId: number; task: OlympiadTask | null; nextPosition: number; onSaved: () => void; onCancel: () => void }) {
@@ -92,6 +95,7 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
           unit: task.unit,
           tolerance: task.tolerance ?? 0.01,
           max_points: task.max_points,
+          translations: task.translations ?? {},
         }
       : { ...EMPTY_TASK, position: nextPosition },
   );
@@ -103,7 +107,11 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
     setSaving(true);
     setError(null);
     try {
-      const payload = { ...form, unit: form.answer_type === "number" ? form.unit?.trim() || null : null };
+      const payload = {
+        ...form,
+        unit: form.answer_type === "number" ? form.unit?.trim() || null : null,
+        translations: cleanTranslations(form.translations),
+      };
       if (task) await api.olympiads.updateTask(olympiadId, task.id, payload);
       else await api.olympiads.addTask(olympiadId, payload);
       onSaved();
@@ -117,29 +125,33 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
   return (
     <form onSubmit={submit} className="space-y-4">
       {error && <ErrorMessage>{error}</ErrorMessage>}
-      <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
-        <Input label="Название" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required maxLength={150} />
-        <Input label="Баллы" type="number" min={1} max={100} value={form.max_points} onChange={(e) => setForm({ ...form, max_points: Number(e.target.value) })} required />
-      </div>
-      <MarkdownEditor label="Условие" value={form.condition} onChange={(condition) => setForm({ ...form, condition })} rows={8} />
+      <TranslatableFields
+        title={form.title}
+        condition={form.condition}
+        translations={form.translations}
+        onChange={(patch) => setForm({ ...form, ...patch })}
+        rows={8}
+        asideClassName="sm:grid-cols-[1fr_120px]"
+        aside={<Input label={t("Баллы")} type="number" min={1} max={100} value={form.max_points} onChange={(e) => setForm({ ...form, max_points: Number(e.target.value) })} required />}
+      />
       <div className={cx("grid gap-4", form.answer_type === "number" ? "sm:grid-cols-[160px_1fr_120px_120px]" : "sm:grid-cols-[160px_1fr]")}>
-        <Select label="Тип ответа" value={form.answer_type} onChange={(e) => setForm({ ...form, answer_type: e.target.value as AnswerType })}>
-          <option value="number">Число</option>
-          <option value="text">Текст</option>
+        <Select label={t("Тип ответа")} value={form.answer_type} onChange={(e) => setForm({ ...form, answer_type: e.target.value as AnswerType })}>
+          <option value="number">{t("Число")}</option>
+          <option value="text">{t("Текст")}</option>
         </Select>
         <Input
-          label="Ответ (для автопроверки)"
+          label={t("Ответ (для автопроверки)")}
           value={form.answer}
           onChange={(e) => setForm({ ...form, answer: e.target.value })}
           required
           className="font-mono"
-          hint="Итоговый балл ставит жюри, автопроверка — подсказка"
+          hint={t("Итоговый балл ставит жюри, автопроверка — подсказка")}
         />
         {form.answer_type === "number" && (
           <>
-            <Input label="Единицы" value={form.unit ?? ""} onChange={(e) => setForm({ ...form, unit: e.target.value || null })} placeholder="м/с" />
+            <Input label={t("Единицы")} value={form.unit ?? ""} onChange={(e) => setForm({ ...form, unit: e.target.value || null })} placeholder={t("м/с")} />
             <Input
-              label="Погрешность, %"
+              label={t("Погрешность, %")}
               type="number"
               min={0}
               max={50}
@@ -152,10 +164,10 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel}>
-          Отмена
+          {t("Отмена")}
         </Button>
         <Button type="submit" loading={saving}>
-          {task ? "Сохранить задачу" : "Добавить задачу"}
+          {task ? t("Сохранить задачу") : t("Добавить задачу")}
         </Button>
       </div>
     </form>
@@ -166,7 +178,7 @@ export function OlympiadEditor() {
   const params = useParams();
   const olympiadId = params.olympiadId ? Number(params.olympiadId) : null;
   const navigate = useNavigate();
-  useDocumentTitle(olympiadId ? "Олимпиада" : "Новая олимпиада");
+  useDocumentTitle(olympiadId ? t("Олимпиада") : t("Новая олимпиада"));
   const defaultStart = new Date(Date.now() + 7 * 86400_000);
   defaultStart.setHours(10, 0, 0, 0);
 
@@ -244,8 +256,8 @@ export function OlympiadEditor() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader
-        title={olympiad ? olympiad.title : "Новая олимпиада"}
-        breadcrumbs={[{ label: "Мои олимпиады", to: "/manage/olympiads" }, { label: olympiad ? "Олимпиада" : "Новая" }]}
+        title={olympiad ? olympiad.title : t("Новая олимпиада")}
+        breadcrumbs={[{ label: t("Мои олимпиады"), to: "/manage/olympiads" }, { label: olympiad ? t("Олимпиада") : t("Новая") }]}
         actions={
           olympiad && (
             <div className="flex flex-wrap gap-2">
@@ -253,11 +265,11 @@ export function OlympiadEditor() {
               {olympiad.status === "published" && (
                 <>
                   <ButtonLink to={`/olympiads/${olympiad.id}`} variant="secondary" size="sm">
-                    Страница олимпиады
+                    {t("Страница олимпиады")}
                   </ButtonLink>
                   {olympiad.phase !== "upcoming" && (
                     <ButtonLink to={`/manage/olympiads/${olympiad.id}/jury`} size="sm">
-                      Жюри{olympiad.ungraded_count ? ` · ${olympiad.ungraded_count}` : ""}
+                      {t("Жюри")}{olympiad.ungraded_count ? ` · ${olympiad.ungraded_count}` : ""}
                     </ButtonLink>
                   )}
                 </>
@@ -269,39 +281,39 @@ export function OlympiadEditor() {
 
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {olympiad?.status === "rejected" && (
-        <Card className="border-danger/30 bg-danger-soft p-4 text-sm text-danger">Администратор вернул олимпиаду: {olympiad.reject_reason}</Card>
+        <Card className="border-danger/30 bg-danger-soft p-4 text-sm text-danger">{t("Администратор вернул олимпиаду:")} {olympiad.reject_reason}</Card>
       )}
       {olympiad?.status === "pending" && (
-        <Card className="border-warning/30 bg-warning-soft p-4 text-sm text-warning">Олимпиада на проверке у администратора. Изменения недоступны.</Card>
+        <Card className="border-warning/30 bg-warning-soft p-4 text-sm text-warning">{t("Олимпиада на проверке у администратора. Изменения недоступны.")}</Card>
       )}
 
       <Card className="p-6">
         <form onSubmit={saveInfo} className="space-y-4">
           <fieldset disabled={!editable} className="space-y-4">
-            <Input label="Название" value={info.title} onChange={(e) => setInfo({ ...info, title: e.target.value })} required minLength={3} maxLength={150} placeholder="Осенняя олимпиада по физике, 9–11 классы" />
+            <Input label={t("Название")} value={info.title} onChange={(e) => setInfo({ ...info, title: e.target.value })} required minLength={3} maxLength={150} placeholder={t("Осенняя олимпиада по физике, 9–11 классы")} />
             <div className="grid gap-4 sm:grid-cols-3">
-              <Select label="Предмет" value={info.subject_id} onChange={(e) => setInfo({ ...info, subject_id: e.target.value })}>
-                <option value="">Разные предметы</option>
+              <Select label={t("Предмет")} value={info.subject_id} onChange={(e) => setInfo({ ...info, subject_id: e.target.value })}>
+                <option value="">{t("Разные предметы")}</option>
                 {data.subjects.map((subject) => (
                   <option key={subject.id} value={subject.id}>
                     {subject.title}
                   </option>
                 ))}
               </Select>
-              <Input label="Начало" type="datetime-local" value={info.starts} onChange={(e) => setInfo({ ...info, starts: e.target.value })} required />
-              <Input label="Окончание" type="datetime-local" value={info.ends} onChange={(e) => setInfo({ ...info, ends: e.target.value })} required />
+              <Input label={t("Начало")} type="datetime-local" value={info.starts} onChange={(e) => setInfo({ ...info, starts: e.target.value })} required />
+              <Input label={t("Окончание")} type="datetime-local" value={info.ends} onChange={(e) => setInfo({ ...info, ends: e.target.value })} required />
             </div>
             <Textarea
-              label="Описание и правила"
+              label={t("Описание и правила")}
               rows={5}
               value={info.description}
               onChange={(e) => setInfo({ ...info, description: e.target.value })}
-              hint="Для кого олимпиада, формат, призы. Поддерживается Markdown."
+              hint={t("Для кого олимпиада, формат, призы. Поддерживается Markdown.")}
             />
           </fieldset>
           {editable && (
             <Button type="submit" loading={saving}>
-              {olympiad ? "Сохранить" : "Создать и перейти к задачам"}
+              {olympiad ? t("Сохранить") : t("Создать и перейти к задачам")}
             </Button>
           )}
         </form>
@@ -311,11 +323,11 @@ export function OlympiadEditor() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-fg">
-              Задачи · {olympiad.tasks.length} · {olympiad.max_score} баллов
+              {t("Задачи ·")} {olympiad.tasks.length} · {olympiad.max_score}  {t("баллов")}
             </h2>
             {editable && editingTask === null && (
               <Button size="sm" onClick={() => setEditingTask("new")}>
-                + Задача
+                {t("+ Задача")}
               </Button>
             )}
           </div>
@@ -330,27 +342,27 @@ export function OlympiadEditor() {
                   <p className="flex-1 font-medium text-fg">
                     {index + 1}. {task.title}
                   </p>
-                  <Badge>{task.max_points} баллов</Badge>
+                  <Badge>{task.max_points}  {t("баллов")}</Badge>
                   <Badge tone="primary">
-                    Ответ: {task.answer}
+                    {t("Ответ:")} {task.answer}
                     {task.unit ? ` ${task.unit}` : ""}
                   </Badge>
                   {editable && (
                     <>
                       <Button size="sm" variant="ghost" onClick={() => setEditingTask(task)}>
-                        Изменить
+                        {t("Изменить")}
                       </Button>
                       <Button
                         size="sm"
                         variant="danger"
-                        onClick={() => window.confirm(`Удалить задачу «${task.title}»?`) && action(() => api.olympiads.removeTask(olympiad.id, task.id))}
+                        onClick={() => window.confirm(t("Удалить задачу «{0}»?", [task.title])) && action(() => api.olympiads.removeTask(olympiad.id, task.id))}
                       >
-                        Удалить
+                        {t("Удалить")}
                       </Button>
                     </>
                   )}
                 </div>
-                <Markdown source={task.condition} className="text-sm" empty="Без условия" />
+                <Markdown source={task.condition} className="text-sm" empty={t("Без условия")} />
               </Card>
             ),
           )}
@@ -359,18 +371,18 @@ export function OlympiadEditor() {
               <TaskForm olympiadId={olympiad.id} task={null} nextPosition={olympiad.tasks.length} onSaved={() => { setEditingTask(null); reload(); }} onCancel={() => setEditingTask(null)} />
             </Card>
           )}
-          {olympiad.tasks.length === 0 && editingTask === null && <EmptyState title="Добавьте задачи олимпиады" />}
+          {olympiad.tasks.length === 0 && editingTask === null && <EmptyState title={t("Добавьте задачи олимпиады")} />}
         </section>
       )}
 
       {olympiad && editable && (
         <Card className="flex flex-wrap items-center gap-4 p-5">
-          <p className="flex-1 text-sm text-muted">Когда всё готово, отправьте олимпиаду администратору. После публикации задачи изменить нельзя.</p>
-          <Button variant="ghost" onClick={() => window.confirm("Удалить олимпиаду?") && action(async () => { await api.olympiads.remove(olympiad.id); navigate("/manage/olympiads"); })}>
-            Удалить
+          <p className="flex-1 text-sm text-muted">{t("Когда всё готово, отправьте олимпиаду администратору. После публикации задачи изменить нельзя.")}</p>
+          <Button variant="ghost" onClick={() => window.confirm(t("Удалить олимпиаду?")) && action(async () => { await api.olympiads.remove(olympiad.id); navigate("/manage/olympiads"); })}>
+            {t("Удалить")}
           </Button>
           <Button onClick={() => action(() => api.olympiads.submitForReview(olympiad.id))} disabled={olympiad.tasks.length === 0}>
-            Отправить на проверку
+            {t("Отправить на проверку")}
           </Button>
         </Card>
       )}
@@ -397,7 +409,7 @@ function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympia
 
   return (
     <form onSubmit={save} className={cx("grid gap-4 px-5 py-4 md:grid-cols-[96px_1fr_auto]", submission.jury_points === null && "bg-warning-soft/40")}>
-      <button type="button" onClick={() => onZoom(submission.image_url)} className="h-24 w-24 overflow-hidden rounded-lg bg-surface-2" aria-label="Открыть фото решения">
+      <button type="button" onClick={() => onZoom(submission.image_url)} className="h-24 w-24 overflow-hidden rounded-lg bg-surface-2" aria-label={t("Открыть фото решения")}>
         <img src={submission.image_url} alt="" className="h-full w-full object-cover" />
       </button>
       <div className="min-w-0 space-y-1 text-sm">
@@ -406,14 +418,14 @@ function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympia
           <span className="font-normal text-muted"> · {[submission.school, submission.city].filter(Boolean).join(", ") || `@${submission.username}`}</span>
         </p>
         <p className="text-muted">
-          Задача {submission.task_position + 1}. {submission.task_title} · отправлено {formatDateTime(submission.submitted_at)}
+          {t("Задача")} {submission.task_position + 1}. {submission.task_title}  {t("· отправлено")} {formatDateTime(submission.submitted_at)}
         </p>
         <p>
-          Ответ: <span className="font-mono text-fg">{submission.answer || "—"}</span> · эталон{" "}
+          {t("Ответ:")} <span className="font-mono text-fg">{submission.answer || "—"}</span>  {t("· эталон")}{" "}
           <span className="font-mono text-fg">{submission.correct_answer}</span>{" "}
-          <Badge tone={submission.auto_correct ? "success" : "danger"}>{submission.auto_correct ? "авто: верно" : "авто: неверно"}</Badge>
+          <Badge tone={submission.auto_correct ? "success" : "danger"}>{submission.auto_correct ? t("авто: верно") : t("авто: неверно")}</Badge>
         </p>
-        <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий участнику" disabled={locked} aria-label="Комментарий" />
+        <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder={t("Комментарий участнику")} disabled={locked} aria-label={t("Комментарий")} />
       </div>
       <div className="flex items-start gap-2">
         <Input
@@ -424,12 +436,12 @@ function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympia
           onChange={(e) => setPoints(e.target.value)}
           className="w-20 text-center"
           disabled={locked}
-          aria-label="Баллы"
+          aria-label={t("Баллы")}
         />
         <span className="pt-3 text-sm text-muted">/ {submission.max_points}</span>
         {!locked && (
           <Button type="submit" size="sm" className="mt-1.5" loading={saving} variant={submission.jury_points === null ? "primary" : "secondary"}>
-            {submission.jury_points === null ? "Оценить" : "✓"}
+            {submission.jury_points === null ? t("Оценить") : "✓"}
           </Button>
         )}
       </div>
@@ -439,7 +451,7 @@ function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympia
 
 export function OlympiadJury() {
   const olympiadId = Number(useParams().olympiadId);
-  useDocumentTitle("Жюри");
+  useDocumentTitle(t("Жюри"));
   const [taskId, setTaskId] = useState<number | null>(null);
   const [ungraded, setUngraded] = useState(false);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -453,7 +465,7 @@ export function OlympiadJury() {
   }, [olympiadId, taskId, ungraded]);
 
   if (loading && !data) return <Loading />;
-  if (!data) return <ErrorMessage>Олимпиада не найдена</ErrorMessage>;
+  if (!data) return <ErrorMessage>{t("Олимпиада не найдена")}</ErrorMessage>;
   const { olympiad, submissions } = data;
   const locked = olympiad.phase === "finished";
   const left = submissions.filter((s) => s.jury_points === null).length;
@@ -461,7 +473,7 @@ export function OlympiadJury() {
   const publish = async () => {
     setError(null);
     const force = (olympiad.ungraded_count ?? 0) > 0;
-    if (force && !window.confirm(`Не проверено ${olympiad.ungraded_count} решений — для них останется балл автопроверки. Опубликовать?`)) return;
+    if (force && !window.confirm(t("Не проверено {0} решений — для них останется балл автопроверки. Опубликовать?", [olympiad.ungraded_count]))) return;
     try {
       await api.olympiads.publishResults(olympiad.id, force);
       reload();
@@ -473,18 +485,18 @@ export function OlympiadJury() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Жюри: ${olympiad.title}`}
-        subtitle="Балл жюри заменяет автопроверку. Можно снизить за списанное или неполное решение и дать частичный балл."
-        breadcrumbs={[{ label: "Мои олимпиады", to: "/manage/olympiads" }, { label: olympiad.title, to: `/manage/olympiads/${olympiad.id}` }, { label: "Жюри" }]}
+        title={t("Жюри: {0}", [olympiad.title])}
+        subtitle={t("Балл жюри заменяет автопроверку. Можно снизить за списанное или неполное решение и дать частичный балл.")}
+        breadcrumbs={[{ label: t("Мои олимпиады"), to: "/manage/olympiads" }, { label: olympiad.title, to: `/manage/olympiads/${olympiad.id}` }, { label: t("Жюри") }]}
         actions={
           olympiad.phase === "checking" ? (
-            <Button onClick={publish}>Опубликовать итоги</Button>
+            <Button onClick={publish}>{t("Опубликовать итоги")}</Button>
           ) : locked ? (
             <ButtonLink to={`/olympiads/${olympiad.id}`} variant="secondary">
-              Итоги опубликованы
+              {t("Итоги опубликованы")}
             </ButtonLink>
           ) : (
-            <Badge tone="success">Олимпиада идёт — проверять можно уже сейчас</Badge>
+            <Badge tone="success">{t("Олимпиада идёт — проверять можно уже сейчас")}</Badge>
           )
         }
       />
@@ -494,9 +506,9 @@ export function OlympiadJury() {
           value={taskId ?? ""}
           onChange={(e) => setTaskId(e.target.value ? Number(e.target.value) : null)}
           className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
-          aria-label="Задача"
+          aria-label={t("Задача")}
         >
-          <option value="">Все задачи</option>
+          <option value="">{t("Все задачи")}</option>
           {olympiad.tasks.map((task, index) => (
             <option key={task.id} value={task.id}>
               {index + 1}. {task.title}
@@ -505,14 +517,14 @@ export function OlympiadJury() {
         </select>
         <label className="flex items-center gap-2 text-sm text-fg">
           <input type="checkbox" checked={ungraded} onChange={(e) => setUngraded(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
-          Только непроверенные
+          {t("Только непроверенные")}
         </label>
         <span className="text-sm text-muted">
-          Не проверено в списке: {left} из {submissions.length}
+          {t("Не проверено в списке:")} {left}  {t("из")} {submissions.length}
         </span>
       </div>
       {submissions.length === 0 ? (
-        <EmptyState icon="📭" title="Решений нет" />
+        <EmptyState icon="📭" title={t("Решений нет")} />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">
           {submissions.map((submission) => (
@@ -527,8 +539,8 @@ export function OlympiadJury() {
           ))}
         </Card>
       )}
-      <Modal open={!!zoom} onClose={() => setZoom(null)} title="Фото решения">
-        {zoom && <img src={zoom} alt="Фото решения" className="max-h-[85vh] rounded-lg object-contain" />}
+      <Modal open={!!zoom} onClose={() => setZoom(null)} title={t("Фото решения")}>
+        {zoom && <img src={zoom} alt={t("Фото решения")} className="max-h-[85vh] rounded-lg object-contain" />}
       </Modal>
     </div>
   );

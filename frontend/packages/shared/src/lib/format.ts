@@ -1,29 +1,30 @@
+import { intlLocale, pluralLocalized, t } from "../i18n";
 import type { AttemptStatus, SourceType, TaskSource } from "../api";
 
-const dateTime = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-const dateOnly = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+const dateTime = new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const dateOnly = new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "long", year: "numeric" });
 
 export const formatDateTime = (iso: string) => dateTime.format(new Date(iso));
 export const formatDate = (iso: string) => dateOnly.format(new Date(iso));
 
 export const statusMeta: Record<AttemptStatus, { label: string; tone: "success" | "danger" | "warning" | "primary" }> = {
-  correct: { label: "Верно", tone: "success" },
-  incorrect: { label: "Неверно", tone: "danger" },
-  pending: { label: "На проверке", tone: "warning" },
-  graded: { label: "Проверено", tone: "primary" },
+  correct: { label: t("Верно"), tone: "success" },
+  incorrect: { label: t("Неверно"), tone: "danger" },
+  pending: { label: t("На проверке"), tone: "warning" },
+  graded: { label: t("Проверено"), tone: "primary" },
 };
 
 export const sourceTypeLabel: Record<SourceType, string> = {
-  book: "Учебник / сборник",
-  olympiad: "Олимпиада",
-  exam: "Экзамен",
-  own: "Авторская",
+  book: t("Учебник / сборник"),
+  olympiad: t("Олимпиада"),
+  exam: t("Экзамен"),
+  own: t("Авторская"),
 };
 
 /** «Рымкевич. Задачник, 2019, №123» или null, если источник не указан. */
 export function formatSource(source: TaskSource): string | null {
   if (!source.source_type) return null;
-  if (source.source_type === "own" && !source.source_title) return "Авторская задача";
+  if (source.source_type === "own" && !source.source_title) return t("Авторская задача");
   const parts = [source.source_title ?? sourceTypeLabel[source.source_type]];
   if (source.source_year) parts.push(String(source.source_year));
   if (source.source_number) parts.push(`№${source.source_number}`);
@@ -53,6 +54,8 @@ export function difficultyClass(value: number, max: number): string {
 
 /** Склонение: plural(5, ["задача", "задачи", "задач"]) → «задач». */
 export function plural(n: number, forms: [string, string, string]): string {
+  const localized = pluralLocalized(n, forms);
+  if (localized !== null) return localized;
   const mod10 = n % 10;
   const mod100 = n % 100;
   if (mod10 === 1 && mod100 !== 11) return forms[0];
@@ -61,9 +64,9 @@ export function plural(n: number, forms: [string, string, string]): string {
 }
 
 export const certificateStatusMeta: Record<"pending" | "verified" | "rejected", { label: string; tone: "warning" | "success" | "danger" }> = {
-  pending: { label: "На проверке", tone: "warning" },
-  verified: { label: "Проверено", tone: "success" },
-  rejected: { label: "Отклонено", tone: "danger" },
+  pending: { label: t("На проверке"), tone: "warning" },
+  verified: { label: t("Проверено"), tone: "success" },
+  rejected: { label: t("Отклонено"), tone: "danger" },
 };
 
 export function formatRating(rating: number | null): string {
@@ -71,20 +74,20 @@ export function formatRating(rating: number | null): string {
 }
 
 export const olympiadPhaseMeta: Record<"upcoming" | "running" | "checking" | "finished", { label: string; tone: "primary" | "success" | "warning" | "neutral" }> = {
-  upcoming: { label: "Скоро", tone: "primary" },
-  running: { label: "Идёт сейчас", tone: "success" },
-  checking: { label: "Проверка жюри", tone: "warning" },
-  finished: { label: "Итоги", tone: "neutral" },
+  upcoming: { label: t("Скоро"), tone: "primary" },
+  running: { label: t("Идёт сейчас"), tone: "success" },
+  checking: { label: t("Проверка жюри"), tone: "warning" },
+  finished: { label: t("Итоги"), tone: "neutral" },
 };
 
 export const olympiadStatusMeta: Record<"draft" | "pending" | "published" | "rejected", { label: string; tone: "neutral" | "warning" | "success" | "danger" }> = {
-  draft: { label: "Черновик", tone: "neutral" },
-  pending: { label: "На проверке у админа", tone: "warning" },
-  published: { label: "Опубликована", tone: "success" },
-  rejected: { label: "Возвращена на доработку", tone: "danger" },
+  draft: { label: t("Черновик"), tone: "neutral" },
+  pending: { label: t("На проверке у админа"), tone: "warning" },
+  published: { label: t("Опубликована"), tone: "success" },
+  rejected: { label: t("Возвращена на доработку"), tone: "danger" },
 };
 
-const timeOnly = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const timeOnly = new Intl.DateTimeFormat(intlLocale(), { hour: "2-digit", minute: "2-digit" });
 
 /** «21 нояб., 10:00 – 13:00» или «21 нояб., 10:00 – 23 нояб., 18:00». */
 export function formatRange(startIso: string, endIso: string): string {
@@ -101,7 +104,7 @@ export function formatCountdown(ms: number): string {
   const days = Math.floor(total / 86400);
   const pad = (n: number) => String(n).padStart(2, "0");
   const hms = `${pad(Math.floor((total % 86400) / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
-  return days > 0 ? `${days} д ${hms}` : hms;
+  return days > 0 ? t("{0} д {1}", [days, hms]) : hms;
 }
 
 /** ISO → значение для <input type="datetime-local"> в местном времени. */
