@@ -98,7 +98,7 @@ def test_rate_limit(client: ApiClient) -> None:
 
 
 def test_stats_and_leaderboard(client: ApiClient) -> None:
-    teacher, student, task = setup_task(client, difficulty=3)
+    teacher, student, task = setup_task(client, difficulty=300)
     client.attempt(student, task["id"], "1")
     client.attempt(student, task["id"], "20")
 
@@ -120,5 +120,5 @@ def test_stats_and_leaderboard(client: ApiClient) -> None:
 
     board = client.get("/api/stats/leaderboard").json()
     assert board[0]["username"] == "student"
-    assert board[0]["points"] == 3
+    assert board[0]["points"] == 300
     assert client.get("/api/stats/leaderboard", params={"period": "week"}).json()[0]["rank"] == 1

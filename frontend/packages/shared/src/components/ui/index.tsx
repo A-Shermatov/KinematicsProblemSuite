@@ -10,6 +10,8 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { Link, type LinkProps } from "react-router-dom";
+import { difficultyClass } from "../../lib/format";
+import { usePlatformSettings } from "../../settings/SettingsContext";
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
@@ -282,12 +284,16 @@ export function Avatar({ src, name, size = 40 }: { src?: string | null; name: st
   );
 }
 
+/** Уровень сложности: 100, 200, 300… Цвет — относительно верхнего предела из настроек. */
 export function Difficulty({ value }: { value: number }) {
+  const { settings } = usePlatformSettings();
   return (
-    <span className="inline-flex gap-0.5" title={`Сложность ${value} из 5`} aria-label={`Сложность ${value} из 5`}>
-      {[1, 2, 3, 4, 5].map((level) => (
-        <span key={level} className={cx("h-1.5 w-3 rounded-full", level <= value ? "bg-primary" : "bg-border")} />
-      ))}
+    <span
+      className={cx("inline-flex min-w-11 justify-center rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums", difficultyClass(value, settings.difficulty_max))}
+      title={`Сложность ${value} из ${settings.difficulty_max}`}
+      aria-label={`Сложность ${value}`}
+    >
+      {value}
     </span>
   );
 }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 
 from app.deps import Conn, SettingsDep, User, not_found
 from app.modules.olympiads import queries as olympiads_q
+from app.modules.settings import service as settings_service
 from app.modules.stats import badges
 from app.modules.stats import queries as q
 from app.modules.users import queries as user_q
@@ -42,7 +43,8 @@ async def achievements(user_id: int, conn: Conn, settings: SettingsDep) -> dict[
     row = await conn.fetchrow(user_q.GET_ACTIVE_BY_ID, user_id)
     if row is None:
         raise not_found("Пользователь")
-    stats = dict(await conn.fetchrow(q.ACHIEVEMENTS, user_id, settings.timezone))
+    platform = await settings_service.load(conn)
+    stats = dict(await conn.fetchrow(q.ACHIEVEMENTS, user_id, settings.timezone, platform.difficulty_max))
     return {**stats, "badges": badges.evaluate(stats)}
 
 

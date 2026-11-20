@@ -382,3 +382,9 @@ export interface OlympiadLeaderRow {
   silver: number;
   bronze: number;
 }
+
+export interface PlatformSettings {
+  difficulty_max: number;
+  difficulty_step: number;
+  difficulty_levels: number[];
+}

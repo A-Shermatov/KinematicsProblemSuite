@@ -30,7 +30,26 @@ export function formatSource(source: TaskSource): string | null {
   return parts.join(", ");
 }
 
-export const difficultyLabel = ["", "Лёгкая", "Простая", "Средняя", "Сложная", "Олимпиадная"];
+/** Цвет уровня сложности относительно верхнего предела — от серого к красному, как на Codeforces. */
+const DIFFICULTY_TIERS = [
+  "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  "bg-green-500/15 text-green-700 dark:text-green-400",
+  "bg-teal-500/15 text-teal-700 dark:text-teal-300",
+  "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  "bg-violet-500/15 text-violet-700 dark:text-violet-300",
+  "bg-orange-500/15 text-orange-700 dark:text-orange-300",
+  "bg-red-500/15 text-red-700 dark:text-red-400",
+];
+
+export function difficultyTier(value: number, max: number): number {
+  if (max <= 100) return DIFFICULTY_TIERS.length - 1;
+  const ratio = Math.min(1, Math.max(0, (value - 100) / (max - 100)));
+  return Math.round(ratio * (DIFFICULTY_TIERS.length - 1));
+}
+
+export function difficultyClass(value: number, max: number): string {
+  return DIFFICULTY_TIERS[difficultyTier(value, max)];
+}
 
 /** Склонение: plural(5, ["задача", "задачи", "задач"]) → «задач». */
 export function plural(n: number, forms: [string, string, string]): string {

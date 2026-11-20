@@ -1,11 +1,12 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { AuthProvider, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
+import { AuthProvider, SettingsProvider, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
 import { AdminLayout, AdminLogin, RequireAdmin } from "./components/AdminLayout";
 import { Attempts } from "./pages/Attempts";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
 import { Certificates, Reviews } from "./pages/Moderation";
 import { Olympiads } from "./pages/Olympiads";
+import { Settings } from "./pages/Settings";
 import { TaskEdit, Tasks } from "./pages/Tasks";
 import { Users } from "./pages/Users";
 
@@ -31,6 +32,7 @@ export function AppRoutes() {
         <Route path="olympiads" element={<Olympiads />} />
         <Route path="certificates" element={<Certificates />} />
         <Route path="reviews" element={<Reviews />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<EmptyState icon="🔭" title="Раздел не найден" />} />
       </Route>
     </Routes>
@@ -42,7 +44,9 @@ export function App() {
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
+          <SettingsProvider>
           <AppRoutes />
+          </SettingsProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

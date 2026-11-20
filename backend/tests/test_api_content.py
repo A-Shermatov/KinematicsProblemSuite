@@ -52,11 +52,11 @@ def test_task_answer_is_hidden_from_students(client: ApiClient) -> None:
 def test_tasks_filters(client: ApiClient) -> None:
     theme = client.theme()
     teacher = client.teacher()
-    client.task(teacher, theme["id"], title="Лёгкая", difficulty=1)
-    client.task(teacher, theme["id"], title="Сложная", difficulty=5)
+    client.task(teacher, theme["id"], title="Лёгкая", difficulty=100)
+    client.task(teacher, theme["id"], title="Сложная", difficulty=500)
 
     assert len(client.get("/api/tasks", params={"theme_id": theme["id"]}).json()) == 2
-    hard = client.get("/api/tasks", params={"difficulty": 5}).json()
+    hard = client.get("/api/tasks", params={"difficulty": 500}).json()
     assert [t["title"] for t in hard] == ["Сложная"]
     found = client.get("/api/tasks", params={"search": "лёгк"}).json()
     assert [t["title"] for t in found] == ["Лёгкая"]
@@ -85,7 +85,7 @@ def test_task_validation(client: ApiClient) -> None:
     base = {"theme_id": theme["id"], "title": "Задача"}
     assert client.post("/api/tasks", teacher, json={**base, "answer": "двадцать"}).status_code == 422
     assert client.post("/api/tasks", teacher, json={**base, "answer": "5", "unit": "попугаи"}).status_code == 422
-    assert client.post("/api/tasks", teacher, json={**base, "answer": "5", "difficulty": 9}).status_code == 422
+    assert client.post("/api/tasks", teacher, json={**base, "answer": "5", "difficulty": 150}).status_code == 422
     # Для ручной проверки ответ может быть любым текстом.
     response = client.post("/api/tasks", teacher, json={**base, "answer": "см. решение", "check_mode": "manual"})
     assert response.status_code == 201
