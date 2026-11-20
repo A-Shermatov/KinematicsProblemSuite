@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { api, type AnswerType, type CheckMode, type TaskFull, type TaskInput } from "../api";
+import { useEffect, useState, type FormEvent } from "react";
+import { api, type AnswerType, type CheckMode, type DuplicateHit, type TaskFull, type TaskInput } from "../api";
 import { TranslatableFields, cleanTranslations } from "../components/TranslatableFields";
 import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
 import { formatSource } from "../lib/format";
@@ -38,10 +38,12 @@ interface TaskEditorProps {
   listPath: string;
   listLabel: string;
   onSaved: (task: TaskFull) => void;
+  /** Ссылка на страницу задачи (для списка похожих задач). */
+  taskUrl?: (id: number) => string;
 }
 
 /** Форма создания и редактирования задачи — общая для кабинета учителя и админ-панели. */
-export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorProps) {
+export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id) => `/tasks/${id}` }: TaskEditorProps) {
   useDocumentTitle(taskId ? t("Редактирование задачи") : t("Новая задача"));
   const { settings } = usePlatformSettings();
 
@@ -50,6 +52,10 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
   const [sourceMode, setSourceMode] = useState<SourceMode>("none");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** Похожие задачи, о которых предупредили; после подтверждения сохраняем без повторной проверки. */
+  const [similar, setSimilar] = useState<DuplicateHit[] | null>(null);
+  // Условие изменили — предупреждение о похожих задачах больше не актуально.
+  useEffect(() => setSimilar(null), [form?.title, form?.condition]);
 
   const { data: themes, error, loading } = useAsync(async () => {
     const [themeList, task] = await Promise.all([api.themes.list(), taskId ? api.tasks.getFull(taskId) : Promise.resolve(null)]);
@@ -104,12 +110,27 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
     setSaving(true);
     setSaveError(null);
     try {
+      if (similar === null) {
+        const check = await api.tasks.checkDuplicates(form.title, form.condition, taskId);
+        if (check.exact) {
+          setSaveError(
+            t("Такая задача уже есть: «{0}» (№{1}, автор {2}). Одну задачу нельзя добавить дважды.", [check.exact.title, check.exact.id, check.exact.author_name]),
+          );
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        if (check.similar.length > 0) {
+          setSimilar(check.similar);
+          return;
+        }
+      }
       const payload = {
         ...form,
         unit: form.answer_type === "number" ? form.unit?.trim() || null : null,
         translations: cleanTranslations(form.translations),
       };
       const saved = taskId ? await api.tasks.update(taskId, payload) : await api.tasks.create(payload);
+      setSimilar(null);
       onSaved(saved);
     } catch (err) {
       setSaveError(errorText(err));
@@ -260,12 +281,31 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
           </div>
         </Card>
 
+        {similar && similar.length > 0 && (
+          <Card className="space-y-3 border-warning/50 bg-warning-soft/40 p-5">
+            <p className="font-semibold text-fg">⚠️ {t("Похожие задачи уже есть на платформе")}</p>
+            <p className="text-sm text-muted">{t("Проверьте, что это не та же задача. Если отличается — сохраните её.")}</p>
+            <ul className="space-y-1.5 text-sm">
+              {similar.map((hit) => (
+                <li key={hit.id} className="flex flex-wrap items-center gap-2">
+                  <a href={taskUrl(hit.id)} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
+                    №{hit.id} «{hit.title}»
+                  </a>
+                  <span className="text-muted">
+                    {hit.author_name} · {hit.theme_title} · {t("совпадение {0}%", [Math.round(hit.similarity * 100)])}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         <div className="flex justify-end gap-2">
           <ButtonLink to={listPath} variant="ghost">
             {t("Отмена")}
           </ButtonLink>
           <Button type="submit" size="lg" loading={saving}>
-            {taskId ? t("Сохранить") : t("Опубликовать задачу")}
+            {similar && similar.length > 0 ? t("Это другая задача — сохранить") : taskId ? t("Сохранить") : t("Опубликовать задачу")}
           </Button>
         </div>
       </form>

@@ -96,6 +96,8 @@ export interface Task extends TaskSource {
   /** На каком языке фактически показано условие (нет перевода — ru). */
   lang: string;
   available_langs: string[];
+  /** Дубликат, оставшийся с тех пор, когда проверки уникальности не было. */
+  duplicate_of?: number | null;
 }
 
 export interface TaskFull extends Task {
@@ -103,6 +105,22 @@ export interface TaskFull extends Task {
   tolerance: number;
   /** Переводы для редактора; title/condition при этом — русский оригинал. */
   translations: TaskTranslations;
+}
+
+/** Задача, совпадающая или похожая на ту, что сейчас редактируют. */
+export interface DuplicateHit {
+  id: number;
+  title: string;
+  author_id: number;
+  author_name: string;
+  theme_title: string;
+  exact: boolean;
+  similarity: number;
+}
+
+export interface DuplicateCheck {
+  exact: DuplicateHit | null;
+  similar: DuplicateHit[];
 }
 
 export interface TaskInput {

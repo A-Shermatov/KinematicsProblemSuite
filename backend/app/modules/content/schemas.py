@@ -110,6 +110,7 @@ class TaskOut(BaseModel):
     source_author: str = ""
     source_number: str | None
     is_original: bool = False
+    duplicate_of: int | None = None
     solved: bool = False
     created_at: datetime
     updated_at: datetime
@@ -153,3 +154,24 @@ class SourceOut(BaseModel):
 
 class SourceMergeIn(BaseModel):
     into_id: int
+
+
+class DuplicateCheckIn(BaseModel):
+    title: str = Field(default="", max_length=150)
+    condition: str = Field(default="", max_length=20_000)
+    exclude_id: int | None = None
+
+
+class DuplicateOut(BaseModel):
+    id: int
+    title: str
+    author_id: int
+    author_name: str
+    theme_title: str
+    exact: bool
+    similarity: float
+
+
+class DuplicateCheckOut(BaseModel):
+    exact: DuplicateOut | None
+    similar: list[DuplicateOut]

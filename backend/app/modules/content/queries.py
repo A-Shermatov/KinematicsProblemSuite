@@ -100,7 +100,7 @@ k.author_id, trim(u.first_name || ' ' || u.last_name) AS author_name,
 k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.unit,
 k.source_id, COALESCE(src.type, CASE WHEN k.is_original THEN 'own' END) AS source_type,
 src.title AS source_title, src.year AS source_year, COALESCE(src.author, '') AS source_author, k.source_number,
-k.is_original, k.created_at, k.updated_at, k.translations
+k.is_original, k.duplicate_of, k.created_at, k.updated_at, k.translations
 """
 
 TASK_FROM = """
@@ -167,6 +167,25 @@ RETURNING id
 DEACTIVATE_TASK = "UPDATE tasks SET is_active = FALSE, updated_at = now() WHERE id = $1 AND is_active RETURNING id"
 
 GET_TASK_AUTHOR = "SELECT author_id FROM tasks WHERE id = $1 AND is_active"
+
+# ---------- Дубликаты ----------
+
+# Точные дубли (тот же нормализованный ключ, см. миграцию 011) и похожие по триграммам.
+# $1 название, $2 условие, $3 id задачи, которую редактируют (её не считаем), $4 порог похожести, $5 limit
+FIND_DUPLICATES = """
+WITH probe AS (SELECT task_text_key($1, $2) AS key)
+SELECT k.id, k.title, k.author_id, trim(u.first_name || ' ' || u.last_name) AS author_name, t.title AS theme_title,
+       (k.condition_key = probe.key) AS exact, similarity(k.condition_key, probe.key)::float AS similarity
+FROM tasks k
+CROSS JOIN probe
+JOIN users u ON u.id = k.author_id
+JOIN themes t ON t.id = k.theme_id
+WHERE k.is_active
+  AND ($3::bigint IS NULL OR k.id <> $3)
+  AND (k.condition_key = probe.key OR (k.condition_key % probe.key AND similarity(k.condition_key, probe.key) >= $4))
+ORDER BY exact DESC, similarity DESC, k.id
+LIMIT $5
+"""
 
 
 # ---------- Источники ----------
