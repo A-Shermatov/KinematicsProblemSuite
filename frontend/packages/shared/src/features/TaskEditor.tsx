@@ -97,7 +97,7 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
   const subjects = Array.from(new Map((themes ?? []).map((t) => [t.subject_id, t.subject_title])).entries());
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-7xl">
       <PageHeader
         title={taskId ? t("Редактирование задачи") : t("Новая задача")}
         breadcrumbs={[{ label: listLabel, to: listPath }, { label: taskId ? form.title || t("Задача") : t("Новая") }]}

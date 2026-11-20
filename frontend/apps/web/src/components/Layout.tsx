@@ -110,11 +110,11 @@ function Navbar() {
 
   const items = NAV.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    cx("rounded-lg px-3 py-2 text-sm font-medium transition-colors", isActive ? "bg-primary-soft text-primary" : "text-muted hover:text-fg hover:bg-surface-2");
+    cx("rounded-lg px-3 py-2 text-[15px] font-medium transition-colors", isActive ? "bg-primary-soft text-primary" : "text-muted hover:text-fg hover:bg-surface-2");
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-bg/80 backdrop-blur-lg print:hidden">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 w-full max-w-[1760px] px-4 sm:px-6 lg:px-10 items-center gap-4">
         <Logo />
         <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label={t("Основное меню")}>
           {items.map((item) => (
@@ -177,7 +177,7 @@ export function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-[1760px] px-4 sm:px-6 lg:px-10 flex-1 py-8 sm:py-10">
         <Outlet />
       </main>
       <footer className="border-t border-border py-6 text-center text-sm text-muted print:hidden">

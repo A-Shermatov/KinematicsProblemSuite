@@ -88,7 +88,7 @@ export function Home() {
       {subjects && subjects.length > 0 && (
         <section className="space-y-5">
           <h2 className="text-2xl font-bold tracking-tight text-fg">{t("Предметы")}</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {subjects.map((subject) => (
               <Link key={subject.id} to={`/catalog#subject-${subject.id}`} className="group">
                 <Card className="h-full p-5 transition group-hover:border-primary/50 group-hover:shadow-lg">

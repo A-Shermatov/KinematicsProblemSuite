@@ -10,7 +10,8 @@ const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: string }[] = [
   { mode: "system", label: t("Как в системе"), icon: "◐" },
 ];
 
-export function ThemeToggle() {
+/** placement="top" — меню открывается вверх (кнопка внизу экрана, как в сайдбаре админки). */
+export function ThemeToggle({ placement = "bottom" }: { placement?: "top" | "bottom" }) {
   const { mode, resolved, setMode } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -29,7 +30,7 @@ export function ThemeToggle() {
         {resolved === "dark" ? "☾" : "☀"}
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-2 w-48 rounded-xl border border-border bg-surface p-1 shadow-card">
+        <div role="menu" className={cx("absolute right-0 z-30 w-48 rounded-xl border border-border bg-surface p-1 shadow-card", placement === "top" ? "bottom-full mb-2" : "top-full mt-2")}>
           {THEME_OPTIONS.map((option) => (
             <button
               key={option.mode}

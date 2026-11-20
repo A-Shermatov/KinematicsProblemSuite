@@ -41,7 +41,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-xs text-muted">Админ-панель</p>
         </div>
       </div>
-      <nav className="flex-1 space-y-0.5 px-3" aria-label="Разделы">
+      <nav className="flex-1 space-y-1 px-3" aria-label="Разделы">
         {NAV.map((item) => (
           <NavLink
             key={item.to}
@@ -50,12 +50,12 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               cx(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-colors",
                 isActive ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-2 hover:text-fg",
               )
             }
           >
-            <span className="w-5 text-center" aria-hidden>
+            <span className="w-6 text-center text-lg" aria-hidden>
               {item.icon}
             </span>
             {item.label}
@@ -84,7 +84,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 Выйти
               </button>
             </div>
-            <ThemeToggle />
+            <ThemeToggle placement="top" />
           </div>
         )}
       </div>
@@ -98,14 +98,14 @@ export function AdminLayout() {
   useEffect(() => setOpen(false), [location.pathname]);
 
   return (
-    <div className="min-h-screen lg:pl-64">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-surface lg:block">
+    <div className="min-h-screen lg:pl-72">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-surface lg:block">
         <Sidebar />
       </aside>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/50" />
-          <aside className="absolute inset-y-0 left-0 w-64 border-r border-border bg-surface" onClick={(e) => e.stopPropagation()}>
+          <aside className="absolute inset-y-0 left-0 w-72 border-r border-border bg-surface" onClick={(e) => e.stopPropagation()}>
             <Sidebar onNavigate={() => setOpen(false)} />
           </aside>
         </div>
@@ -116,7 +116,7 @@ export function AdminLayout() {
         </button>
         <p className="font-semibold text-fg">Админ-панель</p>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+      <main className="mx-auto w-full max-w-[1760px] px-4 py-8 sm:px-8 lg:px-10">
         <Outlet />
       </main>
     </div>

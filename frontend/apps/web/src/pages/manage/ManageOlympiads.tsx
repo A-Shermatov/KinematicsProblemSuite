@@ -254,7 +254,7 @@ export function OlympiadEditor() {
   const status = olympiad ? olympiadStatusMeta[olympiad.status] : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         title={olympiad ? olympiad.title : t("Новая олимпиада")}
         breadcrumbs={[{ label: t("Мои олимпиады"), to: "/manage/olympiads" }, { label: olympiad ? t("Олимпиада") : t("Новая") }]}
