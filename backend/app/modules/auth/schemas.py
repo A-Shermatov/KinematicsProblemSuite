@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.modules.users.schemas import USERNAME_PATTERN, UserOut
+from app.modules.users.schemas import USERNAME_PATTERN, LocationFields, UserOut
 
 
-class RegisterIn(BaseModel):
+class RegisterIn(LocationFields):
     username: str = Field(pattern=USERNAME_PATTERN)
     password: str = Field(min_length=8, max_length=72)
     first_name: str = Field(min_length=1, max_length=50)

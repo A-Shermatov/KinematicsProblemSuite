@@ -1,6 +1,6 @@
 """SQL для пользователей. Плейсхолдеры $1, $2… — нативный синтаксис PostgreSQL/asyncpg."""
 
-USER_COLUMNS = "id, username, first_name, last_name, role, is_active, avatar_path, created_at"
+USER_COLUMNS = "id, username, first_name, last_name, role, is_active, avatar_path, city, school, created_at"
 
 GET_BY_ID = f"SELECT {USER_COLUMNS} FROM users WHERE id = $1"
 
@@ -17,14 +17,14 @@ SELECT EXISTS (SELECT 1 FROM users WHERE lower(username) = lower($1) AND id <> C
 """
 
 INSERT = f"""
-INSERT INTO users (username, first_name, last_name, password_hash, role)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO users (username, first_name, last_name, password_hash, role, city, school)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING {USER_COLUMNS}
 """
 
 UPDATE_PROFILE = f"""
 UPDATE users
-SET username = $2, first_name = $3, last_name = $4, updated_at = now()
+SET username = $2, first_name = $3, last_name = $4, city = $5, school = $6, updated_at = now()
 WHERE id = $1
 RETURNING {USER_COLUMNS}
 """
