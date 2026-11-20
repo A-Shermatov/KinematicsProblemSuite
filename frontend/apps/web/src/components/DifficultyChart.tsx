@@ -31,7 +31,7 @@ export function DifficultyChart({ data }: { data: DifficultyBreakdown }) {
             const unsolved = item?.unsolved ?? 0;
             return (
               <div key={lvl} className="group flex h-full flex-1 flex-col items-center justify-end gap-1" title={t("{0}: решено {1}, без решения {2}", [lvl, solved, unsolved])}>
-                <span className="text-[10px] font-medium text-muted opacity-0 transition group-hover:opacity-100">{solved || ""}</span>
+                <span className="text-[11px] font-medium text-muted opacity-0 transition group-hover:opacity-100">{solved || ""}</span>
                 <div className="flex w-full max-w-10 flex-col justify-end overflow-hidden rounded-t-md" style={{ height: `${((solved + unsolved) / top) * 100}%` }}>
                   <div className="w-full bg-border" style={{ flexGrow: unsolved }} />
                   <div className="w-full bg-primary" style={{ flexGrow: solved }} />
@@ -42,7 +42,7 @@ export function DifficultyChart({ data }: { data: DifficultyBreakdown }) {
         </div>
         <div className="flex gap-1.5">
           {levels.map((lvl) => (
-            <span key={lvl} className={`flex-1 rounded py-0.5 text-center font-mono text-[10px] font-semibold ${difficultyClass(lvl, settings.difficulty_max)}`}>
+            <span key={lvl} className={`flex-1 rounded py-0.5 text-center font-mono text-[11px] font-semibold ${difficultyClass(lvl, settings.difficulty_max)}`}>
               {lvl}
             </span>
           ))}

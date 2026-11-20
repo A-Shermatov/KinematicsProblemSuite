@@ -115,12 +115,18 @@ export function Certificates() {
       </div>
 
       <Modal open={!!opened} onClose={() => setOpened(null)} title={opened?.title}>
-        {opened &&
-          (opened.is_pdf ? (
-            <iframe src={opened.file_url} title={opened.title} className="h-[80vh] w-[min(56rem,85vw)] rounded-lg" />
-          ) : (
-            <img src={opened.file_url} alt={opened.title} className="max-h-[80vh] rounded-lg object-contain" />
-          ))}
+        {opened && (
+          <div className="space-y-3">
+            {opened.is_pdf ? (
+              <iframe src={opened.file_url} title={opened.title} className="h-[78vh] w-[min(64rem,85vw)] rounded-lg bg-white" />
+            ) : (
+              <img src={opened.file_url} alt={opened.title} className="max-h-[78vh] rounded-lg object-contain" />
+            )}
+            <a href={opened.file_url} target="_blank" rel="noreferrer" className="inline-block text-sm text-primary hover:underline">
+              Открыть в новой вкладке ↗
+            </a>
+          </div>
+        )}
       </Modal>
       <Modal open={!!rejecting} onClose={() => setRejecting(null)} title="Отклонить документ">
         {rejecting && (

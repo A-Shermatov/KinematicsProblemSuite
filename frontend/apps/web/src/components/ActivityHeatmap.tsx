@@ -61,7 +61,7 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
       </div>
       <div className="overflow-x-auto pb-1">
         <div className="inline-flex flex-col gap-1">
-          <div className="relative ml-[31px] h-4 text-[10px] text-muted">
+          <div className="relative ml-[31px] h-4 text-[11px] text-muted">
             {months.map((month) => (
               <span key={`${month.index}-${month.label}`} className="absolute" style={{ left: month.index * 14 }}>
                 {month.label}
@@ -69,7 +69,7 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
             ))}
           </div>
           <div className="flex gap-[3px]">
-            <div className="mr-1 grid w-6 grid-rows-7 gap-[3px] text-[10px] leading-[11px] text-muted">
+            <div className="mr-1 grid w-6 grid-rows-7 gap-[3px] text-[11px] leading-[11px] text-muted">
               {[t("пн"), "", t("ср"), "", t("пт"), "", ""].map((label, i) => (
                 <span key={i}>{label}</span>
               ))}
@@ -88,7 +88,7 @@ export function ActivityHeatmap({ activity }: { activity: Activity }) {
           </div>
         </div>
       </div>
-      <div className="flex items-center justify-end gap-1 text-[10px] text-muted">
+      <div className="flex items-center justify-end gap-1 text-[11px] text-muted">
         {t("меньше")}
         {LEVELS.map((cls) => (
           <span key={cls} className={cx("h-[11px] w-[11px] rounded-[3px]", cls)} />

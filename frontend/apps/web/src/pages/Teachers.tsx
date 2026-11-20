@@ -86,7 +86,7 @@ export function Teachers() {
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState icon="🎓" title={t("Учителя не найдены")} />}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {data?.map((teacher) => (
           <Link key={teacher.id} to={`/teachers/${teacher.id}`} className="group">
             <Card className="flex h-full flex-col gap-4 p-5 transition group-hover:-translate-y-0.5 group-hover:border-primary/50 group-hover:shadow-lg">

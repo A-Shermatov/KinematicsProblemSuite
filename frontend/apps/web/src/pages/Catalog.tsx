@@ -58,7 +58,7 @@ export function Catalog() {
               {themes.length === 0 ? (
                 <p className="text-sm text-muted">{t("Темы скоро появятся.")}</p>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                   {themes.map((theme) => (
                     <Link key={theme.id} to={`/themes/${theme.id}`} className="group">
                       <Card className="flex h-full flex-col p-5 transition group-hover:-translate-y-0.5 group-hover:border-primary/50 group-hover:shadow-lg">
