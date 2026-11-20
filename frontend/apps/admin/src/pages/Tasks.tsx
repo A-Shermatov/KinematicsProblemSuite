@@ -71,6 +71,11 @@ export function Tasks() {
                     <a href={`${PUBLIC_URL}/tasks/${task.id}`} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-primary">
                       {task.title}
                     </a>
+                    {task.duplicate_of && (
+                      <Badge tone="danger" className="ml-2">
+                        дубликат №{task.duplicate_of}
+                      </Badge>
+                    )}
                     <p className="text-xs text-muted">
                       {task.subject_title} → {task.theme_title}
                       {formatSource(task) && ` · ${formatSource(task)}`}
@@ -107,5 +112,5 @@ export function Tasks() {
 export function TaskEdit() {
   const { taskId } = useParams();
   const navigate = useNavigate();
-  return <TaskEditor taskId={Number(taskId)} listPath="/tasks" listLabel="Задачи" onSaved={() => navigate("/tasks")} />;
+  return <TaskEditor taskId={Number(taskId)} listPath="/tasks" listLabel="Задачи" onSaved={() => navigate("/tasks")} taskUrl={(id) => `${PUBLIC_URL}/tasks/${id}`} />;
 }

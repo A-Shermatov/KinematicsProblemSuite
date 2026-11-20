@@ -165,10 +165,12 @@ class ApiClient:
         return response.json()
 
     def task(self, token: str, theme_id: int, **overrides: object) -> dict:
+        # Одинаковые задачи запрещены — у каждой тестовой задачи своё условие (если тест не задал его сам).
+        self._task_counter = getattr(self, "_task_counter", 0) + 1
         payload = {
             "theme_id": theme_id,
             "title": "Поезд",
-            "condition": "Поезд едет со скоростью $v = 72$ км/ч. Найдите скорость в м/с.",
+            "condition": f"Поезд №{self._task_counter} едет со скоростью $v = 72$ км/ч. Найдите скорость в м/с.",
             "answer": "20",
             "unit": "м/с",
             **overrides,

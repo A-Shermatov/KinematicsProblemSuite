@@ -9,6 +9,9 @@ from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, not_found
 from app.i18n import DEFAULT_LANG, RequestLang, clean_translations, localize
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
+    DuplicateCheckIn,
+    DuplicateCheckOut,
+    DuplicateOut,
     SourceIn,
     SourceMergeIn,
     SourceOut,
@@ -124,6 +127,45 @@ async def get_task_full(task_id: int, user: Staff, conn: Conn) -> TaskFull:
     return await _task_full(conn, task_id)
 
 
+SIMILARITY_THRESHOLD = 0.6
+
+
+async def _find_duplicates(
+    conn: asyncpg.Connection, title: str, condition: str, exclude_id: int | None, limit: int = 6
+) -> DuplicateCheckOut:
+    rows = [
+        DuplicateOut(**dict(row))
+        for row in await conn.fetch(q.FIND_DUPLICATES, title, condition, exclude_id, SIMILARITY_THRESHOLD, limit)
+    ]
+    exact = next((row for row in rows if row.exact), None)
+    return DuplicateCheckOut(exact=exact, similar=[row for row in rows if not row.exact])
+
+
+async def _duplicate_error(
+    conn: asyncpg.Connection, data: TaskIn, user: CurrentUser, exclude_id: int | None
+) -> HTTPException:
+    found = (await _find_duplicates(conn, data.title, data.condition, exclude_id, limit=1)).exact
+    if found is None:  # гонка: дубль успели удалить
+        return HTTPException(status.HTTP_409_CONFLICT, detail="Такая задача уже есть на платформе")
+    whose = (
+        "Вы уже добавляли эту задачу"
+        if found.author_id == user.id
+        else f"Такая задача уже есть у автора {found.author_name}"
+    )
+    return HTTPException(
+        status.HTTP_409_CONFLICT,
+        detail=(
+            f"{whose}: «{found.title}» (№{found.id}, тема «{found.theme_title}»). Одну задачу нельзя добавить дважды."
+        ),
+    )
+
+
+@router.post("/tasks/check-duplicates", response_model=DuplicateCheckOut)
+async def check_duplicates(data: DuplicateCheckIn, _: Staff, conn: Conn) -> DuplicateCheckOut:
+    """Есть ли уже такая задача (точный дубль) или очень похожие: для предупреждения в редакторе."""
+    return await _find_duplicates(conn, data.title, data.condition, data.exclude_id)
+
+
 async def _check_source(conn: asyncpg.Connection, data: TaskIn) -> None:
     if data.source_id is not None and not await conn.fetchval(q.SOURCE_EXISTS, data.source_id):
         raise not_found("Источник")
@@ -141,23 +183,26 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
     await _check_source(conn, data)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
-    task_id = await conn.fetchval(
-        q.INSERT_TASK,
-        data.theme_id,
-        user.id,
-        data.title,
-        data.condition,
-        data.difficulty,
-        data.check_mode,
-        data.answer_type,
-        data.answer,
-        data.unit,
-        data.tolerance,
-        data.source_id,
-        data.source_number,
-        data.is_original,
-        clean_translations(data.translations),
-    )
+    try:
+        task_id = await conn.fetchval(
+            q.INSERT_TASK,
+            data.theme_id,
+            user.id,
+            data.title,
+            data.condition,
+            data.difficulty,
+            data.check_mode,
+            data.answer_type,
+            data.answer,
+            data.unit,
+            data.tolerance,
+            data.source_id,
+            data.source_number,
+            data.is_original,
+            clean_translations(data.translations),
+        )
+    except asyncpg.UniqueViolationError:
+        raise await _duplicate_error(conn, data, user, None) from None
     return await _task_full(conn, task_id)
 
 
@@ -168,23 +213,26 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
     await _check_source(conn, data)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
-    await conn.execute(
-        q.UPDATE_TASK,
-        task_id,
-        data.theme_id,
-        data.title,
-        data.condition,
-        data.difficulty,
-        data.check_mode,
-        data.answer_type,
-        data.answer,
-        data.unit,
-        data.tolerance,
-        data.source_id,
-        data.source_number,
-        data.is_original,
-        clean_translations(data.translations),
-    )
+    try:
+        await conn.execute(
+            q.UPDATE_TASK,
+            task_id,
+            data.theme_id,
+            data.title,
+            data.condition,
+            data.difficulty,
+            data.check_mode,
+            data.answer_type,
+            data.answer,
+            data.unit,
+            data.tolerance,
+            data.source_id,
+            data.source_number,
+            data.is_original,
+            clean_translations(data.translations),
+        )
+    except asyncpg.UniqueViolationError:
+        raise await _duplicate_error(conn, data, user, task_id) from None
     return await _task_full(conn, task_id)
 
 
