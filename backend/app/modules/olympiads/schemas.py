@@ -67,6 +67,8 @@ class OlympiadOut(BaseModel):
     is_registered: bool
     # Зритель зарегистрирован вне конкурса (False) или официально (True); None — не зарегистрирован.
     is_official: bool | None = None
+    # Зритель в жюри этой олимпиады: проверяет решения, участвовать не может.
+    is_jury: bool = False
     created_at: datetime
 
 
@@ -273,3 +275,7 @@ class EditorialIn(BaseModel):
         if any(len(text) > 30_000 for text in value.values()):
             raise ValueError("Разбор одной задачи — не длиннее 30 000 символов")
         return {task_id: text.strip() for task_id, text in value.items()}
+
+
+class JuryMemberIn(BaseModel):
+    username: str = Field(min_length=1, max_length=50)

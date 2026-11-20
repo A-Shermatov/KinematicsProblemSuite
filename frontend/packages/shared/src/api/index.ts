@@ -15,6 +15,7 @@ import type {
   DuplicateCheck,
   OlympiadStandings,
   OlympiadLevel,
+  JuryMember,
   OlympiadEditorial,
   ArchiveProblem,
   ArchiveQuery,
@@ -248,6 +249,10 @@ export const api = {
     editorial: (id: number) => request<OlympiadEditorial>(`/api/olympiads/${id}/editorial`),
     saveEditorial: (id: number, data: { text: string; solutions: Record<number, string> }) =>
       request<{ saved: boolean }>(`/api/olympiads/${id}/editorial`, { method: "PUT", json: data }),
+    juryMembers: (id: number) => request<JuryMember[]>(`/api/olympiads/${id}/jury-members`),
+    addJury: (id: number, username: string) =>
+      request<JuryMember[]>(`/api/olympiads/${id}/jury-members`, { method: "POST", json: { username } }),
+    removeJury: (id: number, userId: number) => request<void>(`/api/olympiads/${id}/jury-members/${userId}`, { method: "DELETE" }),
     levels: () => request<OlympiadLevel[]>("/api/olympiads/levels", { auth: false }),
     finish: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/finish`, { method: "POST" }),
     mine: () => request<Olympiad[]>("/api/olympiads/mine"),
