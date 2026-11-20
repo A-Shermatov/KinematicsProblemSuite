@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Literal
 
@@ -50,6 +51,16 @@ class ThemeOut(BaseModel):
     tasks_count: int
 
 
+class MistakeIn(BaseModel):
+    answer: str = Field(min_length=1, max_length=100, description="Неверный ответ, например «72» или «72 м/с»")
+    message: str = Field(min_length=1, max_length=300, description="Что показать ученику")
+
+    @field_validator("answer", "message")
+    @classmethod
+    def strip(cls, value: str) -> str:
+        return value.strip()
+
+
 class TaskIn(BaseModel):
     theme_id: int
     title: str = Field(min_length=1, max_length=150)
@@ -66,6 +77,19 @@ class TaskIn(BaseModel):
     translations: dict[TranslationLang, TranslationIn] = Field(
         default_factory=dict, description="Переводы условия; русский — основной язык (title/condition)"
     )
+    hints: list[str] = Field(default_factory=list, max_length=3, description="До 3 подсказок, открываются по очереди")
+    explanation: str = Field(default="", max_length=20_000, description="Разбор решения (Markdown)")
+    mistakes: list[MistakeIn] = Field(
+        default_factory=list, max_length=10, description="Частые неверные ответы и пояснения к ним"
+    )
+
+    @field_validator("hints")
+    @classmethod
+    def clean_hints(cls, value: list[str]) -> list[str]:
+        hints = [hint.strip() for hint in value if hint.strip()]
+        if any(len(hint) > 2000 for hint in hints):
+            raise ValueError("Подсказка слишком длинная (до 2000 символов)")
+        return hints
 
     @field_validator("title", "answer")
     @classmethod
@@ -124,6 +148,14 @@ class TaskFull(TaskOut):
     answer: str
     tolerance: float
     translations: dict[str, dict[str, str]] = {}
+    hints: list[str] = []
+    explanation: str = ""
+    mistakes: list[MistakeIn] = []
+
+    @field_validator("hints", "mistakes", mode="before")
+    @classmethod
+    def parse_json(cls, value: object) -> object:
+        return json.loads(value) if isinstance(value, str) else value
 
 
 SourceKind = Literal["book", "olympiad", "exam", "own"]
@@ -175,3 +207,16 @@ class DuplicateOut(BaseModel):
 class DuplicateCheckOut(BaseModel):
     exact: DuplicateOut | None
     similar: list[DuplicateOut]
+
+
+class TaskHelpOut(BaseModel):
+    """Подсказки и разбор для страницы задачи."""
+
+    hints_total: int
+    hints: list[str] = Field(description="Открытые подсказки (автору и админу — все)")
+    points: int = Field(description="Сколько очков даст задача с учётом открытых подсказок")
+    hint_penalty: int = Field(description="Процент очков, который снимает каждая подсказка")
+    has_explanation: bool
+    explanation: str | None = Field(description="Разбор — после верного ответа или нескольких неверных попыток")
+    attempts_until_explanation: int
+    can_open_hints: bool

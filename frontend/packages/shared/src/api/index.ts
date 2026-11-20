@@ -13,6 +13,7 @@ import type {
   Source,
   SourceInput,
   DuplicateCheck,
+  TaskHelp,
   ImportCapabilities,
   ImportInput,
   ImportParseResult,
@@ -125,6 +126,8 @@ export const api = {
     create: (data: TaskInput) => request<TaskFull>("/api/tasks", { method: "POST", json: data }),
     update: (id: number, data: TaskInput) => request<TaskFull>(`/api/tasks/${id}`, { method: "PUT", json: data }),
     remove: (id: number) => request<void>(`/api/tasks/${id}`, { method: "DELETE" }),
+    help: (id: number) => request<TaskHelp>(`/api/tasks/${id}/help`),
+    openHint: (id: number) => request<TaskHelp>(`/api/tasks/${id}/hints`, { method: "POST" }),
     checkDuplicates: (title: string, condition: string, excludeId?: number | null) =>
       request<DuplicateCheck>("/api/tasks/check-duplicates", { method: "POST", json: { title, condition, exclude_id: excludeId ?? null } }),
   },

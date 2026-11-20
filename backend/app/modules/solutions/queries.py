@@ -18,8 +18,8 @@ JOIN users st ON st.id = a.student_id
 """
 
 INSERT_ATTEMPT = """
-INSERT INTO attempts (task_id, student_id, answer, image_path, status, system_grade, feedback)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO attempts (task_id, student_id, answer, image_path, status, system_grade, feedback, hints_used)
+VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT count(*) FROM task_hint_opens WHERE task_id = $1 AND user_id = $2))
 RETURNING id
 """
 
