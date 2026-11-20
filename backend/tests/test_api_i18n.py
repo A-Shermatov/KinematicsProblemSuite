@@ -52,10 +52,9 @@ def _payload(task: dict) -> dict:
         "answer",
         "unit",
         "tolerance",
-        "source_type",
-        "source_title",
-        "source_year",
+        "source_id",
         "source_number",
+        "is_original",
     ]
     return {k: task[k] for k in keys}
 

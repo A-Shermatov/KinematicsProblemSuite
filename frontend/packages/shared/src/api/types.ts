@@ -5,11 +5,34 @@ export type AttemptStatus = "correct" | "incorrect" | "pending" | "graded";
 export type AttemptScope = "mine" | "authored";
 export type SourceType = "book" | "olympiad" | "exam" | "own";
 
+/** Источник задачи в том виде, в каком его отдаёт API задачи (поля из каталога источников). */
 export interface TaskSource {
+  source_id?: number | null;
   source_type: SourceType | null;
   source_title: string | null;
   source_year: number | null;
+  source_author?: string;
   source_number: string | null;
+  is_original?: boolean;
+}
+
+/** Книга, сборник, олимпиада или экзамен из общего каталога. */
+export interface Source {
+  id: number;
+  type: SourceType;
+  title: string;
+  author: string;
+  year: number | null;
+  created_by: number | null;
+  created_at: string;
+  tasks_count: number;
+}
+
+export interface SourceInput {
+  type: SourceType;
+  title: string;
+  author: string;
+  year: number | null;
 }
 
 export interface User {
@@ -82,7 +105,10 @@ export interface TaskFull extends Task {
   translations: TaskTranslations;
 }
 
-export interface TaskInput extends TaskSource {
+export interface TaskInput {
+  source_id: number | null;
+  source_number: string | null;
+  is_original: boolean;
   theme_id: number;
   title: string;
   condition: string;
