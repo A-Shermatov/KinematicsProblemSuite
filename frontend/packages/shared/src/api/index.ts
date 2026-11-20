@@ -1,6 +1,10 @@
 import { request } from "./client";
 import type {
+  Achievements,
   AdminStats,
+  CityRow,
+  Period,
+  SchoolRow,
   Attempt,
   Certificate,
   CertificateStatus,
@@ -34,11 +38,24 @@ interface TitledInput {
 
 type ThemeInput = TitledInput & { subject_id: number };
 
+type LeaderboardQuery = {
+  period?: Period;
+  subject_id?: number;
+  city?: string;
+};
+
 export const api = {
   auth: {
     login: (username: string, password: string) =>
       request<TokenPair>("/api/auth/login", { method: "POST", json: { username, password }, auth: false }),
-    register: (data: { username: string; password: string; first_name: string; last_name: string }) =>
+    register: (data: {
+      username: string;
+      password: string;
+      first_name: string;
+      last_name: string;
+      city: string | null;
+      school: string | null;
+    }) =>
       request<User>("/api/auth/register", { method: "POST", json: data, auth: false }),
     logout: (refreshToken: string) =>
       request<void>("/api/auth/logout", { method: "POST", json: { refresh_token: refreshToken }, auth: false }),
@@ -46,7 +63,7 @@ export const api = {
 
   users: {
     me: () => request<User>("/api/users/me"),
-    updateMe: (data: { username: string; first_name: string; last_name: string }) =>
+    updateMe: (data: { username: string; first_name: string; last_name: string; city: string | null; school: string | null }) =>
       request<User>("/api/users/me", { method: "PATCH", json: data }),
     changePassword: (current_password: string, new_password: string) =>
       request<void>("/api/users/me/password", { method: "POST", json: { current_password, new_password } }),
@@ -103,8 +120,14 @@ export const api = {
 
   stats: {
     me: () => request<Stats>("/api/stats/me"),
-    leaderboard: (period: "week" | "month" | "all" = "all") =>
-      request<LeaderboardRow[]>("/api/stats/leaderboard", { query: { period }, auth: false }),
+    leaderboard: (query: LeaderboardQuery & { metric?: "points" | "solved"; school?: string }) =>
+      request<LeaderboardRow[]>("/api/stats/leaderboard", { query, auth: false }),
+    schools: (query: LeaderboardQuery) => request<SchoolRow[]>("/api/stats/leaderboard/schools", { query, auth: false }),
+    cities: (query: Omit<LeaderboardQuery, "city">) =>
+      request<CityRow[]>("/api/stats/leaderboard/cities", { query, auth: false }),
+    achievements: (userId: number) => request<Achievements>(`/api/stats/achievements/${userId}`, { auth: false }),
+    places: (city?: string) =>
+      request<{ cities: string[]; schools: string[] }>("/api/stats/places", { query: { city }, auth: false }),
   },
 
   teachers: {

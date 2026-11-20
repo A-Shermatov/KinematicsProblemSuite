@@ -23,6 +23,7 @@ import {
   type StudentStats,
   type TeacherStats,
 } from "@kps/shared";
+import { Achievements } from "../components/Achievements";
 import { ADMIN_URL } from "../config";
 
 function RecentAttempts({ attempts, showStudent }: { attempts: Attempt[]; showStudent?: boolean }) {
@@ -121,11 +122,11 @@ export function Dashboard() {
   const { user } = useAuth();
   const { data, error, loading } = useAsync(async () => {
     const stats = await api.stats.me();
-    const attempts =
-      stats.role === "student"
-        ? await api.attempts.list({ scope: "mine" })
-        : await api.attempts.list({ scope: "authored", status: "pending" });
-    return { stats, attempts };
+    const [attempts, achievements] = await Promise.all([
+      stats.role === "student" ? api.attempts.list({ scope: "mine" }) : api.attempts.list({ scope: "authored", status: "pending" }),
+      stats.role === "student" && user ? api.stats.achievements(user.id) : Promise.resolve(null),
+    ]);
+    return { stats, attempts, achievements };
   }, [user?.id]);
 
   if (!user) return null;
@@ -164,6 +165,17 @@ export function Dashboard() {
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {stats?.role === "student" && <StudentDashboard stats={stats} attempts={attempts} />}
+      {data?.achievements && (
+        <section className="mt-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-fg">Достижения</h2>
+            <Link to={`/users/${user.id}`} className="text-sm text-primary hover:underline">
+              Все значки
+            </Link>
+          </div>
+          <Achievements data={data.achievements} compact />
+        </section>
+      )}
       {stats && stats.role !== "student" && <TeacherDashboard stats={stats} attempts={attempts} />}
     </>
   );

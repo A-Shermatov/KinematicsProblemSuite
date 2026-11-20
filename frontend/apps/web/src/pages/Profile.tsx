@@ -9,6 +9,7 @@ import {
   Input,
   Loading,
   PageHeader,
+  PlaceFields,
   api,
   cx,
   displayName,
@@ -21,6 +22,7 @@ import {
   useTheme,
   type ThemeMode,
 } from "@kps/shared";
+import { Achievements } from "../components/Achievements";
 
 function Notice({ text }: { text: string | null }) {
   return text ? <div className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success">{text}</div> : null;
@@ -31,7 +33,13 @@ export function Profile() {
   const { user, setUser } = useAuth();
   const { mode, setMode } = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ username: user?.username ?? "", first_name: user?.first_name ?? "", last_name: user?.last_name ?? "" });
+  const [form, setForm] = useState({
+    username: user?.username ?? "",
+    first_name: user?.first_name ?? "",
+    last_name: user?.last_name ?? "",
+    city: user?.city ?? "",
+    school: user?.school ?? "",
+  });
   const [passwords, setPasswords] = useState({ current: "", next: "" });
   const [status, setStatus] = useState<{ profile?: string; password?: string; avatar?: string }>({});
   const [errors, setErrors] = useState<{ profile?: string; password?: string; avatar?: string }>({});
@@ -56,7 +64,14 @@ export function Profile() {
   const saveProfile = (event: FormEvent) => {
     event.preventDefault();
     void run("profile", async () => {
-      setUser(await api.users.updateMe({ ...form, username: form.username.trim() }));
+      setUser(
+        await api.users.updateMe({
+          ...form,
+          username: form.username.trim(),
+          city: form.city.trim() || null,
+          school: form.school.trim() || null,
+        }),
+      );
       return "Профиль сохранён";
     });
   };
@@ -148,6 +163,7 @@ export function Profile() {
               <Input label="Фамилия" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
             </div>
             <Input label="Имя пользователя" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
+            <PlaceFields city={form.city} school={form.school} onChange={(place) => setForm({ ...form, ...place })} />
             <Button type="submit" loading={busy === "profile"}>
               Сохранить
             </Button>
@@ -175,23 +191,35 @@ export function Profile() {
 
 export function UserPage() {
   const userId = Number(useParams().userId);
-  const { data: user, error, loading } = useAsync(() => api.users.get(userId), [userId]);
+  const { data, error, loading } = useAsync(async () => {
+    const user = await api.users.get(userId);
+    const achievements = user.role === "student" ? await api.stats.achievements(userId) : null;
+    return { user, achievements };
+  }, [userId]);
+  const user = data?.user;
   useDocumentTitle(user ? displayName(user) : undefined);
 
   if (loading) return <Loading />;
   if (error || !user) return <ErrorMessage>{error ?? "Пользователь не найден"}</ErrorMessage>;
   if (user.role === "teacher") return <Navigate to={`/teachers/${user.id}`} replace />;
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-4xl">
       <Card className="flex flex-col items-center gap-3 p-8 text-center">
         <Avatar src={user.avatar_url} name={displayName(user)} size={96} />
         <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
         <p className="text-muted">
           @{user.username} · {roleLabel[user.role]}
         </p>
+        {(user.school || user.city) && <p className="text-sm text-fg">🏫 {[user.school, user.city].filter(Boolean).join(", ")}</p>}
         <p className="text-sm text-muted">На платформе с {formatDate(user.created_at)}</p>
         {!user.is_active && <p className="text-sm font-medium text-danger">Аккаунт заблокирован</p>}
       </Card>
+      {data?.achievements && (
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-semibold text-fg">Достижения</h2>
+          <Achievements data={data.achievements} />
+        </section>
+      )}
     </div>
   );
 }
