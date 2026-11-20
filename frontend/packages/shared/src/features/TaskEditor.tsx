@@ -1,11 +1,19 @@
 import { useState, type FormEvent } from "react";
-import { api, type AnswerType, type CheckMode, type SourceType, type TaskFull, type TaskInput } from "../api";
+import { api, type AnswerType, type CheckMode, type TaskFull, type TaskInput } from "../api";
 import { TranslatableFields, cleanTranslations } from "../components/TranslatableFields";
 import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
-import { formatSource, sourceTypeLabel } from "../lib/format";
+import { formatSource } from "../lib/format";
+import { SourcePicker, type PickedSource } from "./SourcePicker";
 import { usePlatformSettings } from "../settings/SettingsContext";
 import { errorText, useAsync, useDocumentTitle } from "../lib/hooks";
 import { t } from "../i18n";
+
+type SourceMode = "none" | "own" | "source";
+const SOURCE_MODES: { key: SourceMode; label: string }[] = [
+  { key: "none", label: t("Не указан") },
+  { key: "own", label: t("Авторская задача") },
+  { key: "source", label: t("Из книги, олимпиады, экзамена") },
+];
 
 const EMPTY: TaskInput = {
   theme_id: 0,
@@ -17,10 +25,9 @@ const EMPTY: TaskInput = {
   answer: "",
   unit: null,
   tolerance: 0.01,
-  source_type: null,
-  source_title: null,
-  source_year: null,
+  source_id: null,
   source_number: null,
+  is_original: false,
   translations: {},
 };
 
@@ -39,12 +46,18 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
   const { settings } = usePlatformSettings();
 
   const [form, setForm] = useState<TaskInput | null>(taskId ? null : EMPTY);
+  const [picked, setPicked] = useState<PickedSource | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode>("none");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data: themes, error, loading } = useAsync(async () => {
     const [themeList, task] = await Promise.all([api.themes.list(), taskId ? api.tasks.getFull(taskId) : Promise.resolve(null)]);
     if (task) {
+      if (task.source_id && task.source_type) {
+        setPicked({ id: task.source_id!, type: task.source_type!, title: task.source_title ?? "", author: task.source_author ?? "", year: task.source_year });
+      }
+      setSourceMode(task.source_id ? "source" : task.is_original ? "own" : "none");
       setForm({
         theme_id: task.theme_id,
         title: task.title,
@@ -55,10 +68,9 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
         answer: task.answer,
         unit: task.unit,
         tolerance: task.tolerance,
-        source_type: task.source_type,
-        source_title: task.source_title,
-        source_year: task.source_year,
+        source_id: task.source_id ?? null,
         source_number: task.source_number,
+        is_original: task.is_original ?? false,
         translations: task.translations ?? {},
       });
     } else if (themeList.length > 0) {
@@ -74,8 +86,21 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
   const levels = form.difficulty > settings.difficulty_max ? [...settings.difficulty_levels, form.difficulty] : settings.difficulty_levels;
   const set = <K extends keyof TaskInput>(key: K, value: TaskInput[K]) => setForm({ ...form, [key]: value });
 
+  const preview = formatSource({
+    source_type: sourceMode === "own" ? "own" : sourceMode === "source" && picked ? picked.type : null,
+    source_title: sourceMode === "source" ? (picked?.title ?? null) : null,
+    source_year: sourceMode === "source" ? (picked?.year ?? null) : null,
+    source_author: sourceMode === "source" ? picked?.author : undefined,
+    source_number: sourceMode === "source" && picked ? form.source_number : null,
+  });
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (sourceMode === "source" && !form.source_id) {
+      setSaveError(t("Выберите источник из каталога или добавьте новый"));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -149,47 +174,34 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
             <h2 className="font-semibold text-fg">{t("Источник")}</h2>
             <p className="text-sm text-muted">{t("Необязательно. Ученики увидят, откуда взята задача.")}</p>
           </div>
-          <div className="grid gap-4 md:grid-cols-[1fr_2fr]">
-            <Select
-              label={t("Тип")}
-              value={form.source_type ?? ""}
-              onChange={(e) => set("source_type", (e.target.value || null) as SourceType | null)}
-            >
-              <option value="">{t("Не указан")}</option>
-              {(Object.keys(sourceTypeLabel) as SourceType[]).map((type) => (
-                <option key={type} value={type}>
-                  {sourceTypeLabel[type]}
-                </option>
-              ))}
-            </Select>
-            {form.source_type && (
-              <Input
-                label={form.source_type === "own" ? t("Название (необязательно)") : t("Название")}
-                value={form.source_title ?? ""}
-                onChange={(e) => set("source_title", e.target.value || null)}
-                required={form.source_type !== "own"}
-                maxLength={200}
-                placeholder={
-                  form.source_type === "book"
-                    ? t("Рымкевич. Задачник по физике 10–11")
-                    : form.source_type === "olympiad"
-                      ? t("Республиканская олимпиада, финал")
-                      : form.source_type === "exam"
-                        ? t("Вступительный тест ЦТТ")
-                        : t("Мой сборник")
-                }
-              />
-            )}
+          <div role="radiogroup" aria-label={t("Источник")} className="flex flex-wrap gap-2">
+            {SOURCE_MODES.map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                role="radio"
+                aria-checked={sourceMode === mode.key}
+                onClick={() => {
+                  setSourceMode(mode.key);
+                  setForm({ ...form, is_original: mode.key === "own", source_id: mode.key === "source" ? (picked?.id ?? null) : null });
+                }}
+                className={cx(
+                  "rounded-xl border px-4 py-2 text-sm font-medium transition-colors",
+                  sourceMode === mode.key ? "border-primary bg-primary-soft text-primary" : "border-border text-muted hover:text-fg",
+                )}
+              >
+                {mode.label}
+              </button>
+            ))}
           </div>
-          {form.source_type && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label={t("Год")}
-                type="number"
-                min={1800}
-                max={2100}
-                value={form.source_year ?? ""}
-                onChange={(e) => set("source_year", e.target.value ? Number(e.target.value) : null)}
+          {sourceMode === "source" && (
+            <div className="grid gap-4 lg:grid-cols-[3fr_1fr] lg:items-start">
+              <SourcePicker
+                value={picked}
+                onChange={(source) => {
+                  setPicked(source);
+                  setForm({ ...form, source_id: source?.id ?? null });
+                }}
               />
               <Input
                 label={t("Номер задачи")}
@@ -200,7 +212,7 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
               />
             </div>
           )}
-          {formatSource(form) && <p className="text-sm text-muted">{t("Будет показано: «Источник:")} {formatSource(form)}»</p>}
+          {preview && <p className="text-sm text-muted">{t("Будет показано: «Источник:")} {preview}»</p>}
         </Card>
 
         <Card className="space-y-5 p-6">

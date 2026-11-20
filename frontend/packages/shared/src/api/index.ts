@@ -10,6 +10,8 @@ import type {
   OlympiadLeaderRow,
   OlympiadPhase,
   OlympiadResults,
+  Source,
+  SourceInput,
   VirtualRun,
   VirtualStandingRow,
   OlympiadStatus,
@@ -109,6 +111,7 @@ export const api = {
         difficulty?: number;
         search?: string;
         source_type?: SourceType;
+        source_id?: number;
       } = {},
     ) =>
       request<Task[]>("/api/tasks", { query: { ...query, limit: 200 } }),
@@ -117,6 +120,15 @@ export const api = {
     create: (data: TaskInput) => request<TaskFull>("/api/tasks", { method: "POST", json: data }),
     update: (id: number, data: TaskInput) => request<TaskFull>(`/api/tasks/${id}`, { method: "PUT", json: data }),
     remove: (id: number) => request<void>(`/api/tasks/${id}`, { method: "DELETE" }),
+  },
+
+  sources: {
+    list: (query: { search?: string; type?: SourceType; limit?: number } = {}) => request<Source[]>("/api/sources", { query }),
+    get: (id: number) => request<Source>(`/api/sources/${id}`),
+    create: (data: SourceInput) => request<Source>("/api/sources", { method: "POST", json: data }),
+    update: (id: number, data: SourceInput) => request<Source>(`/api/sources/${id}`, { method: "PUT", json: data }),
+    remove: (id: number) => request<void>(`/api/sources/${id}`, { method: "DELETE" }),
+    merge: (id: number, intoId: number) => request<Source>(`/api/sources/${id}/merge`, { method: "POST", json: { into_id: intoId } }),
   },
 
   attempts: {

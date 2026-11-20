@@ -3,7 +3,7 @@ import { APP_NAME, AuthProvider, SettingsProvider, ButtonLink, EmptyState, Theme
 import { Layout, RequireAuth } from "./components/Layout";
 import { Attempts } from "./pages/Attempts";
 import { Login, Register } from "./pages/Auth";
-import { Catalog, ThemeTasks } from "./pages/Catalog";
+import { Catalog, SourceTasksPage, SourcesPage, ThemeTasks } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
 import { Home } from "./pages/Home";
 import { Leaderboard } from "./pages/Leaderboard";
@@ -35,6 +35,8 @@ export function AppRoutes() {
         <Route path="register" element={<Register />} />
         <Route path="catalog" element={<Catalog />} />
         <Route path="themes/:themeId" element={<ThemeTasks />} />
+        <Route path="sources" element={<SourcesPage />} />
+        <Route path="sources/:sourceId" element={<SourceTasksPage />} />
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="olympiads" element={<Olympiads />} />

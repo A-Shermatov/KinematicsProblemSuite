@@ -9,6 +9,7 @@ import { Olympiads } from "./pages/Olympiads";
 import { Settings } from "./pages/Settings";
 import { TaskEdit, Tasks } from "./pages/Tasks";
 import { Users } from "./pages/Users";
+import { Sources } from "./pages/Sources";
 
 setDocumentTitleSuffix("Админка");
 
@@ -28,6 +29,7 @@ export function AppRoutes() {
         <Route path="catalog" element={<Catalog />} />
         <Route path="tasks" element={<Tasks />} />
         <Route path="tasks/:taskId/edit" element={<TaskEdit />} />
+        <Route path="sources" element={<Sources />} />
         <Route path="attempts" element={<Attempts />} />
         <Route path="olympiads" element={<Olympiads />} />
         <Route path="certificates" element={<Certificates />} />
