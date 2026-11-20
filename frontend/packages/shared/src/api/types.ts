@@ -388,3 +388,16 @@ export interface PlatformSettings {
   difficulty_step: number;
   difficulty_levels: number[];
 }
+
+export interface Activity {
+  days: { date: string; count: number }[];
+  total: number;
+  active_days: number;
+  best_streak: number;
+  timezone: string;
+}
+
+export interface DifficultyBreakdown {
+  levels: { difficulty: number; solved: number; unsolved: number }[];
+  subjects: { subject_id: number; subject_title: string; solved: number }[];
+}

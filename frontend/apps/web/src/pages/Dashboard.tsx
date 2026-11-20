@@ -24,6 +24,7 @@ import {
   type TeacherStats,
 } from "@kps/shared";
 import { Achievements } from "../components/Achievements";
+import { ActivityHeatmap } from "../components/ActivityHeatmap";
 import { ADMIN_URL } from "../config";
 
 function RecentAttempts({ attempts, showStudent }: { attempts: Attempt[]; showStudent?: boolean }) {
@@ -126,7 +127,8 @@ export function Dashboard() {
       stats.role === "student" ? api.attempts.list({ scope: "mine" }) : api.attempts.list({ scope: "authored", status: "pending" }),
       stats.role === "student" && user ? api.stats.achievements(user.id) : Promise.resolve(null),
     ]);
-    return { stats, attempts, achievements };
+    const activity = stats.role === "student" && user ? await api.stats.activity(user.id) : null;
+    return { stats, attempts, achievements, activity };
   }, [user?.id]);
 
   if (!user) return null;
@@ -165,6 +167,11 @@ export function Dashboard() {
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {stats?.role === "student" && <StudentDashboard stats={stats} attempts={attempts} />}
+      {data?.activity && (
+        <div className="mt-8">
+          <ActivityHeatmap activity={data.activity} />
+        </div>
+      )}
       {data?.achievements && (
         <section className="mt-8 space-y-4">
           <div className="flex items-center justify-between">

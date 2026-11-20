@@ -23,6 +23,8 @@ import {
   type ThemeMode,
 } from "@kps/shared";
 import { Achievements } from "../components/Achievements";
+import { ActivityHeatmap } from "../components/ActivityHeatmap";
+import { DifficultyChart } from "../components/DifficultyChart";
 
 function Notice({ text }: { text: string | null }) {
   return text ? <div className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success">{text}</div> : null;
@@ -193,8 +195,13 @@ export function UserPage() {
   const userId = Number(useParams().userId);
   const { data, error, loading } = useAsync(async () => {
     const user = await api.users.get(userId);
-    const achievements = user.role === "student" ? await api.stats.achievements(userId) : null;
-    return { user, achievements };
+    if (user.role !== "student") return { user, achievements: null, activity: null, difficulty: null };
+    const [achievements, activity, difficulty] = await Promise.all([
+      api.stats.achievements(userId),
+      api.stats.activity(userId),
+      api.stats.difficulty(userId),
+    ]);
+    return { user, achievements, activity, difficulty };
   }, [userId]);
   const user = data?.user;
   useDocumentTitle(user ? displayName(user) : undefined);
@@ -203,20 +210,43 @@ export function UserPage() {
   if (error || !user) return <ErrorMessage>{error ?? "Пользователь не найден"}</ErrorMessage>;
   if (user.role === "teacher") return <Navigate to={`/teachers/${user.id}`} replace />;
   return (
-    <div className="mx-auto max-w-4xl">
-      <Card className="flex flex-col items-center gap-3 p-8 text-center">
+    <div className="space-y-8">
+      <Card className="flex flex-wrap items-center gap-6 p-6 sm:p-8">
         <Avatar src={user.avatar_url} name={displayName(user)} size={96} />
-        <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
-        <p className="text-muted">
-          @{user.username} · {roleLabel[user.role]}
-        </p>
-        {(user.school || user.city) && <p className="text-sm text-fg">🏫 {[user.school, user.city].filter(Boolean).join(", ")}</p>}
-        <p className="text-sm text-muted">На платформе с {formatDate(user.created_at)}</p>
-        {!user.is_active && <p className="text-sm font-medium text-danger">Аккаунт заблокирован</p>}
+        <div className="min-w-0 flex-1 space-y-1">
+          <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
+          <p className="text-muted">
+            @{user.username} · {roleLabel[user.role]}
+          </p>
+          {(user.school || user.city) && <p className="text-sm text-fg">🏫 {[user.school, user.city].filter(Boolean).join(", ")}</p>}
+          <p className="text-sm text-muted">На платформе с {formatDate(user.created_at)}</p>
+          {!user.is_active && <p className="text-sm font-medium text-danger">Аккаунт заблокирован</p>}
+        </div>
+        {data?.achievements && (
+          <div className="grid grid-cols-3 gap-6 text-center">
+            <div>
+              <p className="text-2xl font-bold text-primary">{data.achievements.points}</p>
+              <p className="text-xs text-muted">очков</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-fg">{data.achievements.solved_tasks}</p>
+              <p className="text-xs text-muted">решено</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-fg">
+                {data.achievements.current_streak > 0 && "🔥"}
+                {data.achievements.current_streak}
+              </p>
+              <p className="text-xs text-muted">дней подряд</p>
+            </div>
+          </div>
+        )}
       </Card>
+      {data?.activity && <ActivityHeatmap activity={data.activity} />}
+      {data?.difficulty && <DifficultyChart data={data.difficulty} />}
       {data?.achievements && (
-        <section className="mt-8 space-y-4">
-          <h2 className="text-lg font-semibold text-fg">Достижения</h2>
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-fg">Значки</h2>
           <Achievements data={data.achievements} />
         </section>
       )}
