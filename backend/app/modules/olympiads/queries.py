@@ -162,6 +162,20 @@ SET answer = EXCLUDED.answer, image_path = EXCLUDED.image_path, auto_correct = E
 RETURNING id
 """
 
+INSERT_HISTORY = """
+INSERT INTO olympiad_submission_history (olympiad_id, task_id, user_id, answer, auto_correct)
+VALUES ($1, $2, $3, $4, $5)
+"""
+
+# Все отправки участника, новые сверху; current — последняя по задаче, она засчитывается.
+MY_HISTORY = """
+SELECT h.id, h.task_id, h.answer, h.auto_correct, h.submitted_at,
+       h.id = max(h.id) OVER (PARTITION BY h.task_id) AS current
+FROM olympiad_submission_history h
+WHERE h.olympiad_id = $1 AND h.user_id = $2
+ORDER BY h.submitted_at DESC, h.id DESC
+"""
+
 GET_SUBMISSION = f"""
 SELECT {SUBMISSION_COLUMNS}
 {SUBMISSION_FROM}

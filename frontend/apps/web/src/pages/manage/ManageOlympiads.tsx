@@ -450,9 +450,10 @@ function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympia
   );
 }
 
-export function OlympiadJury() {
+/** Проверка решений жюри. embedded — вкладка «Проверка» на странице олимпиады (без своей шапки). */
+export function OlympiadJury({ embedded = false }: { embedded?: boolean }) {
   const olympiadId = Number(useParams().olympiadId);
-  useDocumentTitle(t("Жюри"));
+  useDocumentTitle(embedded ? undefined : t("Жюри"));
   const [taskId, setTaskId] = useState<number | null>(null);
   const [ungraded, setUngraded] = useState(false);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -483,24 +484,32 @@ export function OlympiadJury() {
     }
   };
 
+  const juryActions =
+    olympiad.phase === "checking" ? (
+      <Button onClick={publish}>{t("Опубликовать итоги")}</Button>
+    ) : locked ? (
+      <ButtonLink to={`/olympiads/${olympiad.id}`} variant="secondary">
+        {t("Итоги опубликованы")}
+      </ButtonLink>
+    ) : (
+      <Badge tone="success">{t("Олимпиада идёт — проверять можно уже сейчас")}</Badge>
+    );
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t("Жюри: {0}", [olympiad.title])}
-        subtitle={t("Балл жюри заменяет автопроверку. Можно снизить за списанное или неполное решение и дать частичный балл.")}
-        breadcrumbs={[{ label: t("Мои олимпиады"), to: "/manage/olympiads" }, { label: olympiad.title, to: `/manage/olympiads/${olympiad.id}` }, { label: t("Жюри") }]}
-        actions={
-          olympiad.phase === "checking" ? (
-            <Button onClick={publish}>{t("Опубликовать итоги")}</Button>
-          ) : locked ? (
-            <ButtonLink to={`/olympiads/${olympiad.id}`} variant="secondary">
-              {t("Итоги опубликованы")}
-            </ButtonLink>
-          ) : (
-            <Badge tone="success">{t("Олимпиада идёт — проверять можно уже сейчас")}</Badge>
-          )
-        }
-      />
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-2xl text-sm text-muted">{t("Балл жюри заменяет автопроверку. Можно снизить за списанное или неполное решение и дать частичный балл.")}</p>
+          {juryActions}
+        </div>
+      ) : (
+        <PageHeader
+          title={t("Жюри: {0}", [olympiad.title])}
+          subtitle={t("Балл жюри заменяет автопроверку. Можно снизить за списанное или неполное решение и дать частичный балл.")}
+          breadcrumbs={[{ label: t("Мои олимпиады"), to: "/manage/olympiads" }, { label: olympiad.title, to: `/manage/olympiads/${olympiad.id}` }, { label: t("Жюри") }]}
+          actions={juryActions}
+        />
+      )}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <div className="flex flex-wrap items-center gap-3">
         <select

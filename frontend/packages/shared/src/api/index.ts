@@ -14,6 +14,7 @@ import type {
   SourceInput,
   DuplicateCheck,
   OlympiadStandings,
+  OlympiadHistoryItem,
   TelegramStatus,
   Collection,
   CollectionDetail,
@@ -258,6 +259,7 @@ export const api = {
     mySubmissions: (id: number) => request<OlympiadSubmission[]>(`/api/olympiads/${id}/my-submissions`),
     results: (id: number) => request<OlympiadResults>(`/api/olympiads/${id}/results`),
     standings: (id: number) => request<OlympiadStandings>(`/api/olympiads/${id}/standings`),
+    myHistory: (id: number) => request<OlympiadHistoryItem[]>(`/api/olympiads/${id}/my-history`),
     virtual: (id: number) => request<VirtualRun | null>(`/api/olympiads/${id}/virtual`),
     startVirtual: (id: number) => request<VirtualRun>(`/api/olympiads/${id}/virtual`, { method: "POST" }),
     submitVirtual: (id: number, taskId: number, answer: string) =>

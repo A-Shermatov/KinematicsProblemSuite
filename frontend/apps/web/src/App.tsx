@@ -9,7 +9,7 @@ import { Home } from "./pages/Home";
 import { Leaderboard } from "./pages/Leaderboard";
 import { ManageOlympiads, OlympiadEditor, OlympiadJury } from "./pages/manage/ManageOlympiads";
 import { ManageTasks, TaskEditorPage } from "./pages/manage/ManageTasks";
-import { DiplomaPage, OlympiadPage, Olympiads } from "./pages/Olympiads";
+import { DiplomaPage, OlympiadMySubmissions, OlympiadPage, OlympiadProblem, OlympiadProblems, OlympiadStandingsTab, Olympiads } from "./pages/Olympiads";
 import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
 import { TeacherPage, TeacherSettings, Teachers } from "./pages/Teachers";
@@ -47,7 +47,13 @@ export function AppRoutes() {
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="olympiads" element={<Olympiads />} />
-        <Route path="olympiads/:olympiadId" element={<OlympiadPage />} />
+        <Route path="olympiads/:olympiadId" element={<OlympiadPage />}>
+          <Route index element={<OlympiadProblems />} />
+          <Route path="problems/:label" element={<OlympiadProblem />} />
+          <Route path="standings" element={<OlympiadStandingsTab />} />
+          <Route path="submissions" element={<RequireAuth><OlympiadMySubmissions /></RequireAuth>} />
+          <Route path="jury" element={<RequireAuth roles={["teacher", "admin"]}><OlympiadJury embedded /></RequireAuth>} />
+        </Route>
         <Route path="olympiads/:olympiadId/diploma" element={<RequireAuth><DiplomaPage /></RequireAuth>} />
         <Route path="manage/olympiads" element={<RequireAuth roles={["teacher"]}><ManageOlympiads /></RequireAuth>} />
         <Route path="manage/olympiads/new" element={<RequireAuth roles={["teacher"]}><OlympiadEditor /></RequireAuth>} />
