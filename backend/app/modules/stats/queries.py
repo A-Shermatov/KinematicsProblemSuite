@@ -135,6 +135,11 @@ olympiad_scores AS (
     SELECT sb.olympiad_id, sb.user_id, sum({POINTS}) AS total, {PENALTY} AS penalty
     FROM olympiad_submissions sb
     JOIN olympiads o ON o.id = sb.olympiad_id AND o.results_published
+    -- Вне конкурса места не занимают.
+    WHERE NOT EXISTS (
+        SELECT 1 FROM olympiad_participants p
+        WHERE p.olympiad_id = sb.olympiad_id AND p.user_id = sb.user_id AND NOT p.official
+    )
     GROUP BY sb.olympiad_id, sb.user_id
 ),
 olympiad_places AS (
@@ -159,8 +164,6 @@ SELECT
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place <= 3 AND total > 0)::int AS olympiad_prizes,
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place = 1 AND total > 0)::int AS olympiad_wins
 """
-
-# Призовые места и победы сразу для многих пользователей (звания в рейтингах). $1 — массив id.
 
 
 # Активность по дням за последний год: любая отправленная попытка (задачи и олимпиады).

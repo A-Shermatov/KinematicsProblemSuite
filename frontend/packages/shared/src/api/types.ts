@@ -386,6 +386,11 @@ export interface Olympiad {
   description: string;
   subject_id: number | null;
   subject_title: string | null;
+  level_id: number | null;
+  level_title: string | null;
+  level_min_rating: number | null;
+  /** Официально участвуют те, у кого рейтинг ниже; остальные — вне конкурса. */
+  level_max_rating: number | null;
   organizer_id: number;
   organizer_name: string;
   starts_at: string;
@@ -398,8 +403,22 @@ export interface Olympiad {
   tasks_count: number;
   max_score: number;
   is_registered: boolean;
+  /** Зритель зарегистрирован официально (true) или вне конкурса (false); null — не зарегистрирован. */
+  is_official: boolean | null;
   created_at: string;
 }
+
+/** Уровень олимпиады (как Div. 1/2/3 на Codeforces) — задаёт администратор. */
+export interface OlympiadLevel {
+  id: number;
+  title: string;
+  description: string;
+  min_rating: number | null;
+  max_rating: number | null;
+  position: number;
+}
+
+export type OlympiadLevelInput = Omit<OlympiadLevel, "id">;
 
 export interface OlympiadTask {
   id: number;
@@ -428,6 +447,7 @@ export interface OlympiadInput {
   title: string;
   description: string;
   subject_id: number | null;
+  level_id: number | null;
   starts_at: string;
   ends_at: string;
 }
@@ -470,7 +490,9 @@ export interface OlympiadSubmission {
 }
 
 export interface OlympiadResultRow {
-  place: number;
+  /** null — вне конкурса. */
+  place: number | null;
+  official: boolean;
   user_id: number;
   username: string;
   name: string;
@@ -672,7 +694,9 @@ export interface StandingsCell {
 }
 
 export interface StandingsRow {
-  place: number;
+  /** null — вне конкурса: в таблице по баллам, но без места. */
+  place: number | null;
+  official: boolean;
   user_id: number;
   username: string;
   name: string;

@@ -18,6 +18,7 @@ from app.i18n import DEFAULT_LANG, Lang, RequestLang, clean_translations
 from app.modules.olympiads import queries as q
 from app.modules.olympiads.schemas import (
     GradeIn,
+    LevelOut,
     OlympiadDetail,
     OlympiadIn,
     OlympiadOut,
@@ -63,6 +64,11 @@ async def _managed(conn: asyncpg.Connection, olympiad_id: int, user: CurrentUser
     return row
 
 
+async def _check_level(conn: asyncpg.Connection, level_id: int | None) -> None:
+    if level_id is not None and await conn.fetchrow(q.GET_LEVEL, level_id) is None:
+        raise HTTPException(422, detail="Такого уровня олимпиады нет")
+
+
 def _require_editable(row: asyncpg.Record) -> None:
     if row["status"] not in ("draft", "rejected"):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Олимпиаду на проверке или опубликованную изменить нельзя")
@@ -93,9 +99,17 @@ async def _detail(
 
 
 @router.get("", response_model=list[OlympiadOut])
-async def list_olympiads(conn: Conn, viewer: OptionalUser, phase: Phase | None = None) -> list[OlympiadOut]:
-    rows = await conn.fetch(q.LIST_PUBLISHED, phase, viewer.id if viewer else None)
+async def list_olympiads(
+    conn: Conn, viewer: OptionalUser, phase: Phase | None = None, level_id: int | None = None
+) -> list[OlympiadOut]:
+    rows = await conn.fetch(q.LIST_PUBLISHED, phase, viewer.id if viewer else None, level_id)
     return [OlympiadOut(**dict(row)) for row in rows]
+
+
+@router.get("/levels", response_model=list[LevelOut])
+async def list_levels(conn: Conn) -> list[LevelOut]:
+    """Уровни олимпиад (до 5 класса, 5–8, 9–11…) — задаёт администратор."""
+    return [LevelOut(**dict(row)) for row in await conn.fetch(q.LIST_LEVELS)]
 
 
 @router.get("/mine", response_model=list[OlympiadOut])
@@ -118,7 +132,10 @@ async def register(olympiad_id: int, student: Student, conn: Conn) -> OlympiadDe
         raise not_found("Олимпиада")
     if row["phase"] not in ("upcoming", "running"):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Регистрация закрыта: олимпиада завершилась")
-    await conn.execute(q.REGISTER, olympiad_id, student.id)
+    # Рейтинг выше уровня олимпиады — участие вне конкурса (как на Codeforces). Без рейтинга — всегда официально.
+    current = (await rating.current_ratings(conn, [student.id])).get(student.id)
+    official = current is None or row["level_max_rating"] is None or current < row["level_max_rating"]
+    await conn.execute(q.REGISTER, olympiad_id, student.id, official, current)
     return await _detail(conn, await _get(conn, olympiad_id, student), student)
 
 
@@ -227,6 +244,7 @@ async def results(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[st
         "rows": [
             {
                 "place": r["place"],
+                "official": r["official"],
                 "user_id": r["user_id"],
                 "username": r["username"],
                 "name": r["name"],
@@ -236,8 +254,8 @@ async def results(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[st
                 "total": r["total"],
                 "penalty": r["penalty"],
                 "task_points": {int(k): v for k, v in json.loads(r["task_points"]).items()},
-                # Дипломы I–III степени за первые три места (при ненулевом балле).
-                "diploma": r["place"] if r["place"] <= 3 and r["total"] > 0 else None,
+                # Дипломы I–III степени за первые три места (при ненулевом балле); вне конкурса — без диплома.
+                "diploma": r["place"] if r["place"] is not None and r["place"] <= 3 and r["total"] > 0 else None,
             }
             for r in rows
         ],
@@ -276,6 +294,7 @@ async def standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[
         "rows": [
             {
                 "place": r["place"],
+                "official": r["official"],
                 "user_id": r["user_id"],
                 "username": r["username"],
                 "name": r["name"],
@@ -304,8 +323,9 @@ async def standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[
 async def create(data: OlympiadIn, teacher: Teacher, conn: Conn) -> OlympiadDetail:
     if data.starts_at <= datetime.now(UTC):
         raise HTTPException(422, detail="Начало олимпиады должно быть в будущем")
+    await _check_level(conn, data.level_id)
     olympiad_id = await conn.fetchval(
-        q.INSERT, data.title, data.description, data.subject_id, teacher.id, data.starts_at, data.ends_at
+        q.INSERT, data.title, data.description, data.subject_id, teacher.id, data.starts_at, data.ends_at, data.level_id
     )
     return await _detail(conn, await _get(conn, olympiad_id, teacher), teacher)
 
@@ -316,8 +336,16 @@ async def update(olympiad_id: int, data: OlympiadIn, user: User, conn: Conn) -> 
     _require_editable(row)
     if data.starts_at <= datetime.now(UTC):
         raise HTTPException(422, detail="Начало олимпиады должно быть в будущем")
+    await _check_level(conn, data.level_id)
     await conn.execute(
-        q.UPDATE, olympiad_id, data.title, data.description, data.subject_id, data.starts_at, data.ends_at
+        q.UPDATE,
+        olympiad_id,
+        data.title,
+        data.description,
+        data.subject_id,
+        data.starts_at,
+        data.ends_at,
+        data.level_id,
     )
     return await _detail(conn, await _get(conn, olympiad_id, user), user)
 
@@ -417,6 +445,15 @@ async def grade(olympiad_id: int, submission_id: int, data: GradeIn, user: User,
         raise HTTPException(422, detail=f"Максимум за эту задачу — {submission['max_points']} баллов")
     await conn.execute(q.GRADE_SUBMISSION, submission_id, olympiad_id, data.points, data.comment.strip(), user.id)
     return SubmissionOut.from_row(await conn.fetchrow(q.GET_SUBMISSION, submission_id, olympiad_id), reveal=True)
+
+
+@router.post("/{olympiad_id}/finish", response_model=OlympiadDetail)
+async def finish_early(olympiad_id: int, user: User, conn: Conn) -> OlympiadDetail:
+    """Досрочно завершить идущую олимпиаду (организатор или админ): отправка закрывается, начинается проверка."""
+    row = await _managed(conn, olympiad_id, user)
+    if row["phase"] != "running" or await conn.fetchval(q.FINISH_EARLY, olympiad_id) is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Завершить досрочно можно только идущую олимпиаду")
+    return await _detail(conn, await _get(conn, olympiad_id, user), user)
 
 
 @router.post("/{olympiad_id}/publish-results", response_model=OlympiadDetail)

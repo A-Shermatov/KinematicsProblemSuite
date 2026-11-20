@@ -14,6 +14,8 @@ import type {
   SourceInput,
   DuplicateCheck,
   OlympiadStandings,
+  OlympiadLevel,
+  OlympiadLevelInput,
   OlympiadHistoryItem,
   TelegramStatus,
   Collection,
@@ -236,7 +238,9 @@ export const api = {
   },
 
   olympiads: {
-    list: (phase?: OlympiadPhase) => request<Olympiad[]>("/api/olympiads", { query: { phase } }),
+    list: (phase?: OlympiadPhase, levelId?: number) => request<Olympiad[]>("/api/olympiads", { query: { phase, level_id: levelId } }),
+    levels: () => request<OlympiadLevel[]>("/api/olympiads/levels", { auth: false }),
+    finish: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/finish`, { method: "POST" }),
     mine: () => request<Olympiad[]>("/api/olympiads/mine"),
     get: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}`),
     create: (data: OlympiadInput) => request<OlympiadDetail>("/api/olympiads", { method: "POST", json: data }),
@@ -284,6 +288,10 @@ export const api = {
 
   /** Только для админ-панели: всё под /api/admin. */
   admin: {
+    createLevel: (data: OlympiadLevelInput) => request<OlympiadLevel>("/api/admin/olympiad-levels", { method: "POST", json: data }),
+    updateLevel: (id: number, data: OlympiadLevelInput) =>
+      request<OlympiadLevel>(`/api/admin/olympiad-levels/${id}`, { method: "PUT", json: data }),
+    removeLevel: (id: number) => request<void>(`/api/admin/olympiad-levels/${id}`, { method: "DELETE" }),
     recomputeRating: () => request<{ olympiads: number }>("/api/admin/rating/recompute", { method: "POST" }),
     settings: () => request<{ difficulty_max: number }>("/api/admin/settings"),
     updateSettings: (data: { difficulty_max: number }) =>

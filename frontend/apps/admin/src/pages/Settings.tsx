@@ -13,6 +13,10 @@ import {
   useAsync,
   useDocumentTitle,
   usePlatformSettings,
+  Input,
+  levelRange,
+  type OlympiadLevel,
+  type OlympiadLevelInput,
 } from "@kps/shared";
 
 const MAX_OPTIONS = Array.from({ length: 100 }, (_, i) => (i + 1) * 100);
@@ -90,6 +94,7 @@ export function Settings() {
           </form>
         </Card>
       )}
+      <LevelsCard />
       <RatingCard />
     </>
   );
@@ -125,6 +130,113 @@ function RatingCard() {
         </Button>
         {message && <span className="text-sm text-fg">{message}</span>}
       </div>
+    </Card>
+  );
+}
+
+const EMPTY_LEVEL: OlympiadLevelInput = { title: "", description: "", min_rating: null, max_rating: null, position: 0 };
+const numberOrNull = (value: string) => (value.trim() === "" ? null : Number(value));
+
+/** Уровни олимпиад (как Div. 1/2/3 на Codeforces): учитель выбирает уровень при создании олимпиады. */
+function LevelsCard() {
+  const { data: levels, reload, error } = useAsync(() => api.olympiads.levels(), []);
+  const [editing, setEditing] = useState<OlympiadLevel | "new" | null>(null);
+  const [form, setForm] = useState<OlympiadLevelInput>(EMPTY_LEVEL);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const open = (level: OlympiadLevel | "new") => {
+    setEditing(level);
+    setMessage(null);
+    setForm(level === "new" ? { ...EMPTY_LEVEL, position: (levels?.length ?? 0) + 1 } : { ...level });
+  };
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    try {
+      if (editing === "new") await api.admin.createLevel(form);
+      else if (editing) await api.admin.updateLevel(editing.id, form);
+      setEditing(null);
+      reload();
+    } catch (err) {
+      setMessage(errorText(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async (level: OlympiadLevel) => {
+    if (!window.confirm(`Удалить уровень «${level.title}»? Олимпиады с ним останутся без уровня — все участники будут официальными.`)) return;
+    try {
+      await api.admin.removeLevel(level.id);
+      reload();
+    } catch (err) {
+      setMessage(errorText(err));
+    }
+  };
+
+  return (
+    <Card className="mt-6 max-w-3xl space-y-4 p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-semibold text-fg">Уровни олимпиад</h2>
+          <p className="text-sm text-muted">
+            Учитель выбирает уровень при создании олимпиады. Официально участвуют ученики с рейтингом <b>ниже верхней границы</b> (и все, у кого
+            рейтинга ещё нет); у кого выше — решают вне конкурса: без места, диплома и изменения рейтинга. Нижняя граница — подсказка, для кого
+            уровень.
+          </p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={() => open("new")}>
+          + Уровень
+        </Button>
+      </div>
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <div className="divide-y divide-border rounded-xl border border-border">
+        {levels?.map((level) => (
+          <div key={level.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+            <span className="w-6 text-muted">{level.position}</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-fg">{level.title}</p>
+              {level.description && <p className="text-xs text-muted">{level.description}</p>}
+            </div>
+            <span className="font-mono text-xs text-fg">{levelRange(level.min_rating, level.max_rating) || "любой рейтинг"}</span>
+            <Button size="sm" variant="ghost" onClick={() => open(level)}>
+              Изменить
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => remove(level)}>
+              Удалить
+            </Button>
+          </div>
+        ))}
+        {levels?.length === 0 && <p className="px-4 py-3 text-sm text-muted">Уровней нет — все олимпиады для всех.</p>}
+      </div>
+      {editing && (
+        <form onSubmit={save} className="space-y-3 rounded-xl border border-primary/30 bg-primary-soft/30 p-4">
+          <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_80px]">
+            <Input label="Название" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required minLength={2} maxLength={60} placeholder="5–8 класс" />
+            <Input label="Рейтинг от" type="number" min={0} value={form.min_rating ?? ""} onChange={(e) => setForm({ ...form, min_rating: numberOrNull(e.target.value) })} placeholder="—" />
+            <Input
+              label="Рейтинг до (не вкл.)"
+              type="number"
+              min={1}
+              value={form.max_rating ?? ""}
+              onChange={(e) => setForm({ ...form, max_rating: numberOrNull(e.target.value) })}
+              placeholder="без границы"
+            />
+            <Input label="Порядок" type="number" min={0} value={form.position} onChange={(e) => setForm({ ...form, position: Number(e.target.value) })} />
+          </div>
+          <Input label="Описание" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={300} placeholder="Для кого этот уровень" />
+          {message && <ErrorMessage>{message}</ErrorMessage>}
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" loading={saving}>
+              Сохранить
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(null)}>
+              Отмена
+            </Button>
+          </div>
+        </form>
+      )}
     </Card>
   );
 }

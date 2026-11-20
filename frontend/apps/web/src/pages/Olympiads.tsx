@@ -38,6 +38,7 @@ import {
   t,
   UntranslatedNote,
   intlLocale,
+  levelRange,
 } from "@kps/shared";
 import { OlympiadStandingsTable } from "../components/OlympiadStandings";
 
@@ -61,6 +62,20 @@ function Countdown({ to, label }: { to: string; label: string }) {
   );
 }
 
+/** Уровень олимпиады с диапазоном рейтинга: «5–8 класс · 1200–1599». */
+function LevelTag({ olympiad, className }: { olympiad: Olympiad; className?: string }) {
+  const range = levelRange(olympiad.level_min_rating, olympiad.level_max_rating);
+  return (
+    <span
+      className={cx("inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg", className)}
+      title={olympiad.level_max_rating ? t("Официально — рейтинг ниже {0}; выше — вне конкурса", [olympiad.level_max_rating]) : undefined}
+    >
+      🎯 {olympiad.level_title}
+      {range && <span className="text-muted">· {range}</span>}
+    </span>
+  );
+}
+
 export function OlympiadCard({ olympiad }: { olympiad: Olympiad }) {
   const phase = olympiadPhaseMeta[olympiad.phase];
   return (
@@ -71,11 +86,14 @@ export function OlympiadCard({ olympiad }: { olympiad: Olympiad }) {
             {olympiad.phase === "running" && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />}
             {phase.label}
           </Badge>
-          {olympiad.is_registered && <Badge tone="primary">{t("✓ Вы участник")}</Badge>}
+          {olympiad.is_registered && <Badge tone="primary">{olympiad.is_official === false ? t("Вне конкурса") : t("✓ Вы участник")}</Badge>}
         </div>
         <div className="flex-1">
           <p className="font-semibold text-fg group-hover:text-primary">{olympiad.title}</p>
-          <p className="mt-1 text-sm text-muted">{olympiad.subject_title ?? t("Разные предметы")}</p>
+          <p className="mt-1 text-sm text-muted">
+            {olympiad.subject_title ?? t("Разные предметы")}
+            {olympiad.level_title && <LevelTag olympiad={olympiad} className="ml-2" />}
+          </p>
         </div>
         <p className="text-sm text-fg">🗓 {formatRange(olympiad.starts_at, olympiad.ends_at)}</p>
         <p className="text-xs text-muted">
@@ -91,7 +109,9 @@ export function Olympiads() {
   useDocumentTitle(t("Олимпиады"));
   const { user } = useAuth();
   const [phase, setPhase] = useState<OlympiadPhase>("running");
-  const { data, error, loading } = useAsync(() => api.olympiads.list(phase), [phase, user?.id]);
+  const [levelId, setLevelId] = useState<number | undefined>();
+  const { data: levels } = useAsync(() => api.olympiads.levels(), []);
+  const { data, error, loading } = useAsync(() => api.olympiads.list(phase, levelId), [phase, levelId, user?.id]);
 
   return (
     <>
@@ -106,16 +126,35 @@ export function Olympiads() {
           )
         }
       />
-      <div className="mb-6 flex rounded-xl border border-border bg-surface p-1 text-sm sm:w-fit">
-        {PHASE_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setPhase(tab.key)}
-            className={cx("flex-1 rounded-lg px-4 py-1.5 font-medium", phase === tab.key ? "bg-primary text-primary-fg" : "text-muted hover:text-fg")}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
+          {PHASE_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setPhase(tab.key)}
+              className={cx("flex-1 whitespace-nowrap rounded-lg px-4 py-1.5 font-medium", phase === tab.key ? "bg-primary text-primary-fg" : "text-muted hover:text-fg")}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {levels && levels.length > 0 && (
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Уровень")}>
+            {[{ id: undefined, title: t("Все уровни"), min_rating: null, max_rating: null }, ...levels].map((level) => (
+              <button
+                key={level.id ?? "all"}
+                onClick={() => setLevelId(level.id)}
+                className={cx(
+                  "rounded-full border px-3 py-1.5 text-sm",
+                  levelId === level.id ? "border-primary bg-primary-soft font-medium text-primary" : "border-border text-muted hover:text-fg",
+                )}
+              >
+                {level.title}
+                {levelRange(level.min_rating, level.max_rating) && <span className="ml-1 text-xs opacity-70">{levelRange(level.min_rating, level.max_rating)}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
@@ -401,6 +440,19 @@ export function OlympiadPage() {
     (olympiad.phase === "running" && now >= new Date(olympiad.ends_at).getTime()) ||
     (virtualActive && now >= new Date(run!.ends_at).getTime());
 
+  const finishEarly = async () => {
+    if (!window.confirm(t("Завершить олимпиаду сейчас? Отправка решений закроется для всех, начнётся проверка жюри."))) return;
+    setBusy(true);
+    try {
+      const updated = await api.olympiads.finish(olympiad.id);
+      setData((prev) => ({ ...prev!, olympiad: updated }));
+    } catch (err) {
+      window.alert(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggleRegistration = async () => {
     setBusy(true);
     try {
@@ -443,7 +495,13 @@ export function OlympiadPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={phase.tone}>{phase.label}</Badge>
               {olympiad.subject_title && <Badge>{olympiad.subject_title}</Badge>}
-              {olympiad.is_registered && <Badge tone="primary">{t("✓ Вы участник")}</Badge>}
+              {olympiad.level_title && <LevelTag olympiad={olympiad} />}
+              {olympiad.is_registered && olympiad.is_official !== false && <Badge tone="primary">{t("✓ Вы участник")}</Badge>}
+              {olympiad.is_registered && olympiad.is_official === false && (
+                <span title={t("Ваш рейтинг выше уровня олимпиады: решаете со всеми, но без места, диплома и изменения рейтинга")}>
+                  <Badge tone="warning">{t("Вне конкурса")}</Badge>
+                </span>
+              )}
               {virtualActive && <Badge tone="warning">{t("⏱ Виртуальное участие")}</Badge>}
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-fg sm:text-3xl">{olympiad.title}</h1>
@@ -481,6 +539,11 @@ export function OlympiadPage() {
                 {t("Управление")}
               </ButtonLink>
             )}
+            {olympiad.can_manage && olympiad.phase === "running" && (
+              <Button variant="danger" size="sm" onClick={finishEarly} loading={busy}>
+                {t("Завершить олимпиаду")}
+              </Button>
+            )}
           </div>
         </div>
       </Card>
@@ -506,7 +569,8 @@ export function OlympiadPage() {
           </span>
           <div className="flex-1">
             <p className="font-semibold text-fg">
-              {t("Ваш результат:")} {myRow.total}  {t("из")} {results?.max_score} · {myRow.place}  {t("место")}
+              {t("Ваш результат:")} {myRow.total}  {t("из")} {results?.max_score} ·{" "}
+              {myRow.place !== null ? `${myRow.place} ${t("место")}` : t("вне конкурса")}
             </p>
             <p className="text-sm text-muted">{myRow.diploma ? DIPLOMA[myRow.diploma] : t("Сертификат участника")}</p>
           </div>

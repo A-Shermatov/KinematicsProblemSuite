@@ -119,3 +119,11 @@ export function toLocalInput(iso: string): string {
 export function fromLocalInput(value: string): string {
   return new Date(value).toISOString();
 }
+
+/** «рейтинг < 1200», «1200–1599», «1600+» — диапазон уровня олимпиады. */
+export function levelRange(min: number | null, max: number | null): string {
+  if (min === null && max === null) return "";
+  if (min === null) return `< ${max}`;
+  if (max === null) return `${min}+`;
+  return `${min}–${max - 1}`;
+}

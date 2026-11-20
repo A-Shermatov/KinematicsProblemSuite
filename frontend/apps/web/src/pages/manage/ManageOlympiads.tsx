@@ -33,6 +33,7 @@ import {
   type OlympiadTask,
   type OlympiadTaskInput,
   t,
+  levelRange,
 } from "@kps/shared";
 
 export function ManageOlympiads() {
@@ -183,13 +184,14 @@ export function OlympiadEditor() {
   const defaultStart = new Date(Date.now() + 7 * 86400_000);
   defaultStart.setHours(10, 0, 0, 0);
 
-  const [info, setInfo] = useState<{ title: string; description: string; subject_id: string; starts: string; ends: string } | null>(
+  const [info, setInfo] = useState<{ title: string; description: string; subject_id: string; level_id: string; starts: string; ends: string } | null>(
     olympiadId
       ? null
       : {
           title: "",
           description: "",
           subject_id: "",
+          level_id: "",
           starts: toLocalInput(defaultStart.toISOString()),
           ends: toLocalInput(new Date(defaultStart.getTime() + 3 * 3600_000).toISOString()),
         },
@@ -199,17 +201,22 @@ export function OlympiadEditor() {
   const [saving, setSaving] = useState(false);
 
   const { data, loading, reload, setData } = useAsync(async () => {
-    const [subjects, olympiad] = await Promise.all([api.subjects.list(), olympiadId ? api.olympiads.get(olympiadId) : Promise.resolve(null)]);
+    const [subjects, levels, olympiad] = await Promise.all([
+      api.subjects.list(),
+      api.olympiads.levels(),
+      olympiadId ? api.olympiads.get(olympiadId) : Promise.resolve(null),
+    ]);
     if (olympiad) {
       setInfo({
         title: olympiad.title,
         description: olympiad.description,
         subject_id: olympiad.subject_id ? String(olympiad.subject_id) : "",
+        level_id: olympiad.level_id ? String(olympiad.level_id) : "",
         starts: toLocalInput(olympiad.starts_at),
         ends: toLocalInput(olympiad.ends_at),
       });
     }
-    return { subjects, olympiad };
+    return { subjects, levels, olympiad };
   }, [olympiadId]);
 
   if (loading || !data || !info) return <Loading />;
@@ -225,6 +232,7 @@ export function OlympiadEditor() {
         title: info.title,
         description: info.description,
         subject_id: info.subject_id ? Number(info.subject_id) : null,
+        level_id: info.level_id ? Number(info.level_id) : null,
         starts_at: fromLocalInput(info.starts),
         ends_at: fromLocalInput(info.ends),
       };
@@ -292,7 +300,21 @@ export function OlympiadEditor() {
         <form onSubmit={saveInfo} className="space-y-4">
           <fieldset disabled={!editable} className="space-y-4">
             <Input label={t("Название")} value={info.title} onChange={(e) => setInfo({ ...info, title: e.target.value })} required minLength={3} maxLength={150} placeholder={t("Осенняя олимпиада по физике, 9–11 классы")} />
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Select
+                label={t("Уровень")}
+                value={info.level_id}
+                onChange={(e) => setInfo({ ...info, level_id: e.target.value })}
+                hint={t("Участники с рейтингом выше уровня решают вне конкурса")}
+              >
+                <option value="">{t("Для всех")}</option>
+                {data.levels.map((level) => (
+                  <option key={level.id} value={level.id}>
+                    {level.title}
+                    {levelRange(level.min_rating, level.max_rating) ? ` (${levelRange(level.min_rating, level.max_rating)})` : ""}
+                  </option>
+                ))}
+              </Select>
               <Select label={t("Предмет")} value={info.subject_id} onChange={(e) => setInfo({ ...info, subject_id: e.target.value })}>
                 <option value="">{t("Разные предметы")}</option>
                 {data.subjects.map((subject) => (
