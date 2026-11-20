@@ -26,6 +26,7 @@ import {
   plural,
 } from "@kps/shared";
 import { Achievements } from "../components/Achievements";
+import { TelegramCard } from "../components/TelegramCard";
 import { ActivityHeatmap } from "../components/ActivityHeatmap";
 import { DifficultyChart } from "../components/DifficultyChart";
 
@@ -174,6 +175,8 @@ export function Profile() {
             </Button>
           </form>
         </Card>
+
+        <TelegramCard />
 
         <Card className="p-6">
           <h2 className="mb-4 font-semibold text-fg">{t("Смена пароля")}</h2>

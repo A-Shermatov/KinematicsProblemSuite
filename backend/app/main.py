@@ -24,6 +24,7 @@ from app.modules.settings.router import router as settings_router
 from app.modules.solutions.router import router as solutions_router
 from app.modules.stats.router import router as stats_router
 from app.modules.teachers.router import router as teachers_router
+from app.modules.telegram.router import router as telegram_router
 from app.modules.users import queries as user_q
 from app.modules.users.router import router as users_router
 from app.security import hash_password
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         imports_router,
         content_router,
         collections_router,
+        telegram_router,
         solutions_router,
         stats_router,
         teachers_router,

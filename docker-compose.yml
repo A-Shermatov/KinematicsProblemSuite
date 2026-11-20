@@ -27,11 +27,28 @@ services:
       # Распознавание задач с фото и PDF (импорт). Без ключа работает только импорт из файлов.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODELS: ${GEMINI_MODELS:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-http://localhost:8080}
     volumes:
       - uploads:/data/uploads
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Telegram-бот: задача дня, напоминания об олимпиадах, уведомления. Без TELEGRAM_BOT_TOKEN просто спит.
+  bot:
+    build: ./backend
+    command: ["python", "-m", "app.bot"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-donish}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-donish}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-http://localhost:8080}
+      TIMEZONE: ${TIMEZONE:-Asia/Dushanbe}
+    depends_on:
+      backend:
+        condition: service_started
     restart: unless-stopped
 
   web:

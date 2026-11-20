@@ -624,3 +624,12 @@ export interface CollectionInput {
 }
 
 export type TaskProgress = "solved" | "unsolved" | "new";
+
+export interface TelegramStatus {
+  enabled: boolean;
+  bot_username: string;
+  linked: boolean;
+  username: string;
+  daily_task: boolean;
+  notify: boolean;
+}

@@ -13,6 +13,7 @@ import type {
   Source,
   SourceInput,
   DuplicateCheck,
+  TelegramStatus,
   Collection,
   CollectionDetail,
   CollectionInput,
@@ -152,6 +153,13 @@ export const api = {
       form.append("file", file);
       return (await request<{ url: string }>("/api/tasks/import/image", { method: "POST", form })).url;
     },
+  },
+
+  telegram: {
+    status: () => request<TelegramStatus>("/api/telegram"),
+    link: () => request<{ code: string; url: string }>("/api/telegram/link", { method: "POST" }),
+    update: (data: { daily_task: boolean; notify: boolean }) => request<TelegramStatus>("/api/telegram", { method: "PUT", json: data }),
+    unlink: () => request<void>("/api/telegram", { method: "DELETE" }),
   },
 
   collections: {
