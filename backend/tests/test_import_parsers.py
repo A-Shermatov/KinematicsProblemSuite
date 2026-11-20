@@ -89,3 +89,27 @@ def test_gemini_response_text() -> None:
     assert response_text(response) == '{"tasks": []}'
     with pytest.raises(ImportFormatError):
         response_text({"promptFeedback": {"blockReason": "OTHER"}})
+
+
+def test_gemini_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.modules.imports import ai
+
+    calls: list[str] = []
+
+    def fake_call(model: str, body: bytes) -> dict:
+        calls.append(model)
+        if model == "busy":
+            raise ai._TemporaryError(503)
+        if model == "missing":
+            raise ai._TemporaryError(404)
+        return {"ok": model}
+
+    monkeypatch.setattr(ai, "_call", fake_call)
+    monkeypatch.setenv("GEMINI_MODEL", "busy, missing, good")
+    assert ai._request(b"x", "image/png", sleep=lambda _: None) == {"ok": "good"}
+    # Перегруженная модель пробуется 3 раза, отсутствующая — 1, затем следующая.
+    assert calls == ["busy", "busy", "busy", "missing", "good"]
+
+    monkeypatch.setenv("GEMINI_MODEL", "busy")
+    with pytest.raises(ai.AIUnavailableError, match="перегружен"):
+        ai._request(b"x", "image/png", sleep=lambda _: None)

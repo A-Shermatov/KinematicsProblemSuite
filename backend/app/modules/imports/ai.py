@@ -13,6 +13,7 @@ import base64
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,9 +22,13 @@ from typing import Any
 from app.modules.imports.parsers import ImportFormatError, normalize_draft
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-# Алиас Google на актуальную Flash-модель: она есть в бесплатном уровне и хорошо читает фото и PDF.
-DEFAULT_MODEL = "gemini-flash-latest"
-TIMEOUT_SECONDS = 180
+# Модели по очереди: если первая перегружена (503) или исчерпан её бесплатный лимит (429), пробуем следующую.
+# Алиасы *-latest Google сам переводит на актуальные модели бесплатного уровня.
+DEFAULT_MODELS = ("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash")
+TIMEOUT_SECONDS = 120
+# Повторы одной модели при временной перегрузке: паузы в секундах между попытками.
+RETRY_DELAYS = (2, 5)
+TEMPORARY_ERRORS = {429, 500, 502, 503, 504}
 
 PROMPT = """На изображении (или в документе) — задачи по физике, математике или химии для школьников.
 Перепиши КАЖДУЮ задачу и верни ТОЛЬКО JSON без пояснений, в формате:
@@ -53,23 +58,22 @@ def ai_enabled() -> bool:
     return bool(os.getenv("GEMINI_API_KEY"))
 
 
-def _request(content: bytes, media_type: str) -> dict[str, Any]:
-    model = os.getenv("GEMINI_MODEL") or DEFAULT_MODEL
-    body = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {"inline_data": {"mime_type": media_type, "data": base64.b64encode(content).decode("ascii")}},
-                    {"text": PROMPT},
-                ],
-            }
-        ],
-        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
-    }
+def models() -> list[str]:
+    """GEMINI_MODEL может содержать одну модель или несколько через запятую."""
+    configured = [name.strip() for name in (os.getenv("GEMINI_MODEL") or "").split(",") if name.strip()]
+    return configured or list(DEFAULT_MODELS)
+
+
+class _TemporaryError(Exception):
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _call(model: str, body: bytes) -> dict[str, Any]:
     request = urllib.request.Request(
         API_URL.format(model=urllib.parse.quote(model, safe="-._")),
-        data=json.dumps(body).encode("utf-8"),
+        data=body,
         headers={"content-type": "application/json", "x-goog-api-key": os.environ["GEMINI_API_KEY"]},
         method="POST",
     )
@@ -77,14 +81,45 @@ def _request(content: bytes, media_type: str) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310 — фиксированный https URL
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
-        if exc.code == 429:
-            raise AIUnavailableError(
-                "Лимит бесплатного распознавания временно исчерпан — попробуйте через минуту"
-            ) from exc
+        if exc.code in TEMPORARY_ERRORS or exc.code == 404:  # 404 — модель переименована/недоступна: берём следующую
+            raise _TemporaryError(exc.code) from exc
         detail = exc.read().decode("utf-8", "replace")[:300]
+        if exc.code in (400, 401, 403) and "API key" in detail:
+            raise AIUnavailableError("Ключ GEMINI_API_KEY не подходит — создайте новый в Google AI Studio") from exc
         raise AIUnavailableError(f"Сервис распознавания вернул ошибку {exc.code}: {detail}") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise AIUnavailableError("Сервис распознавания недоступен, попробуйте позже") from exc
+        raise _TemporaryError(0) from exc
+
+
+def _request(content: bytes, media_type: str, sleep: Any = time.sleep) -> dict[str, Any]:
+    body = json.dumps(
+        {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"inline_data": {"mime_type": media_type, "data": base64.b64encode(content).decode("ascii")}},
+                        {"text": PROMPT},
+                    ],
+                }
+            ],
+            "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
+        }
+    ).encode("utf-8")
+    codes: list[int] = []
+    for model in models():
+        for delay in (*RETRY_DELAYS, None):
+            try:
+                return _call(model, body)
+            except _TemporaryError as exc:
+                codes.append(exc.code)
+                # Нет модели (404) или сеть не ответила (0, долгий таймаут) — сразу к следующей модели.
+                if exc.code in (0, 404) or delay is None:
+                    break
+                sleep(delay)
+    if codes and all(code == 429 for code in codes):
+        raise AIUnavailableError("Бесплатный лимит распознавания временно исчерпан — попробуйте через минуту")
+    raise AIUnavailableError("Сервис распознавания сейчас перегружен — попробуйте через пару минут")
 
 
 def extract_json(text: str) -> dict[str, Any]:
