@@ -51,7 +51,14 @@ export function ManageTasks() {
       <PageHeader
         title={isAdmin ? t("Все задачи") : t("Мои задачи")}
         subtitle={t("Создавайте задачи с формулами и автопроверкой ответа")}
-        actions={<ButtonLink to="/manage/tasks/new">{t("+ Новая задача")}</ButtonLink>}
+        actions={
+          <>
+            <ButtonLink to="/manage/tasks/import" variant="secondary">
+              📥 {t("Импорт")}
+            </ButtonLink>
+            <ButtonLink to="/manage/tasks/new">{t("+ Новая задача")}</ButtonLink>
+          </>
+        }
       />
       <div className="mb-4 w-full sm:w-80">
         <Input placeholder={t("Поиск по названию или теме…")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("Поиск")} />

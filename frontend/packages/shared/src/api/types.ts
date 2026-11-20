@@ -496,3 +496,54 @@ export interface DifficultyBreakdown {
   levels: { difficulty: number; solved: number; unsolved: number }[];
   subjects: { subject_id: number; subject_title: string; solved: number }[];
 }
+
+// ---------- Импорт задач ----------
+
+export interface TaskDraft {
+  title: string;
+  condition: string;
+  answer: string;
+  unit: string | null;
+  answer_type: AnswerType;
+  difficulty: number | null;
+  source_number: string | null;
+  /** Ответа в источнике не было — его предложил ИИ, учителю нужно проверить. */
+  answer_is_guess: boolean;
+  duplicate: DuplicateHit | null;
+  similar: DuplicateHit[];
+}
+
+export interface ImportParseResult {
+  method: "file" | "ai";
+  drafts: TaskDraft[];
+  notes: string;
+}
+
+export interface ImportCapabilities {
+  file_formats: string[];
+  ai_formats: string[];
+  ai_enabled: boolean;
+}
+
+export interface ImportItem {
+  title: string;
+  condition: string;
+  answer: string;
+  unit: string | null;
+  answer_type: AnswerType;
+  difficulty: number;
+  source_number: string | null;
+}
+
+export interface ImportInput {
+  theme_id: number;
+  check_mode: CheckMode;
+  source_id: number | null;
+  is_original: boolean;
+  tasks: ImportItem[];
+}
+
+export interface ImportResult {
+  created: number[];
+  failed: { index: number; title: string; error: string }[];
+}

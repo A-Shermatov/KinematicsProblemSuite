@@ -13,6 +13,7 @@ import { DiplomaPage, OlympiadPage, Olympiads } from "./pages/Olympiads";
 import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
 import { TeacherPage, TeacherSettings, Teachers } from "./pages/Teachers";
+import { ImportTasks } from "./pages/manage/ImportTasks";
 
 setDocumentTitleSuffix(APP_NAME);
 
@@ -55,6 +56,7 @@ export function AppRoutes() {
         <Route path="users/:userId" element={<RequireAuth><UserPage /></RequireAuth>} />
         <Route path="manage/tasks" element={<RequireAuth roles={["teacher", "admin"]}><ManageTasks /></RequireAuth>} />
         <Route path="manage/tasks/new" element={<RequireAuth roles={["teacher", "admin"]}><TaskEditorPage /></RequireAuth>} />
+        <Route path="manage/tasks/import" element={<RequireAuth roles={["teacher", "admin"]}><ImportTasks /></RequireAuth>} />
         <Route path="manage/tasks/:taskId/edit" element={<RequireAuth roles={["teacher", "admin"]}><TaskEditorPage /></RequireAuth>} />
         <Route path="*" element={<NotFound />} />
       </Route>

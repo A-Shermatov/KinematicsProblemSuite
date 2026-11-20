@@ -13,6 +13,10 @@ import type {
   Source,
   SourceInput,
   DuplicateCheck,
+  ImportCapabilities,
+  ImportInput,
+  ImportParseResult,
+  ImportResult,
   VirtualRun,
   VirtualStandingRow,
   OlympiadStatus,
@@ -123,6 +127,16 @@ export const api = {
     remove: (id: number) => request<void>(`/api/tasks/${id}`, { method: "DELETE" }),
     checkDuplicates: (title: string, condition: string, excludeId?: number | null) =>
       request<DuplicateCheck>("/api/tasks/check-duplicates", { method: "POST", json: { title, condition, exclude_id: excludeId ?? null } }),
+  },
+
+  imports: {
+    capabilities: () => request<ImportCapabilities>("/api/tasks/import/capabilities"),
+    parse: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<ImportParseResult>("/api/tasks/import/parse", { method: "POST", form });
+    },
+    commit: (data: ImportInput) => request<ImportResult>("/api/tasks/import/commit", { method: "POST", json: data }),
   },
 
   sources: {

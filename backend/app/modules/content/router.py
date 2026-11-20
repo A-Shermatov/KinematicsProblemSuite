@@ -130,7 +130,7 @@ async def get_task_full(task_id: int, user: Staff, conn: Conn) -> TaskFull:
 SIMILARITY_THRESHOLD = 0.6
 
 
-async def _find_duplicates(
+async def find_duplicates(
     conn: asyncpg.Connection, title: str, condition: str, exclude_id: int | None, limit: int = 6
 ) -> DuplicateCheckOut:
     rows = [
@@ -144,7 +144,7 @@ async def _find_duplicates(
 async def _duplicate_error(
     conn: asyncpg.Connection, data: TaskIn, user: CurrentUser, exclude_id: int | None
 ) -> HTTPException:
-    found = (await _find_duplicates(conn, data.title, data.condition, exclude_id, limit=1)).exact
+    found = (await find_duplicates(conn, data.title, data.condition, exclude_id, limit=1)).exact
     if found is None:  # гонка: дубль успели удалить
         return HTTPException(status.HTTP_409_CONFLICT, detail="Такая задача уже есть на платформе")
     whose = (
@@ -163,7 +163,7 @@ async def _duplicate_error(
 @router.post("/tasks/check-duplicates", response_model=DuplicateCheckOut)
 async def check_duplicates(data: DuplicateCheckIn, _: Staff, conn: Conn) -> DuplicateCheckOut:
     """Есть ли уже такая задача (точный дубль) или очень похожие: для предупреждения в редакторе."""
-    return await _find_duplicates(conn, data.title, data.condition, data.exclude_id)
+    return await find_duplicates(conn, data.title, data.condition, data.exclude_id)
 
 
 async def _check_source(conn: asyncpg.Connection, data: TaskIn) -> None:
@@ -179,6 +179,11 @@ async def _check_difficulty(conn: asyncpg.Connection, difficulty: int) -> None:
 
 @router.post("/tasks", response_model=TaskFull, status_code=status.HTTP_201_CREATED)
 async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
+    return await _task_full(conn, await insert_task(conn, data, user))
+
+
+async def insert_task(conn: asyncpg.Connection, data: TaskIn, user: CurrentUser) -> int:
+    """Проверки и вставка задачи; используется и редактором, и импортом. Ошибки — HTTPException."""
     await _check_difficulty(conn, data.difficulty)
     await _check_source(conn, data)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
@@ -203,7 +208,7 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
         )
     except asyncpg.UniqueViolationError:
         raise await _duplicate_error(conn, data, user, None) from None
-    return await _task_full(conn, task_id)
+    return task_id
 
 
 @router.put("/tasks/{task_id}", response_model=TaskFull)
