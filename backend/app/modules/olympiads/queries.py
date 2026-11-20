@@ -158,7 +158,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (task_id, user_id) DO UPDATE
 SET answer = EXCLUDED.answer, image_path = EXCLUDED.image_path, auto_correct = EXCLUDED.auto_correct,
     auto_points = EXCLUDED.auto_points, jury_points = NULL, jury_comment = '', graded_by = NULL,
-    graded_at = NULL, submitted_at = now()
+    graded_at = NULL, submitted_at = now(), attempts = olympiad_submissions.attempts + 1
 RETURNING id
 """
 
@@ -195,17 +195,28 @@ RETURNING id
 UNGRADED_COUNT = "SELECT count(*) FROM olympiad_submissions WHERE olympiad_id = $1 AND jury_points IS NULL"
 
 # Итоговая таблица: балл = оценка жюри, а если её нет — автопроверка. Место — RANK (одинаковые баллы делят место).
-RESULTS = """
+# Как на Codeforces: больше баллов — выше; при равных баллах выше тот, кто быстрее.
+# Штраф (penalty) — сумма минут от начала олимпиады до последней отправки по задачам, за которые есть баллы.
+# Баллы — жюри, если проверено, иначе автопроверка: после проверки жюри места могут поменяться.
+POINTS = "COALESCE(sb.jury_points, sb.auto_points)"
+MINUTE = "floor(extract(epoch FROM sb.submitted_at - o.starts_at) / 60)::int"
+PENALTY = f"COALESCE(sum({MINUTE}) FILTER (WHERE {POINTS} > 0), 0)::int"
+
+RESULTS = f"""
 WITH scores AS (
-    SELECT sb.user_id, sum(COALESCE(sb.jury_points, sb.auto_points))::int AS total,
-           jsonb_object_agg(sb.task_id::text, COALESCE(sb.jury_points, sb.auto_points)) AS task_points
+    SELECT sb.user_id, sum({POINTS})::int AS total, {PENALTY} AS penalty,
+           jsonb_object_agg(sb.task_id::text, {POINTS}) AS task_points,
+           jsonb_object_agg(sb.task_id::text, jsonb_build_object(
+               'points', {POINTS}, 'minute', {MINUTE}, 'attempts', sb.attempts,
+               'graded', sb.jury_points IS NOT NULL)) AS cells
     FROM olympiad_submissions sb
+    JOIN olympiads o ON o.id = sb.olympiad_id
     WHERE sb.olympiad_id = $1
     GROUP BY sb.user_id
 )
-SELECT RANK() OVER (ORDER BY sc.total DESC)::int AS place,
+SELECT RANK() OVER (ORDER BY sc.total DESC, sc.penalty)::int AS place,
        u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,
-       sc.total, sc.task_points::text AS task_points
+       sc.total, sc.penalty, sc.task_points::text AS task_points, sc.cells::text AS cells
 FROM scores sc
 JOIN users u ON u.id = sc.user_id
 ORDER BY place, u.id
@@ -214,19 +225,19 @@ ORDER BY place, u.id
 # ---------- Рейтинг по олимпиадам ----------
 
 # $1 limit, $2 с какой даты, $3 предмет, $4 город. Очки — сумма процентов от максимума по всем олимпиадам.
-LEADERBOARD = """
+LEADERBOARD = f"""
 WITH maxes AS (
     SELECT olympiad_id, sum(max_points) AS max_score FROM olympiad_tasks GROUP BY olympiad_id
 ),
 scores AS (
-    SELECT sb.olympiad_id, sb.user_id, sum(COALESCE(sb.jury_points, sb.auto_points)) AS total
+    SELECT sb.olympiad_id, sb.user_id, sum({POINTS}) AS total, {PENALTY} AS penalty
     FROM olympiad_submissions sb
     JOIN olympiads o ON o.id = sb.olympiad_id AND o.results_published
     WHERE o.ends_at > COALESCE($2::timestamptz, '-infinity') AND ($3::bigint IS NULL OR o.subject_id = $3)
     GROUP BY sb.olympiad_id, sb.user_id
 ),
 ranked AS (
-    SELECT sc.*, m.max_score, RANK() OVER (PARTITION BY sc.olympiad_id ORDER BY sc.total DESC) AS place
+    SELECT sc.*, m.max_score, RANK() OVER (PARTITION BY sc.olympiad_id ORDER BY sc.total DESC, sc.penalty) AS place
     FROM scores sc JOIN maxes m USING (olympiad_id)
 )
 SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,

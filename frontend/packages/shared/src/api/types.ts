@@ -454,6 +454,8 @@ export interface OlympiadResultRow {
   city: string | null;
   school: string | null;
   total: number;
+  /** Штраф: сумма минут от начала до отправки по задачам с баллами (при равных баллах выше тот, у кого меньше). */
+  penalty: number;
   task_points: Record<string, number>;
   diploma: 1 | 2 | 3 | null;
 }
@@ -632,4 +634,36 @@ export interface TelegramStatus {
   username: string;
   daily_task: boolean;
   notify: boolean;
+}
+
+/** Клетка живой таблицы олимпиады. */
+export interface StandingsCell {
+  points: number;
+  /** Минута от начала олимпиады, когда отправлено последнее решение. */
+  minute: number;
+  attempts: number;
+  /** Проверено жюри; иначе — балл автопроверки, может измениться. */
+  graded: boolean;
+}
+
+export interface StandingsRow {
+  place: number;
+  user_id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  school: string | null;
+  city: string | null;
+  total: number;
+  penalty: number;
+  cells: Record<string, StandingsCell>;
+}
+
+export interface OlympiadStandings {
+  phase: OlympiadPhase;
+  starts_at: string;
+  max_score: number;
+  provisional: boolean;
+  tasks: { id: number; label: string; max_points: number }[];
+  rows: StandingsRow[];
 }
