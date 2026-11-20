@@ -19,6 +19,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.content.router import router as content_router
 from app.modules.solutions.router import router as solutions_router
 from app.modules.stats.router import router as stats_router
+from app.modules.teachers.router import router as teachers_router
 from app.modules.users import queries as user_q
 from app.modules.users.router import router as users_router
 from app.security import hash_password
@@ -75,7 +76,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     api = APIRouter(prefix="/api")
-    for router in (auth_router, users_router, content_router, solutions_router, stats_router, admin_router):
+    for router in (
+        auth_router,
+        users_router,
+        content_router,
+        solutions_router,
+        stats_router,
+        teachers_router,
+        admin_router,
+    ):
         api.include_router(router)
 
     @api.get("/health", tags=["system"])

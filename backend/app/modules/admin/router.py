@@ -18,6 +18,8 @@ from app.modules.content.schemas import SubjectIn, SubjectOut, ThemeIn, ThemeOut
 from app.modules.solutions import queries as solutions_q
 from app.modules.solutions.schemas import AttemptOut, AttemptStatus
 from app.modules.stats import queries as stats_q
+from app.modules.teachers import queries as teachers_q
+from app.modules.teachers.schemas import CertificateDecision, CertificateOut, CertificateStatus, HiddenUpdate, ReviewOut
 from app.modules.users import queries as user_q
 from app.modules.users.schemas import ActiveUpdate, Role, RoleUpdate, UserOut
 
@@ -149,3 +151,50 @@ async def list_attempts(
 ) -> list[AttemptOut]:
     rows = await conn.fetch(solutions_q.LIST_ATTEMPTS, student_id, None, status_filter, task_id, limit, offset)
     return [AttemptOut.from_row(row, viewer_id=admin.id, viewer_is_admin=True) for row in rows]
+
+
+# ---------- Сертификаты учителей ----------
+
+
+@router.get("/certificates", response_model=list[CertificateOut])
+async def list_certificates(
+    conn: Conn,
+    status_filter: Annotated[CertificateStatus | None, Query(alias="status")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[CertificateOut]:
+    rows = await conn.fetch(teachers_q.ADMIN_LIST_CERTIFICATES, status_filter, limit, offset)
+    return [CertificateOut.from_row(row) for row in rows]
+
+
+@router.post("/certificates/{certificate_id}/review", response_model=CertificateOut)
+async def review_certificate(
+    certificate_id: int, data: CertificateDecision, admin: Admin, conn: Conn
+) -> CertificateOut:
+    if data.status == "rejected" and not data.reason.strip():
+        raise HTTPException(422, detail="Укажите причину отказа")
+    reason = data.reason.strip() if data.status == "rejected" else ""
+    if await conn.fetchval(teachers_q.REVIEW_CERTIFICATE, certificate_id, data.status, reason, admin.id) is None:
+        raise not_found("Документ")
+    return CertificateOut.from_row(await conn.fetchrow(teachers_q.GET_CERTIFICATE, certificate_id))
+
+
+# ---------- Отзывы ----------
+
+
+@router.get("/reviews", response_model=list[ReviewOut])
+async def list_reviews(
+    conn: Conn,
+    hidden: bool | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[ReviewOut]:
+    rows = await conn.fetch(teachers_q.ADMIN_LIST_REVIEWS, hidden, limit, offset)
+    return [ReviewOut.from_row(row) for row in rows]
+
+
+@router.patch("/reviews/{review_id}", response_model=ReviewOut)
+async def set_review_hidden(review_id: int, data: HiddenUpdate, conn: Conn) -> ReviewOut:
+    if await conn.fetchval(teachers_q.SET_REVIEW_HIDDEN, review_id, data.is_hidden) is None:
+        raise not_found("Отзыв")
+    return ReviewOut.from_row(await conn.fetchrow(teachers_q.GET_REVIEW, review_id))

@@ -13,7 +13,11 @@ _SIGNATURES: dict[str, tuple[bytes, ...]] = {
     "jpg": (b"\xff\xd8\xff",),
     "gif": (b"GIF87a", b"GIF89a"),
     "webp": (b"RIFF",),
+    "pdf": (b"%PDF-",),
 }
+
+IMAGE_TYPES = ("png", "jpg", "gif", "webp")
+DOCUMENT_TYPES = (*IMAGE_TYPES, "pdf")
 
 UPLOAD_URL_PREFIX = "/uploads"
 
@@ -27,8 +31,18 @@ def _detect_image_type(head: bytes) -> str | None:
     return None
 
 
-async def save_image(upload: UploadFile, *, upload_dir: Path, subdir: str, max_bytes: int) -> str:
-    """Сохраняет картинку и возвращает относительный путь вида «attempts/ab12….png»."""
+async def save_image(
+    upload: UploadFile,
+    *,
+    upload_dir: Path,
+    subdir: str,
+    max_bytes: int,
+    allowed: tuple[str, ...] = IMAGE_TYPES,
+) -> str:
+    """Сохраняет файл и возвращает относительный путь вида «attempts/ab12….png».
+
+    Тип определяется по содержимому, а не по имени файла; по умолчанию разрешены только картинки.
+    """
     data = await upload.read(max_bytes + 1)
     if len(data) > max_bytes:
         raise HTTPException(
@@ -36,8 +50,9 @@ async def save_image(upload: UploadFile, *, upload_dir: Path, subdir: str, max_b
             detail=f"Файл больше {max_bytes // (1024 * 1024)} МБ",
         )
     ext = _detect_image_type(data[:16])
-    if ext is None:
-        raise HTTPException(415, detail="Можно загружать только PNG, JPEG, GIF или WebP")
+    if ext is None or ext not in allowed:
+        names = ", ".join(sorted({"jpg": "JPEG"}.get(t, t.upper()) for t in allowed))
+        raise HTTPException(415, detail=f"Можно загружать только {names}")
 
     target_dir = upload_dir / subdir
     target_dir.mkdir(parents=True, exist_ok=True)

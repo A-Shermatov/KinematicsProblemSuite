@@ -22,6 +22,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/catalog", label: "Задачи" },
+  { to: "/teachers", label: "Учителя" },
   { to: "/leaderboard", label: "Рейтинг" },
   { to: "/attempts", label: "Решения", roles: ["student", "teacher", "admin"] },
   { to: "/manage/tasks", label: "Мои задачи", roles: ["teacher", "admin"] },
@@ -66,6 +67,11 @@ function UserMenu() {
           <Link to="/dashboard" className={item}>
             Личный кабинет
           </Link>
+          {user.role === "teacher" && (
+            <Link to={`/teachers/${user.id}`} className={item}>
+              Мой профиль учителя
+            </Link>
+          )}
           <Link to="/profile" className={item}>
             Настройки профиля
           </Link>

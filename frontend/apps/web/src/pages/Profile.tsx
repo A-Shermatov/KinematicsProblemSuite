@@ -1,8 +1,9 @@
 import { useRef, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import {
   Avatar,
   Button,
+  ButtonLink,
   Card,
   ErrorMessage,
   Input,
@@ -110,6 +111,15 @@ export function Profile() {
           </div>
         </Card>
 
+        {user.role === "teacher" && (
+          <Card className="flex flex-wrap items-center gap-4 border-primary/30 bg-primary-soft p-5">
+            <p className="flex-1 text-sm text-fg">Описание, предметы, сертификаты и отзывы — в профиле учителя.</p>
+            <ButtonLink to="/profile/teacher" size="sm">
+              Профиль учителя
+            </ButtonLink>
+          </Card>
+        )}
+
         <Card className="p-6">
           <h2 className="mb-4 font-semibold text-fg">Оформление</h2>
           <div className="flex flex-wrap gap-2">
@@ -170,6 +180,7 @@ export function UserPage() {
 
   if (loading) return <Loading />;
   if (error || !user) return <ErrorMessage>{error ?? "Пользователь не найден"}</ErrorMessage>;
+  if (user.role === "teacher") return <Navigate to={`/teachers/${user.id}`} replace />;
   return (
     <div className="mx-auto max-w-2xl">
       <Card className="flex flex-col items-center gap-3 p-8 text-center">

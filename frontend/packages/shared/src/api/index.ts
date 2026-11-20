@@ -2,6 +2,12 @@ import { request } from "./client";
 import type {
   AdminStats,
   Attempt,
+  Certificate,
+  CertificateStatus,
+  Review,
+  TeacherCard,
+  TeacherProfile,
+  TeacherProfileInput,
   AttemptScope,
   AttemptStatus,
   LeaderboardRow,
@@ -101,6 +107,29 @@ export const api = {
       request<LeaderboardRow[]>("/api/stats/leaderboard", { query: { period }, auth: false }),
   },
 
+  teachers: {
+    list: (query: { subject_id?: number; search?: string; sort?: "rating" | "tasks" | "new" } = {}) =>
+      request<TeacherCard[]>("/api/teachers", { query }),
+    get: (id: number) => request<TeacherProfile>(`/api/teachers/${id}`),
+    me: () => request<TeacherProfile>("/api/teachers/me"),
+    updateMe: (data: TeacherProfileInput) => request<TeacherProfile>("/api/teachers/me", { method: "PUT", json: data }),
+    addCertificate: (data: { title: string; issuer: string; year: number | null; file: File }) => {
+      const form = new FormData();
+      form.append("title", data.title);
+      form.append("issuer", data.issuer);
+      if (data.year) form.append("year", String(data.year));
+      form.append("file", data.file);
+      return request<Certificate>("/api/teachers/me/certificates", { method: "POST", form });
+    },
+    deleteCertificate: (id: number) => request<void>(`/api/teachers/me/certificates/${id}`, { method: "DELETE" }),
+    reply: (reviewId: number, text: string) =>
+      request<Review>(`/api/teachers/me/reviews/${reviewId}/reply`, { method: "POST", json: { text } }),
+    reviews: (teacherId: number) => request<Review[]>(`/api/teachers/${teacherId}/reviews`),
+    writeReview: (teacherId: number, rating: number, text: string) =>
+      request<Review>(`/api/teachers/${teacherId}/reviews/me`, { method: "PUT", json: { rating, text } }),
+    deleteReview: (teacherId: number) => request<void>(`/api/teachers/${teacherId}/reviews/me`, { method: "DELETE" }),
+  },
+
   /** Только для админ-панели: всё под /api/admin. */
   admin: {
     stats: () => request<AdminStats>("/api/admin/stats"),
@@ -119,5 +148,12 @@ export const api = {
     removeTheme: (id: number) => request<void>(`/api/admin/themes/${id}`, { method: "DELETE" }),
     attempts: (query: { status?: AttemptStatus; task_id?: number; student_id?: number } = {}) =>
       request<Attempt[]>("/api/admin/attempts", { query: { ...query, limit: 200 } }),
+    certificates: (status?: CertificateStatus) =>
+      request<Certificate[]>("/api/admin/certificates", { query: { status } }),
+    reviewCertificate: (id: number, status: "verified" | "rejected", reason = "") =>
+      request<Certificate>(`/api/admin/certificates/${id}/review`, { method: "POST", json: { status, reason } }),
+    reviews: (hidden?: boolean) => request<Review[]>("/api/admin/reviews", { query: { hidden } }),
+    setReviewHidden: (id: number, is_hidden: boolean) =>
+      request<Review>(`/api/admin/reviews/${id}`, { method: "PATCH", json: { is_hidden } }),
   },
 };
