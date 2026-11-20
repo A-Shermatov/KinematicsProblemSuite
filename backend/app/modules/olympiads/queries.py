@@ -11,6 +11,7 @@ CASE WHEN now() < o.starts_at THEN 'upcoming'
 # $viewer — параметр с id текущего пользователя (или NULL), подставляется в каждом запросе.
 _COLUMNS = f"""
 o.id, o.title, o.description, o.subject_id, s.title AS subject_title,
+o.level_id, lv.title AS level_title, lv.min_rating AS level_min_rating, lv.max_rating AS level_max_rating,
 o.organizer_id, trim(u.first_name || ' ' || u.last_name) AS organizer_name,
 o.starts_at, o.ends_at, o.status, o.reject_reason, o.results_published, o.created_at,
 {PHASE} AS phase,
@@ -23,15 +24,20 @@ _FROM = """
 FROM olympiads o
 JOIN users u ON u.id = o.organizer_id
 LEFT JOIN subjects s ON s.id = o.subject_id
+LEFT JOIN olympiad_levels lv ON lv.id = o.level_id
 """
 
-# $1 этап (NULL — все), $2 id зрителя.
+_VIEWER = """
+EXISTS (SELECT 1 FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_registered,
+(SELECT p.official FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_official
+"""
+
+# $1 этап (NULL — все), $2 id зрителя, $3 уровень (NULL — все).
 LIST_PUBLISHED = f"""
 SELECT * FROM (
-    SELECT {_COLUMNS},
-           EXISTS (SELECT 1 FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_registered
+    SELECT {_COLUMNS}, {_VIEWER}
     {_FROM}
-    WHERE o.status = 'published'
+    WHERE o.status = 'published' AND ($3::bigint IS NULL OR o.level_id = $3)
 ) x
 WHERE ($1::text IS NULL OR x.phase = $1)
 ORDER BY CASE WHEN x.ends_at > now() THEN x.starts_at END ASC NULLS LAST, x.starts_at DESC
@@ -39,14 +45,14 @@ LIMIT 100
 """
 
 LIST_BY_ORGANIZER = f"""
-SELECT {_COLUMNS}, FALSE AS is_registered
+SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official
 {_FROM}
 WHERE o.organizer_id = $1
 ORDER BY o.starts_at DESC
 """
 
 ADMIN_LIST = f"""
-SELECT {_COLUMNS}, FALSE AS is_registered
+SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official
 {_FROM}
 WHERE ($1::text IS NULL OR o.status = $1)
 ORDER BY CASE WHEN o.status = 'pending' THEN 0 ELSE 1 END, o.starts_at DESC
@@ -54,22 +60,21 @@ LIMIT 200
 """
 
 GET = f"""
-SELECT {_COLUMNS},
-       EXISTS (SELECT 1 FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_registered
+SELECT {_COLUMNS}, {_VIEWER}
 {_FROM}
 WHERE o.id = $1
 """
 
 INSERT = """
-INSERT INTO olympiads (title, description, subject_id, organizer_id, starts_at, ends_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO olympiads (title, description, subject_id, organizer_id, starts_at, ends_at, level_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id
 """
 
 # Редактировать можно только черновик или отклонённую. После правки отклонённая снова становится черновиком.
 UPDATE = """
 UPDATE olympiads
-SET title = $2, description = $3, subject_id = $4, starts_at = $5, ends_at = $6,
+SET title = $2, description = $3, subject_id = $4, starts_at = $5, ends_at = $6, level_id = $7,
     status = 'draft', reject_reason = '', updated_at = now()
 WHERE id = $1 AND status IN ('draft', 'rejected')
 RETURNING id
@@ -86,6 +91,13 @@ RETURNING id
 REVIEW = """
 UPDATE olympiads SET status = $2, reject_reason = $3, updated_at = now()
 WHERE id = $1 AND status = 'pending'
+RETURNING id
+"""
+
+# Досрочное завершение: олимпиада заканчивается сейчас, дальше — проверка жюри.
+FINISH_EARLY = """
+UPDATE olympiads SET ends_at = now(), updated_at = now()
+WHERE id = $1 AND status = 'published' AND starts_at <= now() AND now() < ends_at
 RETURNING id
 """
 
@@ -125,7 +137,7 @@ DELETE_TASK = "DELETE FROM olympiad_tasks WHERE id = $1 AND olympiad_id = $2 RET
 # ---------- Участники ----------
 
 REGISTER = """
-INSERT INTO olympiad_participants (olympiad_id, user_id) VALUES ($1, $2)
+INSERT INTO olympiad_participants (olympiad_id, user_id, official, rating_at_registration) VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING
 """
 
@@ -227,45 +239,21 @@ WITH scores AS (
     JOIN olympiads o ON o.id = sb.olympiad_id
     WHERE sb.olympiad_id = $1
     GROUP BY sb.user_id
+),
+official AS (
+    SELECT sc.*, COALESCE(p.official, TRUE) AS official
+    FROM scores sc
+    LEFT JOIN olympiad_participants p ON p.olympiad_id = $1 AND p.user_id = sc.user_id
 )
-SELECT RANK() OVER (ORDER BY sc.total DESC, sc.penalty)::int AS place,
+-- Место — только среди официальных участников; вне конкурса — place NULL, но в таблице по баллам.
+SELECT CASE WHEN sc.official
+            THEN RANK() OVER (PARTITION BY sc.official ORDER BY sc.total DESC, sc.penalty) END::int AS place,
+       sc.official,
        u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,
        sc.total, sc.penalty, sc.task_points::text AS task_points, sc.cells::text AS cells
-FROM scores sc
+FROM official sc
 JOIN users u ON u.id = sc.user_id
-ORDER BY place, u.id
-"""
-
-# ---------- Рейтинг по олимпиадам ----------
-
-# $1 limit, $2 с какой даты, $3 предмет, $4 город. Очки — сумма процентов от максимума по всем олимпиадам.
-LEADERBOARD = f"""
-WITH maxes AS (
-    SELECT olympiad_id, sum(max_points) AS max_score FROM olympiad_tasks GROUP BY olympiad_id
-),
-scores AS (
-    SELECT sb.olympiad_id, sb.user_id, sum({POINTS}) AS total, {PENALTY} AS penalty
-    FROM olympiad_submissions sb
-    JOIN olympiads o ON o.id = sb.olympiad_id AND o.results_published
-    WHERE o.ends_at > COALESCE($2::timestamptz, '-infinity') AND ($3::bigint IS NULL OR o.subject_id = $3)
-    GROUP BY sb.olympiad_id, sb.user_id
-),
-ranked AS (
-    SELECT sc.*, m.max_score, RANK() OVER (PARTITION BY sc.olympiad_id ORDER BY sc.total DESC, sc.penalty) AS place
-    FROM scores sc JOIN maxes m USING (olympiad_id)
-)
-SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,
-       count(*) AS olympiads,
-       round(sum(100.0 * r.total / NULLIF(r.max_score, 0)))::bigint AS points,
-       count(*) FILTER (WHERE r.place = 1 AND r.total > 0) AS gold,
-       count(*) FILTER (WHERE r.place = 2 AND r.total > 0) AS silver,
-       count(*) FILTER (WHERE r.place = 3 AND r.total > 0) AS bronze
-FROM ranked r
-JOIN users u ON u.id = r.user_id AND u.is_active
-WHERE ($4::text IS NULL OR lower(u.city) = lower($4))
-GROUP BY u.id
-ORDER BY points DESC NULLS LAST, gold DESC, silver DESC, bronze DESC, u.id
-LIMIT $1
+ORDER BY sc.total DESC, sc.penalty, NOT sc.official, u.id
 """
 
 # ---------- Виртуальное участие ----------
@@ -330,3 +318,19 @@ WOULD_PLACE = f"""
 WITH {_OFFICIAL_TOTALS}
 SELECT (1 + count(*))::int FROM official WHERE total > $2
 """
+
+# ---------- Уровни ----------
+
+LEVEL_COLUMNS = "id, title, description, min_rating, max_rating, position"
+LIST_LEVELS = f"SELECT {LEVEL_COLUMNS} FROM olympiad_levels ORDER BY position, id"
+GET_LEVEL = f"SELECT {LEVEL_COLUMNS} FROM olympiad_levels WHERE id = $1"
+INSERT_LEVEL = f"""
+INSERT INTO olympiad_levels (title, description, min_rating, max_rating, position) VALUES ($1, $2, $3, $4, $5)
+RETURNING {LEVEL_COLUMNS}
+"""
+UPDATE_LEVEL = f"""
+UPDATE olympiad_levels SET title = $2, description = $3, min_rating = $4, max_rating = $5, position = $6
+WHERE id = $1
+RETURNING {LEVEL_COLUMNS}
+"""
+DELETE_LEVEL = "DELETE FROM olympiad_levels WHERE id = $1 RETURNING id"

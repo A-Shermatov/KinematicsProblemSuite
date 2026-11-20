@@ -20,6 +20,7 @@ class OlympiadIn(BaseModel):
     title: str = Field(min_length=3, max_length=150)
     description: str = Field(default="", max_length=10_000, description="Markdown: правила, формат, призы")
     subject_id: int | None = None
+    level_id: int | None = None
     starts_at: datetime
     ends_at: datetime
 
@@ -45,6 +46,10 @@ class OlympiadOut(BaseModel):
     description: str
     subject_id: int | None
     subject_title: str | None
+    level_id: int | None = None
+    level_title: str | None = None
+    level_min_rating: int | None = None
+    level_max_rating: int | None = None
     organizer_id: int
     organizer_name: str
     starts_at: datetime
@@ -57,6 +62,8 @@ class OlympiadOut(BaseModel):
     tasks_count: int
     max_score: int
     is_registered: bool
+    # Зритель зарегистрирован вне конкурса (False) или официально (True); None — не зарегистрирован.
+    is_official: bool | None = None
     created_at: datetime
 
 
@@ -197,3 +204,26 @@ class VirtualRunOut(BaseModel):
 
 class VirtualAnswerIn(BaseModel):
     answer: str = Field(min_length=1, max_length=500)
+
+
+class LevelIn(BaseModel):
+    title: str = Field(min_length=2, max_length=60)
+    description: str = Field(default="", max_length=300)
+    min_rating: int | None = Field(default=None, ge=0, le=5000)
+    max_rating: int | None = Field(default=None, ge=1, le=5000)
+    position: int = Field(default=0, ge=0, le=1000)
+
+    @field_validator("title", "description")
+    @classmethod
+    def strip(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def check_range(self) -> LevelIn:
+        if self.min_rating is not None and self.max_rating is not None and self.min_rating >= self.max_rating:
+            raise ValueError("Нижняя граница рейтинга должна быть меньше верхней")
+        return self
+
+
+class LevelOut(LevelIn):
+    id: int

@@ -43,14 +43,12 @@ async def olympiad_results(conn: asyncpg.Connection, olympiad: asyncpg.Record, r
     from app.modules.rating import queries as rating_q
     from app.modules.rating.ranks import rank_for
 
-    total = len(results)
+    total = sum(1 for row in results if row["place"] is not None)
     changes = {row["user_id"]: row for row in await conn.fetch(rating_q.OLYMPIAD_CHANGES, olympiad["id"])}
     for row in results:
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(row["place"], "🏁")
-        text = (
-            f"{medal} Итоги олимпиады «{esc(olympiad['title'])}» опубликованы: "
-            f"ваше место <b>{row['place']}</b> из {total}, {row['total']} баллов."
-        )
+        where = f"ваше место <b>{row['place']}</b> из {total}" if row["place"] else "вы участвовали вне конкурса"
+        text = f"{medal} Итоги олимпиады «{esc(olympiad['title'])}» опубликованы: {where}, {row['total']} баллов."
         change = changes.get(row["user_id"])
         if change:
             delta = change["new_rating"] - change["old_rating"]

@@ -52,6 +52,9 @@ export function OlympiadStandingsTable({ olympiadId, live, highlight }: { olympi
           {live && ` ${t("Обновляется каждые 30 секунд.")}`}
         </p>
       )}
+      {data.rows.some((row) => !row.official) && (
+        <p className="text-sm text-muted">{t("* — вне конкурса: рейтинг выше уровня олимпиады, без места, диплома и изменения рейтинга.")}</p>
+      )}
       <Card className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
@@ -77,10 +80,18 @@ export function OlympiadStandingsTable({ olympiadId, live, highlight }: { olympi
           </thead>
           <tbody className="divide-y divide-border">
             {data.rows.map((row) => {
-              const medal = !data.provisional && row.total > 0 ? MEDAL[row.place] : undefined;
+              const medal = !data.provisional && row.total > 0 && row.place !== null ? MEDAL[row.place] : undefined;
               return (
-                <tr key={row.user_id} className={cx(row.user_id === highlight && "bg-primary-soft/60")}>
-                  <td className="px-4 py-3 text-lg font-bold text-muted">{medal ?? row.place}</td>
+                <tr key={row.user_id} className={cx(row.user_id === highlight && "bg-primary-soft/60", !row.official && "bg-surface-2/50")}>
+                  <td className="px-4 py-3 text-lg font-bold text-muted">
+                    {row.official ? (
+                      (medal ?? row.place)
+                    ) : (
+                      <span title={t("Вне конкурса: рейтинг выше уровня олимпиады")} className="text-base">
+                        *
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar src={row.avatar_url} name={row.name || row.username} size={32} />

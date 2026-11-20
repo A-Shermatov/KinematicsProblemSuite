@@ -23,7 +23,8 @@ async def badges_for(conn: asyncpg.Connection, user_ids: list[int]) -> dict[int,
 
 
 async def _rate(conn: asyncpg.Connection, olympiad_id: int) -> None:
-    rows = await conn.fetch(olympiads_q.RESULTS, olympiad_id)
+    # Вне конкурса (рейтинг выше уровня олимпиады) рейтинг не меняется.
+    rows = [row for row in await conn.fetch(olympiads_q.RESULTS, olympiad_id) if row["place"] is not None]
     ratings = await current_ratings(conn, [row["user_id"] for row in rows])
     participants = [
         Participant(row["user_id"], ratings.get(row["user_id"], INITIAL_RATING), row["place"]) for row in rows

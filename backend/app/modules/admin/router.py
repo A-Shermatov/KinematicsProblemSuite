@@ -16,7 +16,7 @@ from app.modules.auth import queries as auth_q
 from app.modules.content import queries as content_q
 from app.modules.content.schemas import SubjectIn, SubjectOut, ThemeIn, ThemeOut
 from app.modules.olympiads import queries as olympiads_q
-from app.modules.olympiads.schemas import OlympiadOut
+from app.modules.olympiads.schemas import LevelIn, LevelOut, OlympiadOut
 from app.modules.olympiads.schemas import ReviewIn as OlympiadReviewIn
 from app.modules.olympiads.schemas import Status as OlympiadStatus
 from app.modules.rating import service as rating_service
@@ -246,3 +246,37 @@ async def review_olympiad(olympiad_id: int, data: OlympiadReviewIn, admin: Admin
 async def recompute_rating(conn: Conn) -> dict[str, int]:
     """Пересчитать рейтинг олимпиадников с нуля по всем олимпиадам с опубликованными итогами."""
     return {"olympiads": await rating_service.recompute_all(conn)}
+
+
+# ---------- Уровни олимпиад ----------
+
+
+@router.post("/olympiad-levels", response_model=LevelOut, status_code=status.HTTP_201_CREATED)
+async def create_level(data: LevelIn, conn: Conn) -> LevelOut:
+    row = await conn.fetchrow(
+        olympiads_q.INSERT_LEVEL, data.title, data.description, data.min_rating, data.max_rating, data.position
+    )
+    return LevelOut(**dict(row))
+
+
+@router.put("/olympiad-levels/{level_id}", response_model=LevelOut)
+async def update_level(level_id: int, data: LevelIn, conn: Conn) -> LevelOut:
+    row = await conn.fetchrow(
+        olympiads_q.UPDATE_LEVEL,
+        level_id,
+        data.title,
+        data.description,
+        data.min_rating,
+        data.max_rating,
+        data.position,
+    )
+    if row is None:
+        raise not_found("Уровень")
+    return LevelOut(**dict(row))
+
+
+@router.delete("/olympiad-levels/{level_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_level(level_id: int, conn: Conn) -> None:
+    """Олимпиады с этим уровнем останутся без уровня (все участники — официально)."""
+    if await conn.fetchval(olympiads_q.DELETE_LEVEL, level_id) is None:
+        raise not_found("Уровень")
