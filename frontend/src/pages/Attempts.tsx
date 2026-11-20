@@ -1,693 +1,240 @@
-import React, { useEffect, useState } from "react";
-import { format } from "date-fns";
-import { AxiosError } from "axios";
-import { useAuth } from "../contexts/AuthContext";
-import { NavLink } from "react-router-dom";
-import * as apiService from "../services/apiService";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { api, type Attempt, type AttemptScope, type AttemptStatus } from "../api";
+import { useAuth } from "../auth/AuthContext";
+import { Badge, Button, Card, EmptyState, ErrorMessage, Input, Loading, Modal, PageHeader, Textarea, cx } from "../components/ui";
+import { formatDateTime, statusMeta } from "../lib/format";
+import { errorText, useAsync, useDocumentTitle } from "../lib/hooks";
 
-interface Attempt {
-  id: number;
-  student_id?: number;
-  student_username?: string;
-  theme_id: number;
-  theme_name: string;
-  task_id: number;
-  task_name: string;
-  task_author_id?: number;
-  task_author_username?: string;
-  system_answer: string;
-  answer: string;
-  status: string;
-  system_grade: number | null;
-  teacher_grade: number | null;
-  created_at: string;
-  image_data: string | null;
-}
+const STATUS_FILTERS: (AttemptStatus | null)[] = [null, "pending", "correct", "incorrect", "graded"];
 
-export const Attempts = () => {
-  const { user } = useAuth();
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [grades, setGrades] = useState<{ [key: number]: string }>({});
+function GradeDialog({ attempt, onClose, onSaved }: { attempt: Attempt; onClose: () => void; onSaved: (a: Attempt) => void }) {
+  const [grade, setGrade] = useState(String(attempt.teacher_grade ?? attempt.system_grade ?? 100));
+  const [feedback, setFeedback] = useState(attempt.status === "graded" ? attempt.feedback : "");
   const [error, setError] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<{
-    key: keyof Attempt | "student_username" | "task_author_username";
-    direction: "asc" | "desc" | null;
-  }>({ key: "created_at", direction: "desc" });
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchAttempts = async () => {
-      try {
-        let response;
-        if (user.role === "student") {
-          response = await apiService.getStudentAttempts(user.token);
-        } else if (user.role === "teacher") {
-          response = await apiService.getTeacherAttempts(user.token);
-        } else {
-          response = await apiService.getAdminAttempts(user.token);
-        }
-        setAttempts(response.data);
-        console.log(response.data);
-        setError(null);
-      } catch (err) {
-        const axiosError = err as AxiosError<{ detail?: string }>;
-        setError(
-          axiosError.response?.data?.detail || "Ошибка загрузки попыток"
-        );
-      }
-    };
-    fetchAttempts();
-  }, [user]);
-
-  const handleSort = (
-    key: keyof Attempt | "student_username" | "task_author_username",
-    direction: "asc" | "desc"
-  ) => {
-    setSortConfig({ key, direction });
-
-    setAttempts((prev) => {
-      const sorted = [...prev].sort((a, b) => {
-        let aValue = a[key] ?? "";
-        let bValue = b[key] ?? "";
-
-        if (key === "system_grade" || key === "teacher_grade") {
-          aValue = aValue === null ? -1 : aValue;
-          bValue = bValue === null ? -1 : bValue;
-        }
-
-        if (key === "created_at") {
-          aValue = new Date(aValue).getTime();
-          bValue = new Date(bValue).getTime();
-        }
-
-        if (aValue < bValue) return direction === "asc" ? -1 : 1;
-        if (aValue > bValue) return direction === "asc" ? 1 : -1;
-        return 0;
-      });
-      return sorted;
-    });
-  };
-
-  const handleGrade = async (attemptId: number, gradeInput: string) => {
-    const grade = parseInt(gradeInput);
-    if (isNaN(grade) || grade < 0 || grade > 100) {
-      alert("Оценка должна быть числом от 0 до 100");
-      return;
-    }
-    if (!user) return;
-
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
     try {
-      await apiService.gradeAttempt(
-        attemptId,
-        { teacher_grade: grade },
-        user.token
-      );
-      setAttempts((prev) =>
-        prev.map((attempt) =>
-          attempt.id === attemptId
-            ? { ...attempt, teacher_grade: grade }
-            : attempt
-        )
-      );
-      setGrades((prev) => ({ ...prev, [attemptId]: "" }));
+      onSaved(await api.attempts.grade(attempt.id, Number(grade), feedback));
     } catch (err) {
-      const axiosError = err as AxiosError<{ detail?: string }>;
-      alert(
-        axiosError.response?.data?.detail || "Ошибка при выставлении оценки"
-      );
+      setError(errorText(err));
+    } finally {
+      setSaving(false);
     }
   };
-
-  const getGradeColor = (grade: number | null) => {
-    if (grade === 100) return "text-green-600";
-    if (grade === 0) return "text-red-600";
-    if (grade === null) return "text-yellow-600";
-    return "";
-  };
-
-  const handleImageClick = (imageData: string | null) => {
-    if (imageData) {
-      setSelectedImage(imageData);
-    }
-  };
-
-  const handleCloseModal = () => {
-    setSelectedImage(null);
-  };
-
-  if (!user) {
-    return <div>Пожалуйста, войдите в систему</div>;
-  }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 pt-20">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Попытки</h1>
-        {error && <div className="text-red-600 mb-4">{error}</div>}
-        <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
-          <table className="w-full table-auto">
-            <thead>
-              <tr className="bg-gray-200">
-                {(user.role === "admin" || user.role === "teacher") && (
-                  <th className="px-4 py-2 text-left">
-                    <div className="flex items-center justify-between">
-                      <span>Отправитель</span>
-                      <div className="flex flex-col gap-1">
-                        {sortConfig.key === "student_username" ? (
-                          sortConfig.direction === "desc" ? (
-                            <button
-                              onClick={() =>
-                                handleSort("student_username", "asc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-white"
-                              title="Сортировать по возрастанию"
-                            >
-                              ▲
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() =>
-                                handleSort("student_username", "desc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-white"
-                              title="Сортировать по убыванию"
-                            >
-                              ▼
-                            </button>
-                          )
-                        ) : (
-                          <>
-                            <button
-                              onClick={() =>
-                                handleSort("student_username", "asc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                              title="Сортировать по возрастанию"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleSort("student_username", "desc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                              title="Сортировать по убыванию"
-                            >
-                              ▼
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </th>
-                )}
-                <th className="px-4 py-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <span>Тема</span>
-                    <div className="flex flex-col gap-1">
-                      {sortConfig.key === "theme_name" ? (
-                        sortConfig.direction === "desc" ? (
-                          <button
-                            onClick={() => handleSort("theme_name", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSort("theme_name", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        )
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleSort("theme_name", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            onClick={() => handleSort("theme_name", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <span>Задача</span>
-                    <div className="flex flex-col gap-1">
-                      {sortConfig.key === "task_name" ? (
-                        sortConfig.direction === "desc" ? (
-                          <button
-                            onClick={() => handleSort("task_name", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSort("task_name", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        )
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleSort("task_name", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            onClick={() => handleSort("task_name", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </th>
-                {user.role !== "teacher" && (
-                  <th className="px-4 py-2 text-left">
-                    <div className="flex items-center justify-between">
-                      <span>Автор задачи</span>
-                      <div className="flex flex-col gap-1">
-                        {sortConfig.key === "task_author_username" ? (
-                          sortConfig.direction === "desc" ? (
-                            <button
-                              onClick={() =>
-                                handleSort("task_author_username", "asc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-white"
-                              title="Сортировать по возрастанию"
-                            >
-                              ▲
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() =>
-                                handleSort("task_author_username", "desc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-white"
-                              title="Сортировать по убыванию"
-                            >
-                              ▼
-                            </button>
-                          )
-                        ) : (
-                          <>
-                            <button
-                              onClick={() =>
-                                handleSort("task_author_username", "asc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                              title="Сортировать по возрастанию"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleSort("task_author_username", "desc")
-                              }
-                              className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                              title="Сортировать по убыванию"
-                            >
-                              ▼
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </th>
-                )}
-                {(user.role === "student" ||
-                  user.role === "admin" ||
-                  user.role === "teacher") && (
-                  <th className="px-4 py-2 text-left">
-                    <span>
-                      {user.role === "student" ? "Мой ответ" : "Ответ ученика"}
-                    </span>
-                  </th>
-                )}
-                {(user.role === "student" ||
-                  user.role === "admin" ||
-                  user.role === "teacher") && (
-                  <th className="px-4 py-2 text-left">
-                    <span>
-                      {user.role === "student"
-                        ? "Картинка"
-                        : "Картинка ученика"}
-                    </span>
-                  </th>
-                )}
-                {(user.role === "admin" || user.role === "teacher") && (
-                  <th className="px-4 py-2 text-left">
-                    <span>Ответ системы</span>
-                  </th>
-                )}
-                <th className="px-4 py-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <span>Оценка системы</span>
-                    <div className="flex flex-col gap-1">
-                      {sortConfig.key === "system_grade" ? (
-                        sortConfig.direction === "desc" ? (
-                          <button
-                            onClick={() => handleSort("system_grade", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSort("system_grade", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        )
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleSort("system_grade", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            onClick={() => handleSort("system_grade", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <span>Оценка преподавателя</span>
-                    <div className="flex flex-col gap-1">
-                      {sortConfig.key === "teacher_grade" ? (
-                        sortConfig.direction === "desc" ? (
-                          <button
-                            onClick={() => handleSort("teacher_grade", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSort("teacher_grade", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        )
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleSort("teacher_grade", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            onClick={() => handleSort("teacher_grade", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <span>Дата и время</span>
-                    <div className="flex flex-col gap-1">
-                      {sortConfig.key === "created_at" ? (
-                        sortConfig.direction === "desc" ? (
-                          <button
-                            onClick={() => handleSort("created_at", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSort("created_at", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-white"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        )
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleSort("created_at", "asc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по возрастанию"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            onClick={() => handleSort("created_at", "desc")}
-                            className="p-1 bg-gray-300 rounded-sm text-gray-900"
-                            title="Сортировать по убыванию"
-                          >
-                            ▼
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {attempts.length ? (
-                attempts.map((attempt) => (
-                  <tr key={attempt.id} className="border-b">
-                    {(user.role === "admin" || user.role === "teacher") && (
-                      <td className="px-4 py-2">
-                        {attempt.student_id && attempt.student_username ? (
-                          <NavLink
-                            to={`/users/${attempt.student_id}`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {attempt.student_username}
-                          </NavLink>
-                        ) : (
-                          "Неизвестно"
-                        )}
-                      </td>
-                    )}
-                    <td className="px-4 py-2">
-                      <NavLink
-                        to={`/themes/${attempt.theme_id}/tasks`}
-                        className="text-purple-600 hover:underline"
-                      >
-                        {attempt.theme_name}
-                      </NavLink>
-                    </td>
-                    <td className="px-4 py-2">
-                      <NavLink
-                        to={`/tasks/${attempt.task_id}`}
-                        className="text-pink-600 hover:underline"
-                      >
-                        {attempt.task_name}
-                      </NavLink>
-                    </td>
-                    {user.role !== "teacher" && (
-                      <td className="px-4 py-2">
-                        {attempt.task_author_id &&
-                        attempt.task_author_username ? (
-                          <NavLink
-                            to={`/users/${attempt.task_author_id}`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {attempt.task_author_username}
-                          </NavLink>
-                        ) : (
-                          "Неизвестно"
-                        )}
-                      </td>
-                    )}
-                    {(user.role === "student" ||
-                      user.role === "admin" ||
-                      user.role === "teacher") && (
-                      <td className="px-4 py-2 max-w-xs truncate">
-                        {attempt.answer || "Нет ответа"}
-                      </td>
-                    )}
-                    {(user.role === "student" ||
-                      user.role === "admin" ||
-                      user.role === "teacher") && (
-                      <td className="px-4 py-2">
-                        {attempt.image_data ? (
-                          <img
-                            src={attempt.image_data}
-                            alt="Попытка"
-                            className="w-12 h-12 object-cover cursor-pointer rounded"
-                            onClick={() => handleImageClick(attempt.image_data)}
-                          />
-                        ) : (
-                          "Нет картинки"
-                        )}
-                      </td>
-                    )}
-                    {(user.role === "admin" || user.role === "teacher") && (
-                      <td className="px-4 py-2 max-w-xs truncate">
-                        {attempt.system_answer || "Нет ответа"}
-                      </td>
-                    )}
-                    <td
-                      className={`px-4 py-2 ${getGradeColor(
-                        attempt.system_grade
-                      )}`}
-                    >
-                      {attempt.system_grade ?? "Не проверено"}
-                    </td>
-                    <td className="px-4 py-2">
-                      {user.role === "teacher" ? (
-                        <div className="flex items-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            placeholder={
-                              attempt.teacher_grade?.toString() ?? "Оценка"
-                            }
-                            value={grades[attempt.id] || ""}
-                            className="p-2 border rounded w-20 mr-2"
-                            onChange={(e) =>
-                              setGrades((prev) => ({
-                                ...prev,
-                                [attempt.id]: e.target.value,
-                              }))
-                            }
-                          />
-                          <button
-                            onClick={() =>
-                              handleGrade(attempt.id, grades[attempt.id] || "")
-                            }
-                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                          >
-                            Сохранить
-                          </button>
-                        </div>
-                      ) : (
-                        <span className={getGradeColor(attempt.teacher_grade)}>
-                          {attempt.teacher_grade ?? "Не проверено"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      {format(new Date(attempt.created_at), "dd.MM.yyyy HH:mm")}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={
-                      user.role === "student"
-                        ? 8
-                        : user.role === "teacher"
-                        ? 8
-                        : 10
-                    }
-                    className="px-4 py-2 text-center"
-                  >
-                    Нет попыток
-                  </td>
-                </tr>
+    <Modal open onClose={onClose} title="Оценка решения">
+      <form onSubmit={submit} className="w-[min(36rem,85vw)] space-y-4 p-2">
+        <div>
+          <h2 className="text-lg font-semibold text-fg">{attempt.task_title}</h2>
+          <p className="text-sm text-muted">
+            {attempt.student_name || attempt.student_username} · {formatDateTime(attempt.created_at)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-surface-2 p-4 text-sm">
+          <p className="text-muted">Ответ ученика</p>
+          <p className="mt-1 whitespace-pre-wrap font-mono text-fg">{attempt.answer || "—"}</p>
+          {attempt.correct_answer && (
+            <p className="mt-3 text-muted">
+              Эталон: <span className="font-mono text-fg">{attempt.correct_answer}{attempt.task_unit ? ` ${attempt.task_unit}` : ""}</span>
+            </p>
+          )}
+        </div>
+        {attempt.image_url && (
+          <a href={attempt.image_url} target="_blank" rel="noreferrer">
+            <img src={attempt.image_url} alt="Фото решения" className="max-h-80 w-full rounded-xl object-contain" />
+          </a>
+        )}
+        {error && <ErrorMessage>{error}</ErrorMessage>}
+        <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
+          <Input label="Баллы (0–100)" type="number" min={0} max={100} value={grade} onChange={(e) => setGrade(e.target.value)} required />
+          <Textarea label="Комментарий ученику" rows={3} value={feedback} onChange={(e) => setFeedback(e.target.value)} maxLength={2000} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button type="submit" loading={saving}>
+            Сохранить оценку
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export function Attempts() {
+  useDocumentTitle("Решения");
+  const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const defaultScope: AttemptScope = user?.role === "admin" ? "all" : user?.role === "teacher" ? "authored" : "mine";
+  const scope = (params.get("scope") as AttemptScope | null) ?? defaultScope;
+  const status = (params.get("status") as AttemptStatus | null) ?? null;
+  const [grading, setGrading] = useState<Attempt | null>(null);
+  const [zoom, setZoom] = useState<string | null>(null);
+
+  const { data, error, loading, setData } = useAsync(
+    () => api.attempts.list({ scope, status: status ?? undefined }),
+    [scope, status],
+  );
+
+  const update = (key: string, value: string | null) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  const showStudent = scope !== "mine";
+  const scopes: { key: AttemptScope; label: string }[] =
+    user?.role === "admin"
+      ? [
+          { key: "all", label: "Все" },
+          { key: "authored", label: "По моим задачам" },
+        ]
+      : user?.role === "teacher"
+        ? [
+            { key: "authored", label: "По моим задачам" },
+            { key: "mine", label: "Мои решения" },
+          ]
+        : [];
+
+  return (
+    <>
+      <PageHeader
+        title={scope === "mine" ? "Мои решения" : "Решения учеников"}
+        subtitle={scope === "authored" ? "Проверяйте решения, ожидающие оценки, и оставляйте комментарии" : undefined}
+      />
+
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        {scopes.length > 0 && (
+          <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
+            {scopes.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => update("scope", item.key)}
+                className={cx("rounded-lg px-3 py-1.5 font-medium", scope === item.key ? "bg-primary text-primary-fg" : "text-muted hover:text-fg")}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_FILTERS.map((item) => (
+            <button
+              key={item ?? "all"}
+              onClick={() => update("status", item)}
+              className={cx(
+                "rounded-full border px-3 py-1.5 text-xs font-medium",
+                status === item ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface text-muted hover:text-fg",
               )}
-            </tbody>
-          </table>
+            >
+              {item ? statusMeta[item].label : "Все статусы"}
+            </button>
+          ))}
         </div>
       </div>
 
-      <AnimatePresence>
-        {selectedImage && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50"
-            onClick={handleCloseModal}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <motion.div
-              className="relative bg-white p-4 rounded-lg max-w-3xl max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              <button
-                onClick={handleCloseModal}
-                className="absolute top-2 right-2 bg-gray-200 rounded-full p-2 text-gray-600 hover:bg-gray-300 hover:text-gray-900 transition-colors"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-              <img
-                src={selectedImage}
-                alt="Увеличенная картинка"
-                className="max-w-full max-h-[80vh] object-contain"
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      {loading && <Loading />}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {data && data.length === 0 && (
+        <EmptyState title="Решений пока нет">
+          {scope === "mine" ? (
+            <Link to="/catalog" className="text-primary hover:underline">
+              Перейти к задачам
+            </Link>
+          ) : (
+            "Когда ученики отправят решения, они появятся здесь."
+          )}
+        </EmptyState>
+      )}
+      {data && data.length > 0 && (
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-5 py-3 font-medium">Задача</th>
+                {showStudent && <th className="px-5 py-3 font-medium">Ученик</th>}
+                <th className="px-5 py-3 font-medium">Ответ</th>
+                <th className="px-5 py-3 font-medium">Статус</th>
+                <th className="px-5 py-3 font-medium">Дата</th>
+                <th className="px-5 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {data.map((attempt) => {
+                const meta = statusMeta[attempt.status];
+                const canGrade = user && (user.role === "admin" || attempt.task_author_id === user.id);
+                return (
+                  <tr key={attempt.id} className="align-top hover:bg-surface-2/60">
+                    <td className="px-5 py-3.5">
+                      <Link to={`/tasks/${attempt.task_id}`} className="font-medium text-fg hover:text-primary">
+                        {attempt.task_title}
+                      </Link>
+                      <p className="text-xs text-muted">{attempt.theme_title}</p>
+                    </td>
+                    {showStudent && (
+                      <td className="px-5 py-3.5">
+                        <Link to={`/users/${attempt.student_id}`} className="text-fg hover:text-primary">
+                          {attempt.student_name || attempt.student_username}
+                        </Link>
+                        <p className="text-xs text-muted">@{attempt.student_username}</p>
+                      </td>
+                    )}
+                    <td className="max-w-56 px-5 py-3.5">
+                      <p className="truncate font-mono text-fg" title={attempt.answer}>
+                        {attempt.answer || "—"}
+                      </p>
+                      {attempt.image_url && (
+                        <button className="text-xs text-primary hover:underline" onClick={() => setZoom(attempt.image_url)}>
+                          📎 фото решения
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Badge tone={meta.tone}>{meta.label}</Badge>
+                      {attempt.teacher_grade !== null && <p className="mt-1 text-xs text-muted">{attempt.teacher_grade} баллов</p>}
+                      {attempt.status === "graded" && attempt.feedback && (
+                        <p className="mt-1 max-w-48 text-xs text-muted" title={attempt.feedback}>
+                          «{attempt.feedback}»
+                        </p>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-muted">{formatDateTime(attempt.created_at)}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      {canGrade && scope !== "mine" && (
+                        <Button size="sm" variant={attempt.status === "pending" ? "primary" : "secondary"} onClick={() => setGrading(attempt)}>
+                          {attempt.status === "pending" ? "Оценить" : "Изменить"}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {grading && (
+        <GradeDialog
+          attempt={grading}
+          onClose={() => setGrading(null)}
+          onSaved={(saved) => {
+            setData((prev) => (prev ?? []).map((item) => (item.id === saved.id ? saved : item)));
+            setGrading(null);
+          }}
+        />
+      )}
+      <Modal open={!!zoom} onClose={() => setZoom(null)} title="Фото решения">
+        {zoom && <img src={zoom} alt="Фото решения" className="max-h-[80vh] rounded-lg object-contain" />}
+      </Modal>
+    </>
   );
-};
+}

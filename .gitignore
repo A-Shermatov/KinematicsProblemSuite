@@ -1,22 +1,12 @@
-# auth_service
-auth_service/.venv/
-auth_service/.env
-auth_service/.idea/
-auth_service/__pycache__/
-auth_service/public/
-
-# task_management_service
-task_management_service/.venv/
-task_management_service/.env
-task_management_service/.idea/
-task_management_service/__pycache__/
-
-# answer_and_submission_management_service
-solution_service/.venv/
-solution_service/.env
-solution_service/.idea/
-solution_service/__pycache__/
-solution_service/public/
-
-# frontend service
-frontend/node_modules/
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+backend/uploads/
+node_modules/
+frontend/dist/
+.idea/
+.vscode/
+.DS_Store

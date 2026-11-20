@@ -1,0 +1,15 @@
+# Только база для локальной разработки: docker compose -f docker-compose.dev.yml up -d
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kinematics
+      POSTGRES_USER: kinematics
+      POSTGRES_PASSWORD: kinematics
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+
+volumes:
+  pgdata-dev:
