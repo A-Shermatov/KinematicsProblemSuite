@@ -203,5 +203,6 @@ def test_full_lifecycle(client: ApiClient) -> None:
     assert [r["username"] for r in board] == ["ali", "vali"]
     assert board[0]["gold"] == 1 and board[0]["points"] == 87  # 13 из 15 = 86.7%
     ali_id = client.get("/api/users/me", ali).json()["id"]
-    badges = {b["code"]: b["earned"] for b in client.get(f"/api/stats/achievements/{ali_id}").json()["badges"]}
-    assert badges["olympiad_win"] and badges["olympiad_prize"] and badges["olympiad_participant"]
+    profile = client.get(f"/api/stats/achievements/{ali_id}").json()
+    assert profile["title"]["code"] == "win_1" and profile["olympiad_wins"] == 1 and profile["olympiads"] == 1
+    assert board[0]["title"]["name"] == "Победитель олимпиады"

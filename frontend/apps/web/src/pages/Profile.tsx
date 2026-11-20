@@ -22,6 +22,8 @@ import {
   useTheme,
   type ThemeMode,
   t,
+  TitleBadge,
+  plural,
 } from "@kps/shared";
 import { Achievements } from "../components/Achievements";
 import { ActivityHeatmap } from "../components/ActivityHeatmap";
@@ -215,7 +217,10 @@ export function UserPage() {
       <Card className="flex flex-wrap items-center gap-6 p-6 sm:p-8">
         <Avatar src={user.avatar_url} name={displayName(user)} size={96} />
         <div className="min-w-0 flex-1 space-y-1">
-          <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
+            <TitleBadge title={data?.achievements?.title} className="text-sm" />
+          </div>
           <p className="text-muted">
             @{user.username} · {roleLabel[user.role]}
           </p>
@@ -234,11 +239,8 @@ export function UserPage() {
               <p className="text-xs text-muted">{t("решено")}</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-fg">
-                {data.achievements.current_streak > 0 && "🔥"}
-                {data.achievements.current_streak}
-              </p>
-              <p className="text-xs text-muted">{t("дней подряд")}</p>
+              <p className="text-2xl font-bold text-fg">{data.achievements.olympiad_prizes}</p>
+              <p className="text-xs text-muted">{plural(data.achievements.olympiad_prizes, ["призовое место", "призовых места", "призовых мест"])}</p>
             </div>
           </div>
         )}
@@ -247,7 +249,7 @@ export function UserPage() {
       {data?.difficulty && <DifficultyChart data={data.difficulty} />}
       {data?.achievements && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-fg">{t("Значки")}</h2>
+          <h2 className="text-lg font-semibold text-fg">{t("Звания за олимпиады")}</h2>
           <Achievements data={data.achievements} />
         </section>
       )}

@@ -81,17 +81,27 @@ def test_achievements(client: ApiClient) -> None:
     sid = client.get("/api/users/me", student).json()["id"]
 
     empty = client.get(f"/api/stats/achievements/{sid}").json()
-    assert empty["solved_tasks"] == 0
-    assert not any(b["earned"] for b in empty["badges"])
+    assert empty["solved_tasks"] == 0 and empty["title"] is None
+    assert not any(t["earned"] for t in empty["titles"])
 
     for task in tasks:
         client.attempt(student, task["id"], "20")
     result = client.get(f"/api/stats/achievements/{sid}").json()
-    earned = {b["code"] for b in result["badges"] if b["earned"]}
-    assert earned == {"first_solve", "theme_master", "hard_solver"}
-    assert result["points"] == 1400
-    assert result["current_streak"] == 1
-    solved_10 = next(b for b in result["badges"] if b["code"] == "solved_10")
-    assert (solved_10["progress"], solved_10["target"]) == (3, 10)
-
+    assert result["points"] == 1400 and result["solved_tasks"] == 3
+    # Решённые задачи званий не дают — только олимпиады.
+    assert result["title"] is None
+    assert "current_streak" not in result and "badges" not in result
+    assert [t["code"] for t in result["titles"]] == ["prize_1", "prize_3", "win_1", "prize_5", "win_3", "prize_10"]
     assert client.get("/api/stats/achievements/999999").status_code == 404
+
+
+def test_titles_rules() -> None:
+    from app.modules.stats import titles
+
+    assert titles.best(0, 0) is None
+    assert titles.best(1, 0)["code"] == "prize_1"
+    assert titles.best(1, 1)["code"] == "win_1"
+    assert titles.best(5, 1)["code"] == "prize_5"
+    assert titles.best(10, 0)["name"] == "Гроссмейстер олимпиад"
+    prize_3 = next(t for t in titles.evaluate(2, 0) if t["code"] == "prize_3")
+    assert (prize_3["earned"], prize_3["progress"], prize_3["target"]) == (False, 2, 3)

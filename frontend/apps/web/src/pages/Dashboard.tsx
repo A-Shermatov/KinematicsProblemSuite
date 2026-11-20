@@ -176,9 +176,9 @@ export function Dashboard() {
       {data?.achievements && (
         <section className="mt-8 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-fg">{t("Достижения")}</h2>
+            <h2 className="text-lg font-semibold text-fg">{t("Звания за олимпиады")}</h2>
             <Link to={`/users/${user.id}`} className="text-sm text-primary hover:underline">
-              {t("Все значки")}
+              {t("Все звания")}
             </Link>
           </div>
           <Achievements data={data.achievements} compact />

@@ -11,6 +11,7 @@ export { TranslatableFields, cleanTranslations } from "./components/Translatable
 export { PlaceFields } from "./components/PlaceFields";
 export { ThemeToggle } from "./components/ThemeToggle";
 export { LangSwitcher, UntranslatedNote } from "./components/LangSwitcher";
+export { TitleBadge } from "./components/TitleBadge";
 export { TaskEditor } from "./features/TaskEditor";
 export { AiModelSelect, aiModelLabel, useAiModel } from "./features/AiModelSelect";
 export { SourcePicker, sourceMeta, type PickedSource } from "./features/SourcePicker";

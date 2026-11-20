@@ -16,6 +16,7 @@ import {
   useDocumentTitle,
   type Period,
   t,
+  TitleBadge,
 } from "@kps/shared";
 
 type Tab = "students" | "olympiads" | "schools" | "cities";
@@ -162,7 +163,10 @@ export function Leaderboard() {
               <Rank rank={row.rank} />
               <Avatar src={row.avatar_url} name={row.name || row.username} size={40} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-fg">{row.name || row.username}</p>
+                <p className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium text-fg">{row.name || row.username}</span>
+                  <TitleBadge title={row.title} className="hidden sm:inline-flex" />
+                </p>
                 <p className="truncate text-xs text-muted">{[row.school, row.city].filter(Boolean).join(", ") || `@${row.username}`}</p>
               </div>
               <div className="text-right">
@@ -187,7 +191,10 @@ export function Leaderboard() {
               <Rank rank={row.rank} />
               <Avatar src={row.avatar_url} name={row.name || row.username} size={40} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-fg">{row.name || row.username}</p>
+                <p className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium text-fg">{row.name || row.username}</span>
+                  <TitleBadge title={row.title} className="hidden sm:inline-flex" />
+                </p>
                 <p className="truncate text-xs text-muted">
                   {row.olympiads} {plural(row.olympiads, ["олимпиада", "олимпиады", "олимпиад"])}
                   {(row.school || row.city) && ` · ${[row.school, row.city].filter(Boolean).join(", ")}`}
