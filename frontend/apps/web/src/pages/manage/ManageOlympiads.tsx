@@ -126,6 +126,7 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
     <form onSubmit={submit} className="space-y-4">
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <TranslatableFields
+        onUploadImage={api.imports.uploadImage}
         title={form.title}
         condition={form.condition}
         translations={form.translations}

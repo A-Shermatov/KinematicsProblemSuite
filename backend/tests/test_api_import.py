@@ -74,3 +74,16 @@ def test_import_errors(client: ApiClient) -> None:
     caps = client.get("/api/tasks/import/capabilities", teacher).json()
     assert caps["ai_enabled"] is False and ".csv" in caps["file_formats"]
     assert client.post("/api/tasks/import/parse", teacher, files=upload("photo.jpg", b"\xff\xd8")).status_code == 503
+
+
+def test_condition_image_upload(client: ApiClient) -> None:
+    from tests.conftest import tiny_png
+
+    teacher = client.teacher()
+    files = {"file": ("scheme.png", tiny_png(), "image/png")}
+    response = client.post("/api/tasks/import/image", teacher, files=files)
+    assert response.status_code == 201, response.text
+    assert response.json()["url"].startswith("/uploads/tasks/")
+    assert client.post("/api/tasks/import/image", client.student(), files=files).status_code == 403
+    bad = {"file": ("x.png", b"not an image", "image/png")}
+    assert client.post("/api/tasks/import/image", teacher, files=bad).status_code in (415, 422)

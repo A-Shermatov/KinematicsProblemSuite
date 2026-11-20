@@ -13,12 +13,13 @@ from typing import Annotated
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import ValidationError
 
-from app.deps import Conn, Staff
+from app.deps import Conn, SettingsDep, Staff
 from app.modules.content.router import find_duplicates, insert_task
 from app.modules.content.schemas import TaskIn
 from app.modules.imports import ai
 from app.modules.imports.parsers import AI_FORMATS, TEXT_FORMATS, ImportFormatError, parse_file
 from app.modules.imports.schemas import ImportFailure, ImportIn, ImportResult, ParseResult, TaskDraft
+from app.storage import public_url, save_image
 
 router = APIRouter(prefix="/tasks/import", tags=["import"])
 
@@ -106,3 +107,12 @@ async def commit(data: ImportIn, user: Staff, conn: Conn) -> ImportResult:
         except (HTTPException, ValidationError) as exc:
             failed.append(ImportFailure(index=index, title=item.title, error=_error_text(exc)))
     return ImportResult(created=created, failed=failed)
+
+
+@router.post("/image", status_code=status.HTTP_201_CREATED)
+async def upload_condition_image(
+    file: Annotated[UploadFile, File()], _: Staff, settings: SettingsDep
+) -> dict[str, str]:
+    """Рисунок к условию задачи (схема, график). Возвращает URL для вставки в Markdown: ![рисунок](url)."""
+    path = await save_image(file, upload_dir=settings.upload_dir, subdir="tasks", max_bytes=settings.max_upload_bytes)
+    return {"url": public_url(path) or ""}

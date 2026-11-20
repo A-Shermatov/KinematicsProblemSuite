@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, type AnswerType, type CheckMode, type DuplicateHit, type TaskFull, type TaskInput } from "../api";
 import { TranslatableFields, cleanTranslations } from "../components/TranslatableFields";
 import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
@@ -57,6 +57,11 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
   // Условие изменили — предупреждение о похожих задачах больше не актуально.
   useEffect(() => setSimilar(null), [form?.title, form?.condition]);
 
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [recognizing, setRecognizing] = useState(false);
+  const [photoNote, setPhotoNote] = useState<{ tone: "info" | "warning"; text: string } | null>(null);
+  const { data: aiEnabled } = useAsync(() => api.imports.capabilities().then((c) => c.ai_enabled).catch(() => false), []);
+
   const { data: themes, error, loading } = useAsync(async () => {
     const [themeList, task] = await Promise.all([api.themes.list(), taskId ? api.tasks.getFull(taskId) : Promise.resolve(null)]);
     if (task) {
@@ -91,6 +96,39 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
   // Уровень задачи может быть выше текущего предела (админ понизил его позже) — оставляем его в списке.
   const levels = form.difficulty > settings.difficulty_max ? [...settings.difficulty_levels, form.difficulty] : settings.difficulty_levels;
   const set = <K extends keyof TaskInput>(key: K, value: TaskInput[K]) => setForm({ ...form, [key]: value });
+
+  /** Распознать задачу с фото и заполнить форму; учитель проверяет и сохраняет сам. */
+  const fillFromPhoto = async (file: File) => {
+    if ((form.title || form.condition) && !window.confirm(t("Заменить название, условие и ответ распознанными с фото?"))) return;
+    setRecognizing(true);
+    setSaveError(null);
+    setPhotoNote(null);
+    try {
+      const { drafts, notes } = await api.imports.parse(file);
+      const draft = drafts[0];
+      setForm({
+        ...form,
+        title: draft.title,
+        condition: draft.condition,
+        answer: draft.answer,
+        answer_type: draft.answer_type,
+        unit: draft.unit,
+        difficulty: draft.difficulty && draft.difficulty <= settings.difficulty_max ? draft.difficulty : form.difficulty,
+        source_number: draft.source_number ?? form.source_number,
+      });
+      const parts = [t("Задача распознана с фото — проверьте условие, формулы и ответ перед сохранением.")];
+      if (draft.answer_is_guess) parts.push(t("Ответа на фото не было — его предложил ИИ, обязательно проверьте."));
+      if (draft.duplicate) parts.push(t("Такая задача уже есть: «{0}» (№{1}, автор {2}).", [draft.duplicate.title, draft.duplicate.id, draft.duplicate.author_name]));
+      if (drafts.length > 1) parts.push(t("На фото задач: {0}. Заполнена первая — чтобы добавить все сразу, воспользуйтесь импортом.", [drafts.length]));
+      if (notes) parts.push(notes);
+      setPhotoNote({ tone: draft.answer_is_guess || draft.duplicate || drafts.length > 1 ? "warning" : "info", text: parts.join(" ") });
+    } catch (err) {
+      setSaveError(errorText(err));
+    } finally {
+      setRecognizing(false);
+      if (photoRef.current) photoRef.current.value = "";
+    }
+  };
 
   const preview = formatSource({
     source_type: sourceMode === "own" ? "own" : sourceMode === "source" && picked ? picked.type : null,
@@ -151,7 +189,26 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
       <form onSubmit={submit} className="space-y-6">
         {saveError && <ErrorMessage>{saveError}</ErrorMessage>}
         <Card className="space-y-5 p-6">
+          {aiEnabled && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary-soft/30 px-4 py-3">
+              <span className="text-2xl" aria-hidden>
+                📷
+              </span>
+              <p className="min-w-[14rem] flex-1 text-sm text-fg">{t("Сфотографируйте задачу из книги — ИИ заполнит название, условие с формулами и ответ.")}</p>
+              <input ref={photoRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && fillFromPhoto(e.target.files[0])} />
+              <Button type="button" variant="secondary" loading={recognizing} onClick={() => photoRef.current?.click()}>
+                {recognizing ? t("Распознаём…") : t("Заполнить с фото")}
+              </Button>
+            </div>
+          )}
+          {photoNote && (
+            <p className={cx("rounded-xl px-4 py-3 text-sm", photoNote.tone === "warning" ? "bg-warning-soft text-fg" : "bg-success-soft text-fg")}>
+              {photoNote.tone === "warning" ? "⚠️ " : "✓ "}
+              {photoNote.text}
+            </p>
+          )}
           <TranslatableFields
+            onUploadImage={api.imports.uploadImage}
             title={form.title}
             condition={form.condition}
             translations={form.translations}

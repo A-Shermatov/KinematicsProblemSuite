@@ -137,6 +137,11 @@ export const api = {
       return request<ImportParseResult>("/api/tasks/import/parse", { method: "POST", form });
     },
     commit: (data: ImportInput) => request<ImportResult>("/api/tasks/import/commit", { method: "POST", json: data }),
+    uploadImage: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return (await request<{ url: string }>("/api/tasks/import/image", { method: "POST", form })).url;
+    },
   },
 
   sources: {
