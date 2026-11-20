@@ -135,7 +135,12 @@ export function TaskPage() {
         <Card className="p-6 sm:p-8">
           <Markdown source={task.condition} empty="Условие не указано" className="text-[15px] text-fg" />
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-4 text-xs text-muted">
-            <span>Автор: {task.author_name}</span>
+            <span>
+              Автор:{" "}
+              <Link to={`/teachers/${task.author_id}`} className="text-primary hover:underline">
+                {task.author_name}
+              </Link>
+            </span>
             {formatSource(task) && (
               <span>
                 Источник: <span className="text-fg">{formatSource(task)}</span>

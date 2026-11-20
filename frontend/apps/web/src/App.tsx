@@ -10,6 +10,7 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { ManageTasks, TaskEditorPage } from "./pages/manage/ManageTasks";
 import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
+import { TeacherPage, TeacherSettings, Teachers } from "./pages/Teachers";
 
 setDocumentTitleSuffix("Kinematics");
 
@@ -34,6 +35,9 @@ export function AppRoutes() {
         <Route path="themes/:themeId" element={<ThemeTasks />} />
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="leaderboard" element={<Leaderboard />} />
+        <Route path="teachers" element={<Teachers />} />
+        <Route path="teachers/:teacherId" element={<TeacherPage />} />
+        <Route path="profile/teacher" element={<RequireAuth roles={["teacher"]}><TeacherSettings /></RequireAuth>} />
         <Route path="dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="profile" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="attempts" element={<RequireAuth><Attempts /></RequireAuth>} />

@@ -79,7 +79,7 @@ def test_certificates_need_admin_verification(client: ApiClient) -> None:
     assert client.get(f"/api/teachers/{tid}").json()["certificates"] == []
     assert len(client.get("/api/teachers/me", teacher).json()["certificates"]) == 2
 
-    pending = client.get("/api/admin/certificates", admin).json()
+    pending = client.get("/api/admin/certificates", admin, params={"status": "pending"}).json()
     assert {c["id"] for c in pending} == {pdf.json()["id"], png["id"]}
     assert client.get("/api/admin/certificates", teacher).status_code == 403
 

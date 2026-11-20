@@ -40,3 +40,13 @@ export function plural(n: number, forms: [string, string, string]): string {
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
   return forms[2];
 }
+
+export const certificateStatusMeta: Record<"pending" | "verified" | "rejected", { label: string; tone: "warning" | "success" | "danger" }> = {
+  pending: { label: "На проверке", tone: "warning" },
+  verified: { label: "Проверено", tone: "success" },
+  rejected: { label: "Отклонено", tone: "danger" },
+};
+
+export function formatRating(rating: number | null): string {
+  return rating === null ? "—" : rating.toFixed(1).replace(".", ",");
+}

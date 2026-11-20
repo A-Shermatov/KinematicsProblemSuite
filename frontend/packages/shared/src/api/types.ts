@@ -150,3 +150,70 @@ export interface LeaderboardRow {
   solved_tasks: number;
   points: number;
 }
+
+export type CertificateStatus = "pending" | "verified" | "rejected";
+
+export interface TeacherCard {
+  id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  headline: string;
+  experience_years: number | null;
+  subjects: string[];
+  rating: number | null;
+  reviews_count: number;
+  tasks_count: number;
+  verified_certificates: number;
+}
+
+export interface Certificate {
+  id: number;
+  teacher_id: number;
+  teacher_name: string;
+  title: string;
+  issuer: string;
+  year: number | null;
+  file_url: string;
+  is_pdf: boolean;
+  status: CertificateStatus;
+  reject_reason: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface Review {
+  id: number;
+  teacher_id: number;
+  teacher_name: string;
+  student_id: number;
+  student_username: string;
+  student_name: string;
+  student_avatar_url: string | null;
+  rating: number;
+  text: string;
+  reply: string;
+  replied_at: string | null;
+  is_hidden: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeacherProfile extends TeacherCard {
+  bio: string;
+  subject_ids: number[];
+  students_count: number;
+  attempts_count: number;
+  created_at: string;
+  rating_distribution: Record<string, number>;
+  certificates: Certificate[];
+  can_review: boolean;
+  my_review: Review | null;
+}
+
+export interface TeacherProfileInput {
+  headline: string;
+  bio: string;
+  experience_years: number | null;
+  subject_ids: number[];
+}

@@ -314,3 +314,39 @@ export function Modal({ open, onClose, children, title }: { open: boolean; onClo
     </div>
   );
 }
+
+// ---------- Рейтинг ----------
+
+export function Stars({ value, size = "md" }: { value: number | null; size?: "sm" | "md" | "lg" }) {
+  const rating = value ?? 0;
+  const text = { sm: "text-sm", md: "text-base", lg: "text-2xl" }[size];
+  return (
+    <span className={cx("inline-flex tracking-tight", text)} aria-label={value === null ? "Нет оценок" : `Рейтинг ${value.toFixed(1)} из 5`}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span key={star} className={star <= Math.round(rating) ? "text-amber-400" : "text-border"} aria-hidden>
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function StarInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="inline-flex text-3xl" role="radiogroup" aria-label="Оценка">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          role="radio"
+          aria-checked={value === star}
+          aria-label={`${star} из 5`}
+          onClick={() => onChange(star)}
+          className={cx("px-0.5 transition-transform hover:scale-110", star <= value ? "text-amber-400" : "text-border")}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}

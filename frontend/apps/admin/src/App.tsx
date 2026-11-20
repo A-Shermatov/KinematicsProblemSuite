@@ -4,6 +4,7 @@ import { AdminLayout, AdminLogin, RequireAdmin } from "./components/AdminLayout"
 import { Attempts } from "./pages/Attempts";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
+import { Certificates, Reviews } from "./pages/Moderation";
 import { TaskEdit, Tasks } from "./pages/Tasks";
 import { Users } from "./pages/Users";
 
@@ -26,6 +27,8 @@ export function AppRoutes() {
         <Route path="tasks" element={<Tasks />} />
         <Route path="tasks/:taskId/edit" element={<TaskEdit />} />
         <Route path="attempts" element={<Attempts />} />
+        <Route path="certificates" element={<Certificates />} />
+        <Route path="reviews" element={<Reviews />} />
         <Route path="*" element={<EmptyState icon="🔭" title="Раздел не найден" />} />
       </Route>
     </Routes>

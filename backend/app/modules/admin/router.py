@@ -159,7 +159,7 @@ async def list_attempts(
 @router.get("/certificates", response_model=list[CertificateOut])
 async def list_certificates(
     conn: Conn,
-    status_filter: Annotated[CertificateStatus | None, Query(alias="status")] = "pending",
+    status_filter: Annotated[CertificateStatus | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[CertificateOut]:
