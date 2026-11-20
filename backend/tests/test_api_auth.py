@@ -84,20 +84,20 @@ def test_blocked_user_loses_access(client: ApiClient) -> None:
     user = client.register("petya")
     tokens = client.login("petya")
     admin = client.admin_token()
-    assert client.patch(f"/api/users/{user['id']}/active", admin, json={"is_active": False}).status_code == 200
+    assert client.patch(f"/api/admin/users/{user['id']}/active", admin, json={"is_active": False}).status_code == 200
 
     assert client.get("/api/users/me", tokens["access_token"]).status_code == 401
     assert client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
     assert client.post("/api/auth/login", json={"username": "petya", "password": PASSWORD}).status_code == 403
 
-    assert client.patch(f"/api/users/{user['id']}/active", admin, json={"is_active": True}).status_code == 200
+    assert client.patch(f"/api/admin/users/{user['id']}/active", admin, json={"is_active": True}).status_code == 200
     client.login("petya")
 
 
 def test_only_admin_manages_users(client: ApiClient) -> None:
     student = client.student()
-    assert client.get("/api/users", student).status_code == 403
-    users = client.get("/api/users", client.admin_token(), params={"role": "student"})
+    assert client.get("/api/admin/users", student).status_code == 403
+    users = client.get("/api/admin/users", client.admin_token(), params={"role": "student"})
     assert users.status_code == 200
     assert [u["username"] for u in users.json()] == ["student"]
 
@@ -105,7 +105,7 @@ def test_only_admin_manages_users(client: ApiClient) -> None:
 def test_admin_cannot_block_himself(client: ApiClient) -> None:
     admin = client.admin_token()
     me = client.get("/api/users/me", admin).json()
-    assert client.patch(f"/api/users/{me['id']}/active", admin, json={"is_active": False}).status_code == 400
+    assert client.patch(f"/api/admin/users/{me['id']}/active", admin, json={"is_active": False}).status_code == 400
 
 
 def test_update_profile_and_password(client: ApiClient) -> None:
@@ -130,3 +130,24 @@ def test_update_profile_and_password(client: ApiClient) -> None:
     )
     assert response.status_code == 204
     client.login("petya2", "new-password-1")
+
+
+def test_admin_api_requires_admin(client: ApiClient) -> None:
+    teacher = client.teacher()
+    for method, url, body in [
+        ("GET", "/api/admin/stats", None),
+        ("GET", "/api/admin/users", None),
+        ("GET", "/api/admin/attempts", None),
+        ("POST", "/api/admin/subjects", {"title": "Химия"}),
+        ("PATCH", "/api/admin/users/1/role", {"role": "teacher"}),
+    ]:
+        assert client.request(method, url, teacher, json=body).status_code == 403, url
+        assert client.request(method, url, None, json=body).status_code == 401, url
+    assert client.get("/api/admin/stats", client.admin_token()).status_code == 200
+
+
+def test_public_structure_endpoints_are_read_only(client: ApiClient) -> None:
+    admin = client.admin_token()
+    # Изменение каталога переехало в /api/admin — старые адреса больше не принимают запись.
+    assert client.post("/api/subjects", admin, json={"title": "Химия"}).status_code == 405
+    assert client.post("/api/themes", admin, json={"subject_id": 1, "title": "X"}).status_code == 405

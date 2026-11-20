@@ -2,17 +2,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from app.deps import Admin, Conn, SettingsDep, User, not_found
+from app.deps import Conn, SettingsDep, User, not_found
 from app.modules.auth import queries as auth_q
 from app.modules.users import queries as q
 from app.modules.users.schemas import (
-    ActiveUpdate,
     PasswordChange,
     ProfileUpdate,
-    Role,
-    RoleUpdate,
     UserOut,
 )
 from app.security import hash_password, verify_password
@@ -68,45 +65,9 @@ async def delete_avatar(user: User, conn: Conn, settings: SettingsDep) -> UserOu
     return UserOut.from_row(row)
 
 
-@router.get("", response_model=list[UserOut])
-async def list_users(
-    _: Admin,
-    conn: Conn,
-    role: Role | None = None,
-    search: Annotated[str | None, Query(max_length=50)] = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[UserOut]:
-    rows = await conn.fetch(q.LIST, role, search or None, limit, offset)
-    return [UserOut.from_row(row) for row in rows]
-
-
 @router.get("/{user_id}", response_model=UserOut)
 async def get_user(user_id: int, _: User, conn: Conn) -> UserOut:
     row = await conn.fetchrow(q.GET_BY_ID, user_id)
-    if row is None:
-        raise not_found("Пользователь")
-    return UserOut.from_row(row)
-
-
-@router.patch("/{user_id}/active", response_model=UserOut)
-async def set_active(user_id: int, data: ActiveUpdate, admin: Admin, conn: Conn) -> UserOut:
-    if user_id == admin.id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Нельзя заблокировать самого себя")
-    async with conn.transaction():
-        row = await conn.fetchrow(q.SET_ACTIVE, user_id, data.is_active)
-        if row is None:
-            raise not_found("Пользователь")
-        if not data.is_active:
-            await conn.execute(auth_q.REVOKE_ALL_FOR_USER, user_id)
-    return UserOut.from_row(row)
-
-
-@router.patch("/{user_id}/role", response_model=UserOut)
-async def set_role(user_id: int, data: RoleUpdate, admin: Admin, conn: Conn) -> UserOut:
-    if user_id == admin.id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Нельзя изменить собственную роль")
-    row = await conn.fetchrow(q.SET_ROLE, user_id, data.role)
     if row is None:
         raise not_found("Пользователь")
     return UserOut.from_row(row)

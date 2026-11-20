@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings
 from app.db import apply_migrations, create_pool
+from app.modules.admin.router import router as admin_router
 from app.modules.auth import queries as auth_q
 from app.modules.auth.router import router as auth_router
 from app.modules.content.router import router as content_router
@@ -74,7 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     api = APIRouter(prefix="/api")
-    for router in (auth_router, users_router, content_router, solutions_router, stats_router):
+    for router in (auth_router, users_router, content_router, solutions_router, stats_router, admin_router):
         api.include_router(router)
 
     @api.get("/health", tags=["system"])

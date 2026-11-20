@@ -79,15 +79,9 @@ async def list_attempts(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[AttemptOut]:
-    """mine — мои решения; authored — решения моих задач (учитель); all — все (админ)."""
-    default_scope: Scope = "all" if user.is_admin else "authored" if user.is_teacher else "mine"
-    scope = scope or default_scope
-    allowed: dict[str, set[str]] = {
-        "student": {"mine"},
-        "teacher": {"mine", "authored"},
-        "admin": {"mine", "authored", "all"},
-    }
-    if scope not in allowed[user.role]:
+    """mine — мои решения; authored — решения моих задач. Все решения — в /api/admin/attempts."""
+    scope = scope or ("mine" if user.is_student else "authored")
+    if scope == "authored" and user.is_student:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
 
     student_id = user.id if scope == "mine" else None

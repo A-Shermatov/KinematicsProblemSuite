@@ -139,14 +139,14 @@ class ApiClient:
 
     def teacher(self, username: str = "teacher") -> str:
         user = self.register(username)
-        response = self.patch(f"/api/users/{user['id']}/role", self.admin_token(), json={"role": "teacher"})
+        response = self.patch(f"/api/admin/users/{user['id']}/role", self.admin_token(), json={"role": "teacher"})
         assert response.status_code == 200, response.text
         return self.login(username)["access_token"]
 
     def theme(self) -> dict:
         admin = self.admin_token()
-        subject = self.post("/api/subjects", admin, json={"title": "Физика"}).json()
-        response = self.post("/api/themes", admin, json={"subject_id": subject["id"], "title": "Кинематика"})
+        subject = self.post("/api/admin/subjects", admin, json={"title": "Физика"}).json()
+        response = self.post("/api/admin/themes", admin, json={"subject_id": subject["id"], "title": "Кинематика"})
         assert response.status_code == 201, response.text
         return response.json()
 
