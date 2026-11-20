@@ -239,3 +239,66 @@ GROUP BY u.id
 ORDER BY points DESC NULLS LAST, gold DESC, silver DESC, bronze DESC, u.id
 LIMIT $1
 """
+
+# ---------- Виртуальное участие ----------
+
+RUN_COLUMNS = "r.id, r.olympiad_id, r.user_id, r.started_at, r.ends_at, (now() < r.ends_at) AS active"
+
+GET_RUN = f"SELECT {RUN_COLUMNS} FROM olympiad_virtual_runs r WHERE r.olympiad_id = $1 AND r.user_id = $2"
+
+START_RUN = """
+INSERT INTO olympiad_virtual_runs (olympiad_id, user_id, ends_at)
+VALUES ($1, $2, now() + $3::interval)
+ON CONFLICT (olympiad_id, user_id) DO NOTHING
+RETURNING id
+"""
+
+FINISH_RUN = "UPDATE olympiad_virtual_runs SET ends_at = now() WHERE id = $1 AND ends_at > now() RETURNING id"
+
+UPSERT_VIRTUAL_SUBMISSION = """
+INSERT INTO olympiad_virtual_submissions (run_id, task_id, answer, correct, points)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (run_id, task_id) DO UPDATE
+SET answer = EXCLUDED.answer, correct = EXCLUDED.correct, points = EXCLUDED.points, submitted_at = now()
+"""
+
+RUN_SUBMISSIONS = """
+SELECT vs.task_id, t.title AS task_title, t.position AS task_position, t.max_points,
+       vs.answer, vs.correct, vs.points, vs.submitted_at, t.answer AS correct_answer, t.unit AS task_unit
+FROM olympiad_virtual_submissions vs
+JOIN olympiad_tasks t ON t.id = vs.task_id
+WHERE vs.run_id = $1
+ORDER BY t.position, t.id
+"""
+
+# Место, которое виртуальный участник занял бы среди официальных: 1 + число тех, кто набрал больше.
+_OFFICIAL_TOTALS = """
+official AS (
+    SELECT sb.user_id, sum(COALESCE(sb.jury_points, sb.auto_points)) AS total
+    FROM olympiad_submissions sb WHERE sb.olympiad_id = $1
+    GROUP BY sb.user_id
+)
+"""
+
+VIRTUAL_STANDINGS = f"""
+WITH {_OFFICIAL_TOTALS},
+virtual AS (
+    SELECT r.id AS run_id, r.user_id, r.started_at, COALESCE(sum(vs.points), 0)::int AS total
+    FROM olympiad_virtual_runs r
+    LEFT JOIN olympiad_virtual_submissions vs ON vs.run_id = r.id
+    WHERE r.olympiad_id = $1 AND r.ends_at <= now()
+    GROUP BY r.id
+)
+SELECT v.user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,
+       v.total, v.started_at,
+       (1 + (SELECT count(*) FROM official o WHERE o.total > v.total))::int AS would_place
+FROM virtual v
+JOIN users u ON u.id = v.user_id
+ORDER BY v.total DESC, v.started_at
+LIMIT 200
+"""
+
+WOULD_PLACE = f"""
+WITH {_OFFICIAL_TOTALS}
+SELECT (1 + count(*))::int FROM official WHERE total > $2
+"""
