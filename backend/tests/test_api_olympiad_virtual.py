@@ -42,9 +42,11 @@ def test_virtual_participation(client: ApiClient) -> None:
     assert run.status_code == 201, run.text
     run = run.json()
     assert run["active"] is True and run["max_score"] == 15
-    # Длительность — как у официальной олимпиады (3 часа в фикстуре).
+    # Длительность — как у официальной олимпиады.
+    official = client.get(f"/api/olympiads/{oid}").json()
     span = datetime.fromisoformat(run["ends_at"]) - datetime.fromisoformat(run["started_at"])
-    assert round(span.total_seconds() / 3600) == 3
+    official_span = datetime.fromisoformat(official["ends_at"]) - datetime.fromisoformat(official["starts_at"])
+    assert abs((span - official_span).total_seconds()) < 1
     assert client.post(f"/api/olympiads/{oid}/virtual", vali).status_code == 409
 
     # Во время участия ответы скрыты, результат тоже.
