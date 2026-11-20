@@ -777,3 +777,42 @@ export interface OlympiadAnnouncement {
   changes: AnnouncementChange[];
   created_at: string;
 }
+
+export type ArchiveSort = "new" | "old" | "difficulty_asc" | "difficulty_desc" | "solved_desc" | "solved_asc";
+
+/** Задача из архива олимпиад, прошедших на платформе. */
+export interface ArchiveProblem extends TaskSource {
+  id: number;
+  olympiad_id: number;
+  /** A, B, C… — буква задачи в своей олимпиаде. */
+  label: string;
+  title: string;
+  difficulty: number | null;
+  max_points: number;
+  olympiad_title: string;
+  starts_at: string;
+  ends_at: string;
+  subject_id: number | null;
+  subject_title: string | null;
+  level_id: number | null;
+  level_title: string | null;
+  /** Сколько участников отправили решение и сколько решили полностью. */
+  tried: number;
+  solved: number;
+  avg_percent: number | null;
+  /** Лучший результат зрителя: на олимпиаде или виртуально. */
+  my_best: number | null;
+}
+
+export type ArchiveQuery = {
+  subject_id?: number;
+  level_id?: number;
+  olympiad_id?: number;
+  difficulty_min?: number;
+  difficulty_max?: number;
+  q?: string;
+  progress?: "solved" | "unsolved" | "tried";
+  sort?: ArchiveSort;
+  limit?: number;
+  offset?: number;
+};

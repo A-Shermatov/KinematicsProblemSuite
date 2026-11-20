@@ -122,11 +122,16 @@ export function Olympiads() {
         title={t("Олимпиады")}
         subtitle={t("Решайте в общее время со всеми, прикладывайте фото решения — жюри проверит и выдаст дипломы призёрам. Прошедшие олимпиады можно решить виртуально.")}
         actions={
-          user?.role === "teacher" && (
-            <ButtonLink to="/manage/olympiads" variant="secondary">
-              {t("Мои олимпиады")}
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink to="/olympiads/problems" variant="secondary">
+              🗂 {t("Задачи олимпиад")}
             </ButtonLink>
-          )
+            {user?.role === "teacher" && (
+              <ButtonLink to="/manage/olympiads" variant="secondary">
+                {t("Мои олимпиады")}
+              </ButtonLink>
+            )}
+          </div>
         }
       />
       <div className="mb-6 flex flex-wrap items-center gap-3">

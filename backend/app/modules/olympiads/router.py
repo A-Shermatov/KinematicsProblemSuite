@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -106,6 +106,59 @@ async def list_olympiads(
 ) -> list[OlympiadOut]:
     rows = await conn.fetch(q.LIST_PUBLISHED, phase, viewer.id if viewer else None, level_id)
     return [OlympiadOut(**dict(row)) for row in rows]
+
+
+ArchiveSort = Literal["new", "old", "difficulty_asc", "difficulty_desc", "solved_desc", "solved_asc"]
+
+
+@router.get("/problems")
+async def problems_archive(
+    conn: Conn,
+    viewer: OptionalUser,
+    lang: RequestLang,
+    subject_id: int | None = None,
+    level_id: int | None = None,
+    olympiad_id: int | None = None,
+    difficulty_min: Annotated[int | None, Query(ge=0)] = None,
+    difficulty_max: Annotated[int | None, Query(ge=0)] = None,
+    q_: Annotated[str | None, Query(alias="q", max_length=100)] = None,
+    progress: Literal["solved", "unsolved", "tried"] | None = None,
+    sort: ArchiveSort = "new",
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict[str, Any]:
+    """Архив задач олимпиад, прошедших на платформе: фильтры, сортировки и статистика решаемости."""
+    search = " ".join(q_.split()) if q_ else None
+    rows = await conn.fetch(
+        q.ARCHIVE,
+        viewer.id if viewer else None,
+        subject_id,
+        level_id,
+        difficulty_min,
+        difficulty_max,
+        search or None,
+        progress if viewer else None,
+        sort,
+        limit,
+        offset,
+        olympiad_id,
+    )
+    items = []
+    for r in rows:
+        data = dict(r)
+        title = (_json(data.pop("translations")).get(lang) or {}).get("title") if lang != DEFAULT_LANG else None
+        best = max((p for p in (data["my_points"], data["my_virtual_points"]) if p is not None), default=None)
+        items.append(
+            {
+                **{k: v for k, v in data.items() if k not in ("total", "solved_ratio")},
+                "title": title or data["title"],
+                "label": _label(data["num"] - 1),
+                "source_author": data["source_author"] or "",
+                "source_type": data["source_type"] or ("own" if data["is_original"] else None),
+                "my_best": best,
+            }
+        )
+    return {"total": rows[0]["total"] if rows else 0, "items": items}
 
 
 @router.get("/levels", response_model=list[LevelOut])

@@ -371,3 +371,65 @@ WHERE id = $1
 RETURNING {LEVEL_COLUMNS}
 """
 DELETE_LEVEL = "DELETE FROM olympiad_levels WHERE id = $1 RETURNING id"
+
+# ---------- Архив задач олимпиад ----------
+
+# Задачи олимпиад, прошедших на платформе (итоги опубликованы). $1 зритель, $2 предмет, $3 уровень, $4 сложность от,
+# $5 сложность до, $6 поиск, $7 прогресс зрителя (solved|unsolved|tried|NULL), $8 сортировка, $9 limit, $10 offset,
+# $11 олимпиада.
+ARCHIVE = """
+WITH numbered AS (
+    SELECT ot.*, row_number() OVER (PARTITION BY ot.olympiad_id ORDER BY ot.position, ot.id)::int AS num
+    FROM olympiad_tasks ot
+),
+stats AS (
+    SELECT sb.task_id, count(*)::int AS tried,
+           count(*) FILTER (WHERE COALESCE(sb.jury_points, sb.auto_points) >= t.max_points)::int AS solved,
+           round(100.0 * avg(COALESCE(sb.jury_points, sb.auto_points)) / NULLIF(max(t.max_points), 0))::int
+               AS avg_percent
+    FROM olympiad_submissions sb
+    JOIN olympiad_tasks t ON t.id = sb.task_id
+    GROUP BY sb.task_id
+),
+rows AS (
+    SELECT t.id, t.olympiad_id, t.num, t.title, t.translations, t.difficulty, t.max_points, t.source_number,
+           t.is_original, src.type AS source_type, src.title AS source_title, src.year AS source_year,
+           src.author AS source_author,
+           o.title AS olympiad_title, o.starts_at, o.ends_at, o.subject_id, s.title AS subject_title,
+           o.level_id, lv.title AS level_title,
+           COALESCE(st.tried, 0) AS tried, COALESCE(st.solved, 0) AS solved, st.avg_percent,
+           CASE WHEN COALESCE(st.tried, 0) > 0 THEN st.solved::float / st.tried END AS solved_ratio,
+           (SELECT COALESCE(sb.jury_points, sb.auto_points) FROM olympiad_submissions sb
+            WHERE sb.task_id = t.id AND sb.user_id = $1) AS my_points,
+           (SELECT vs.points FROM olympiad_virtual_submissions vs
+            JOIN olympiad_virtual_runs r ON r.id = vs.run_id
+            WHERE vs.task_id = t.id AND r.user_id = $1 AND now() >= r.ends_at) AS my_virtual_points
+    FROM numbered t
+    JOIN olympiads o ON o.id = t.olympiad_id AND o.status = 'published' AND o.results_published
+    LEFT JOIN subjects s ON s.id = o.subject_id
+    LEFT JOIN olympiad_levels lv ON lv.id = o.level_id
+    LEFT JOIN sources src ON src.id = t.source_id
+    LEFT JOIN stats st ON st.task_id = t.id
+    WHERE ($2::bigint IS NULL OR o.subject_id = $2)
+      AND ($3::bigint IS NULL OR o.level_id = $3)
+      AND ($4::int IS NULL OR t.difficulty >= $4)
+      AND ($5::int IS NULL OR t.difficulty <= $5)
+      AND ($6::text IS NULL OR t.title ILIKE '%' || $6 || '%' OR o.title ILIKE '%' || $6 || '%'
+           OR t.condition ILIKE '%' || $6 || '%')
+      AND ($11::bigint IS NULL OR o.id = $11)
+)
+SELECT *, count(*) OVER ()::int AS total
+FROM rows r
+WHERE $7::text IS NULL
+   OR ($7 = 'solved' AND GREATEST(r.my_points, r.my_virtual_points) >= r.max_points)
+   OR ($7 = 'unsolved' AND COALESCE(GREATEST(r.my_points, r.my_virtual_points), 0) < r.max_points)
+   OR ($7 = 'tried' AND (r.my_points IS NOT NULL OR r.my_virtual_points IS NOT NULL))
+ORDER BY
+    CASE WHEN $8 = 'difficulty_asc' THEN r.difficulty END ASC NULLS LAST,
+    CASE WHEN $8 = 'difficulty_desc' THEN r.difficulty END DESC NULLS LAST,
+    CASE WHEN $8 = 'solved_desc' THEN r.solved_ratio END DESC NULLS LAST,
+    CASE WHEN $8 = 'solved_asc' THEN r.solved_ratio END ASC NULLS LAST,
+    CASE WHEN $8 = 'old' THEN r.ends_at END ASC,
+    r.ends_at DESC, r.olympiad_id DESC, r.num
+LIMIT $9 OFFSET $10
+"""

@@ -15,6 +15,8 @@ import type {
   DuplicateCheck,
   OlympiadStandings,
   OlympiadLevel,
+  ArchiveProblem,
+  ArchiveQuery,
   OlympiadLevelInput,
   OlympiadHistoryItem,
   OlympiadAnnouncement,
@@ -241,6 +243,7 @@ export const api = {
 
   olympiads: {
     list: (phase?: OlympiadPhase, levelId?: number) => request<Olympiad[]>("/api/olympiads", { query: { phase, level_id: levelId } }),
+    archive: (query: ArchiveQuery) => request<{ total: number; items: ArchiveProblem[] }>("/api/olympiads/problems", { query }),
     levels: () => request<OlympiadLevel[]>("/api/olympiads/levels", { auth: false }),
     finish: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/finish`, { method: "POST" }),
     mine: () => request<Olympiad[]>("/api/olympiads/mine"),

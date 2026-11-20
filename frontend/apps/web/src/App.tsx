@@ -9,6 +9,7 @@ import { Home } from "./pages/Home";
 import { Leaderboard } from "./pages/Leaderboard";
 import { ManageOlympiads, OlympiadEditor, OlympiadJury } from "./pages/manage/ManageOlympiads";
 import { ManageTasks, TaskEditorPage } from "./pages/manage/ManageTasks";
+import { OlympiadArchive } from "./pages/OlympiadArchive";
 import { DiplomaPage, OlympiadMySubmissions, OlympiadPage, OlympiadProblem, OlympiadProblems, OlympiadStandingsTab, Olympiads } from "./pages/Olympiads";
 import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
@@ -47,6 +48,7 @@ export function AppRoutes() {
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="olympiads" element={<Olympiads />} />
+        <Route path="olympiads/problems" element={<OlympiadArchive />} />
         <Route path="olympiads/:olympiadId" element={<OlympiadPage />}>
           <Route index element={<OlympiadProblems />} />
           <Route path="problems/:label" element={<OlympiadProblem />} />
