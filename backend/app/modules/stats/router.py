@@ -14,11 +14,9 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 
 @router.get("/me")
 async def my_stats(user: User, conn: Conn) -> dict[str, Any]:
-    """Сводка для личного кабинета. Набор полей зависит от роли."""
-    if user.is_admin:
-        return {"role": "admin", **dict(await conn.fetchrow(q.ADMIN_SUMMARY))}
-    if user.is_teacher:
-        return {"role": "teacher", **dict(await conn.fetchrow(q.TEACHER_SUMMARY, user.id))}
+    """Сводка для личного кабинета. Ученик — прогресс; учитель и админ — их задачи (сводка по платформе в /admin)."""
+    if not user.is_student:
+        return {"role": user.role, **dict(await conn.fetchrow(q.TEACHER_SUMMARY, user.id))}
     summary = dict(await conn.fetchrow(q.STUDENT_SUMMARY, user.id))
     by_theme = [dict(row) for row in await conn.fetch(q.STUDENT_BY_THEME, user.id)]
     return {"role": "student", **summary, "by_theme": by_theme}

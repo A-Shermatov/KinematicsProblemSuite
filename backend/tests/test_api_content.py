@@ -3,12 +3,12 @@ from tests.conftest import ApiClient
 
 def test_subjects_and_themes_crud(client: ApiClient) -> None:
     admin = client.admin_token()
-    subject = client.post("/api/subjects", admin, json={"title": "Химия", "position": 3})
+    subject = client.post("/api/admin/subjects", admin, json={"title": "Химия", "position": 3})
     assert subject.status_code == 201
     subject_id = subject.json()["id"]
-    assert client.post("/api/subjects", admin, json={"title": "химия"}).status_code == 409
+    assert client.post("/api/admin/subjects", admin, json={"title": "химия"}).status_code == 409
 
-    theme = client.post("/api/themes", admin, json={"subject_id": subject_id, "title": "Растворы"})
+    theme = client.post("/api/admin/themes", admin, json={"subject_id": subject_id, "title": "Растворы"})
     assert theme.status_code == 201
     assert theme.json()["subject_title"] == "Химия"
 
@@ -17,20 +17,20 @@ def test_subjects_and_themes_crud(client: ApiClient) -> None:
     assert client.get("/api/subjects").json()[0]["themes_count"] == 1
 
     # Предмет с темами удалить нельзя, сначала темы.
-    assert client.delete(f"/api/subjects/{subject_id}", admin).status_code == 409
-    assert client.delete(f"/api/themes/{theme.json()['id']}", admin).status_code == 204
-    assert client.delete(f"/api/subjects/{subject_id}", admin).status_code == 204
+    assert client.delete(f"/api/admin/subjects/{subject_id}", admin).status_code == 409
+    assert client.delete(f"/api/admin/themes/{theme.json()['id']}", admin).status_code == 204
+    assert client.delete(f"/api/admin/subjects/{subject_id}", admin).status_code == 204
     assert client.get(f"/api/subjects/{subject_id}").status_code == 404
 
 
 def test_only_admin_edits_structure(client: ApiClient) -> None:
     teacher = client.teacher()
-    assert client.post("/api/subjects", teacher, json={"title": "Химия"}).status_code == 403
-    assert client.post("/api/themes", teacher, json={"subject_id": 1, "title": "X"}).status_code == 403
+    assert client.post("/api/admin/subjects", teacher, json={"title": "Химия"}).status_code == 403
+    assert client.post("/api/admin/themes", teacher, json={"subject_id": 1, "title": "X"}).status_code == 403
 
 
 def test_theme_for_missing_subject(client: ApiClient) -> None:
-    response = client.post("/api/themes", client.admin_token(), json={"subject_id": 999, "title": "X"})
+    response = client.post("/api/admin/themes", client.admin_token(), json={"subject_id": 999, "title": "X"})
     assert response.status_code == 404
 
 
@@ -95,7 +95,7 @@ def test_task_validation(client: ApiClient) -> None:
 def test_theme_with_tasks_cannot_be_deleted(client: ApiClient) -> None:
     theme = client.theme()
     client.task(client.teacher(), theme["id"])
-    assert client.delete(f"/api/themes/{theme['id']}", client.admin_token()).status_code == 409
+    assert client.delete(f"/api/admin/themes/{theme['id']}", client.admin_token()).status_code == 409
 
 
 def test_task_source(client: ApiClient) -> None:

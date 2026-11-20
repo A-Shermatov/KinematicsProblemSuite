@@ -5,16 +5,14 @@ from typing import Annotated
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, not_found
+from app.deps import Conn, CurrentUser, OptionalUser, Staff, not_found
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
     SourceType,
-    SubjectIn,
     SubjectOut,
     TaskFull,
     TaskIn,
     TaskOut,
-    ThemeIn,
     ThemeOut,
 )
 
@@ -37,32 +35,6 @@ async def get_subject(subject_id: int, conn: Conn) -> SubjectOut:
     return SubjectOut(**dict(row))
 
 
-@router.post("/subjects", response_model=SubjectOut, status_code=status.HTTP_201_CREATED)
-async def create_subject(data: SubjectIn, _: Admin, conn: Conn) -> SubjectOut:
-    if await conn.fetchval(q.SUBJECT_TITLE_TAKEN, data.title, None):
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Предмет с таким названием уже есть")
-    row = await conn.fetchrow(q.INSERT_SUBJECT, data.title, data.description, data.position)
-    return SubjectOut(**dict(row))
-
-
-@router.put("/subjects/{subject_id}", response_model=SubjectOut)
-async def update_subject(subject_id: int, data: SubjectIn, _: Admin, conn: Conn) -> SubjectOut:
-    if await conn.fetchval(q.SUBJECT_TITLE_TAKEN, data.title, subject_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Предмет с таким названием уже есть")
-    row = await conn.fetchrow(q.UPDATE_SUBJECT, subject_id, data.title, data.description, data.position)
-    if row is None:
-        raise not_found("Предмет")
-    return SubjectOut(**dict(row))
-
-
-@router.delete("/subjects/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_subject(subject_id: int, _: Admin, conn: Conn) -> None:
-    if await conn.fetchval(q.DEACTIVATE_SUBJECT, subject_id) is None:
-        if await conn.fetchrow(q.GET_SUBJECT, subject_id) is None:
-            raise not_found("Предмет")
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Сначала удалите темы этого предмета")
-
-
 # ---------- Темы ----------
 
 
@@ -81,31 +53,6 @@ async def list_themes(conn: Conn, subject_id: int | None = None) -> list[ThemeOu
 @router.get("/themes/{theme_id}", response_model=ThemeOut)
 async def get_theme(theme_id: int, conn: Conn) -> ThemeOut:
     return await _theme_or_404(conn, theme_id)
-
-
-@router.post("/themes", response_model=ThemeOut, status_code=status.HTTP_201_CREATED)
-async def create_theme(data: ThemeIn, _: Admin, conn: Conn) -> ThemeOut:
-    theme_id = await conn.fetchval(q.INSERT_THEME, data.subject_id, data.title, data.description, data.position)
-    if theme_id is None:
-        raise not_found("Предмет")
-    return await _theme_or_404(conn, theme_id)
-
-
-@router.put("/themes/{theme_id}", response_model=ThemeOut)
-async def update_theme(theme_id: int, data: ThemeIn, _: Admin, conn: Conn) -> ThemeOut:
-    updated = await conn.fetchval(
-        q.UPDATE_THEME, theme_id, data.subject_id, data.title, data.description, data.position
-    )
-    if updated is None:
-        raise not_found("Тема или предмет")
-    return await _theme_or_404(conn, theme_id)
-
-
-@router.delete("/themes/{theme_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_theme(theme_id: int, _: Admin, conn: Conn) -> None:
-    if await conn.fetchval(q.DEACTIVATE_THEME, theme_id) is None:
-        await _theme_or_404(conn, theme_id)
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Сначала удалите задачи этой темы")
 
 
 # ---------- Задачи ----------

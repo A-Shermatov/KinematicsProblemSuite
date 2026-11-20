@@ -11,8 +11,12 @@ cp .env.example .env      # поменяйте пароли и SECRET_KEY
 docker compose up --build
 ```
 
-Откройте http://localhost:8080 и войдите под `ADMIN_USERNAME` / `ADMIN_PASSWORD` из `.env`.
-Учителей назначает администратор в разделе «Пользователи» — при регистрации все получают роль «ученик».
+- Сайт: http://localhost:8080
+- Админ-панель: http://localhost:8081 — вход под `ADMIN_USERNAME` / `ADMIN_PASSWORD` из `.env`.
+
+Учителей назначает администратор в админ-панели («Пользователи») — при регистрации все получают роль «ученик».
+
+Сайт и админ-панель — два отдельных приложения с отдельными Docker-образами. В продакшене выставляйте админку на свой домен (например `admin.example.tj`) и по возможности закрывайте по IP/VPN. Публичный nginx не пропускает запросы к `/api/admin/`.
 
 ## Разработка без Docker
 
@@ -29,10 +33,11 @@ export SECRET_KEY=dev-secret-key-dev-secret-key-dev-secret
 export ADMIN_USERNAME=admin ADMIN_PASSWORD=admin12345
 uvicorn app.main:app_factory --factory --reload      # http://localhost:8000/docs
 
-# 3. Фронтенд (Node 22)
+# 3. Фронтенд (Node 22): npm workspaces — сайт, админка и общий пакет
 cd frontend
 npm install
-npm run dev                                           # http://localhost:5173, /api проксируется на :8000
+npm run dev                                           # сайт: http://localhost:5173
+npm run dev:admin                                     # админка: http://localhost:5174
 ```
 
 Миграции из `backend/app/migrations/*.sql` применяются автоматически при старте бэкенда.
@@ -70,13 +75,16 @@ backend/
       solutions/       попытки, автопроверка (checker.py), оценки учителя
       stats/           личная статистика и рейтинг
   tests/               pytest: юнит-тесты + интеграционные через HTTP
-frontend/
-  src/
-    api/               типизированный клиент API с авто-refresh токена
-    auth/, theme/      контексты авторизации и светлой/тёмной темы
-    components/        UI-кит, layout, Markdown и редактор с предпросмотром
-    pages/             страницы приложения
+frontend/              npm workspaces
+  packages/shared/     общий код: API-клиент, авторизация, тема, UI-кит,
+                       Markdown-редактор, форма задачи, оценка решения
+  apps/web/            публичный сайт (ученики и учителя)
+  apps/admin/          админ-панель (только роль admin)
+  nginx/               конфиги nginx для web и admin
+  Dockerfile           --build-arg APP=web | admin
 ```
+
+Админские методы API собраны в модуле `admin` под префиксом `/api/admin` и доступны только роли `admin`.
 
 Каждый модуль бэкенда — это `queries.py` (только SQL-строки), `schemas.py` (Pydantic) и `router.py` (HTTP). Подробнее о решениях — в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), план развития — в [docs/ROADMAP.md](docs/ROADMAP.md).
 
