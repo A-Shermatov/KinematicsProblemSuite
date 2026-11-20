@@ -24,13 +24,21 @@ PASSWORD = "password-123"
 
 
 async def _reset_schema(dsn: str) -> None:
+    """Чистая схема + миграции один раз на сессию. Сид-данные миграций потом удаляет _truncate."""
     import asyncpg
+
+    from app.db import apply_migrations
 
     conn = await asyncpg.connect(dsn)
     try:
         await conn.execute("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
     finally:
         await conn.close()
+    pool = await asyncpg.create_pool(dsn, min_size=1, max_size=1)
+    try:
+        await apply_migrations(pool)
+    finally:
+        await pool.close()
 
 
 async def _truncate(dsn: str) -> None:

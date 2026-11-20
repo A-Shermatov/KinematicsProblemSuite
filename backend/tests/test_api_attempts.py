@@ -54,7 +54,7 @@ def test_who_can_submit(client: ApiClient) -> None:
     assert client.attempt(teacher, task["id"], "20").status_code == 403  # автор
     assert client.attempt(client.admin_token(), task["id"], "20").status_code == 403
     assert client.attempt(client.teacher("other"), task["id"], "20").status_code == 201  # чужой учитель может
-    assert client.attempt(client.student("s2"), 999, "20").status_code == 404
+    assert client.attempt(client.student("student2"), 999, "20").status_code == 404
     assert client.post("/api/attempts", data={"task_id": str(task["id"]), "answer": "20"}).status_code == 401
 
 
