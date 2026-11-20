@@ -113,6 +113,10 @@ LEFT JOIN sources src ON src.id = k.source_id
 
 # $1 theme_id, $2 subject_id, $3 author_id, $4 difficulty, $5 поиск, $6 id текущего пользователя (для отметки «решено»),
 # $7 limit, $8 offset, $9 тип источника, $10 id источника. NULL — без фильтра.
+_SOLVED_BY_VIEWER = """SELECT 1 FROM attempts a
+               WHERE a.task_id = k.id AND a.student_id = $6 AND a.status IN ('correct', 'graded')
+                 AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50"""
+
 LIST_TASKS = f"""
 SELECT {TASK_PUBLIC_COLUMNS},
        EXISTS (SELECT 1 FROM attempts a
@@ -128,6 +132,13 @@ WHERE k.is_active
        OR src.title ILIKE '%' || $5 || '%' OR k.translations::text ILIKE '%' || $5 || '%')
   AND ($9::text IS NULL OR COALESCE(src.type, CASE WHEN k.is_original THEN 'own' END) = $9)
   AND ($10::bigint IS NULL OR k.source_id = $10)
+  -- $11 прогресс ученика $6: solved — решённые, unsolved — пробовал, но не решил, new — ещё не пробовал.
+  AND ($11::text IS NULL OR CASE $11
+        WHEN 'solved' THEN EXISTS ({_SOLVED_BY_VIEWER})
+        WHEN 'unsolved' THEN EXISTS (SELECT 1 FROM attempts a WHERE a.task_id = k.id AND a.student_id = $6)
+                             AND NOT EXISTS ({_SOLVED_BY_VIEWER})
+        ELSE NOT EXISTS (SELECT 1 FROM attempts a WHERE a.task_id = k.id AND a.student_id = $6)
+      END)
 ORDER BY t.position, k.difficulty, k.id
 LIMIT $7 OFFSET $8
 """
@@ -250,4 +261,15 @@ WHERE k.id = $1 AND k.is_active
 OPEN_HINT = """
 INSERT INTO task_hint_opens (task_id, user_id, hint_index) VALUES ($1, $2, $3)
 ON CONFLICT DO NOTHING
+"""
+
+
+# Задачи по списку id (для подборок). $1 — массив id, $2 — ученик для отметки «решено».
+TASKS_BY_IDS = f"""
+SELECT {TASK_PUBLIC_COLUMNS},
+       EXISTS (SELECT 1 FROM attempts a
+               WHERE a.task_id = k.id AND a.student_id = $2 AND a.status IN ('correct', 'graded')
+                 AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50) AS solved
+{TASK_FROM}
+WHERE k.is_active AND k.id = ANY($1::bigint[])
 """

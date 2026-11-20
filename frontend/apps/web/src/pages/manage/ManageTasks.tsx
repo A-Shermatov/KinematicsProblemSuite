@@ -53,6 +53,9 @@ export function ManageTasks() {
         subtitle={t("Создавайте задачи с формулами и автопроверкой ответа")}
         actions={
           <>
+            <ButtonLink to="/manage/collections" variant="secondary">
+              🗂 {t("Подборки")}
+            </ButtonLink>
             <ButtonLink to="/manage/tasks/import" variant="secondary">
               📥 {t("Импорт")}
             </ButtonLink>

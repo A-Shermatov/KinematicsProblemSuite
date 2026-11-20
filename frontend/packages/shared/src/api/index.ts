@@ -13,6 +13,10 @@ import type {
   Source,
   SourceInput,
   DuplicateCheck,
+  Collection,
+  CollectionDetail,
+  CollectionInput,
+  TaskProgress,
   TaskHelp,
   ImportCapabilities,
   ImportInput,
@@ -118,6 +122,8 @@ export const api = {
         search?: string;
         source_type?: SourceType;
         source_id?: number;
+        progress?: TaskProgress;
+        limit?: number;
       } = {},
     ) =>
       request<Task[]>("/api/tasks", { query: { ...query, limit: 200 } }),
@@ -146,6 +152,14 @@ export const api = {
       form.append("file", file);
       return (await request<{ url: string }>("/api/tasks/import/image", { method: "POST", form })).url;
     },
+  },
+
+  collections: {
+    list: (query: { author_id?: number; search?: string; mine?: boolean } = {}) => request<Collection[]>("/api/collections", { query }),
+    get: (id: number) => request<CollectionDetail>(`/api/collections/${id}`),
+    create: (data: CollectionInput) => request<Collection>("/api/collections", { method: "POST", json: data }),
+    update: (id: number, data: CollectionInput) => request<Collection>(`/api/collections/${id}`, { method: "PUT", json: data }),
+    remove: (id: number) => request<void>(`/api/collections/${id}`, { method: "DELETE" }),
   },
 
   sources: {
