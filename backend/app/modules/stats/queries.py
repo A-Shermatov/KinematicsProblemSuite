@@ -89,7 +89,7 @@ LIMIT $1
 SCHOOL_LEADERBOARD = f"""
 WITH {_SOLVED_CTE}
 SELECT min(u.school) AS school, min(u.city) AS city,
-       count(*) AS students, sum(ps.solved_tasks) AS solved_tasks, sum(ps.points) AS points
+       count(*) AS students, sum(ps.solved_tasks)::bigint AS solved_tasks, sum(ps.points)::bigint AS points
 FROM per_student ps
 JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
 WHERE u.school IS NOT NULL AND ($4::text IS NULL OR lower(u.city) = lower($4))
@@ -101,7 +101,7 @@ LIMIT $1
 CITY_LEADERBOARD = f"""
 WITH {_SOLVED_CTE}
 SELECT min(u.city) AS city, count(*) AS students, count(DISTINCT lower(u.school)) AS schools,
-       sum(ps.solved_tasks) AS solved_tasks, sum(ps.points) AS points
+       sum(ps.solved_tasks)::bigint AS solved_tasks, sum(ps.points)::bigint AS points
 FROM per_student ps
 JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
 WHERE u.city IS NOT NULL
