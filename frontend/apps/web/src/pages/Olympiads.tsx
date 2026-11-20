@@ -439,7 +439,9 @@ export function OlympiadPage() {
     return index >= 0 ? taskLabel(index) : undefined;
   };
   const virtualActive = !!run?.active;
-  const canVirtual = !!user && olympiad.phase === "finished" && !olympiad.can_manage && !olympiad.is_registered && !run;
+  const canVirtual = !!user && olympiad.phase === "finished" && !olympiad.can_manage && !olympiad.is_jury && !olympiad.is_registered && !run;
+  // Участвовать могут ученики и учителя, кроме автора и жюри этой олимпиады.
+  const canParticipate = (user?.role === "student" || user?.role === "teacher") && !olympiad.can_manage && !olympiad.is_jury;
   const setRun = (next: VirtualRun) => {
     // Начало и конец виртуального участия меняют то, что видно на странице (ответы), — перезагружаем.
     if (next.active !== run?.active) reload();
@@ -501,7 +503,7 @@ export function OlympiadPage() {
       label: t("Разбор"),
       show: olympiad.can_manage || ((olympiad.phase === "checking" || olympiad.phase === "finished") && olympiad.has_editorial),
     },
-    { to: `${base}/jury`, label: t("Проверка"), show: olympiad.can_manage && olympiad.phase !== "upcoming" },
+    { to: `${base}/jury`, label: t("Проверка"), show: (olympiad.can_manage || olympiad.is_jury) && olympiad.phase !== "upcoming" },
   ].filter((tab) => tab.show);
 
   const context: OlympiadContext = {
@@ -523,6 +525,7 @@ export function OlympiadPage() {
               <Badge tone={phase.tone}>{phase.label}</Badge>
               {olympiad.subject_title && <Badge>{olympiad.subject_title}</Badge>}
               {olympiad.level_title && <LevelTag olympiad={olympiad} />}
+              {olympiad.is_jury && <Badge tone="primary">⚖️ {t("Вы в жюри")}</Badge>}
               {olympiad.is_registered && olympiad.is_official !== false && <Badge tone="primary">{t("✓ Вы участник")}</Badge>}
               {olympiad.is_registered && olympiad.is_official === false && (
                 <span title={t("Ваш рейтинг выше уровня олимпиады: решаете со всеми, но без места, диплома и изменения рейтинга")}>
@@ -551,7 +554,7 @@ export function OlympiadPage() {
                 {t("Завершить досрочно")}
               </Button>
             )}
-            {user?.role === "student" && (olympiad.phase === "upcoming" || (olympiad.phase === "running" && !olympiad.is_registered)) && (
+            {canParticipate && (olympiad.phase === "upcoming" || (olympiad.phase === "running" && !olympiad.is_registered)) && (
               <Button onClick={toggleRegistration} loading={busy} variant={olympiad.is_registered ? "secondary" : "primary"} size="lg">
                 {olympiad.is_registered ? t("Отменить участие") : t("Участвовать")}
               </Button>

@@ -35,7 +35,8 @@ LEFT JOIN olympiad_levels lv ON lv.id = o.level_id
 
 _VIEWER = """
 EXISTS (SELECT 1 FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_registered,
-(SELECT p.official FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_official
+(SELECT p.official FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_official,
+EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $2) AS is_jury
 """
 
 # $1 этап (NULL — все), $2 id зрителя, $3 уровень (NULL — все).
@@ -50,15 +51,17 @@ ORDER BY CASE WHEN x.ends_at > now() THEN x.starts_at END ASC NULLS LAST, x.star
 LIMIT 100
 """
 
+# Олимпиады учителя: свои и те, где он в жюри.
 LIST_BY_ORGANIZER = f"""
-SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official
+SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official,
+       EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $1) AS is_jury
 {_FROM}
-WHERE o.organizer_id = $1
+WHERE o.organizer_id = $1 OR EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $1)
 ORDER BY o.starts_at DESC
 """
 
 ADMIN_LIST = f"""
-SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official
+SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official, FALSE AS is_jury
 {_FROM}
 WHERE ($1::text IS NULL OR o.status = $1)
 ORDER BY CASE WHEN o.status = 'pending' THEN 0 ELSE 1 END, o.starts_at DESC
@@ -449,3 +452,15 @@ ORDER BY
     r.ends_at DESC, r.olympiad_id DESC, r.num
 LIMIT $9 OFFSET $10
 """
+
+# ---------- Состав жюри ----------
+
+JURY_MEMBERS = """
+SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, j.added_at
+FROM olympiad_jury j JOIN users u ON u.id = j.user_id
+WHERE j.olympiad_id = $1
+ORDER BY j.added_at
+"""
+FIND_TEACHER = "SELECT id, role FROM users WHERE lower(username) = lower($1) AND is_active"
+ADD_JURY = "INSERT INTO olympiad_jury (olympiad_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+REMOVE_JURY = "DELETE FROM olympiad_jury WHERE olympiad_id = $1 AND user_id = $2 RETURNING user_id"

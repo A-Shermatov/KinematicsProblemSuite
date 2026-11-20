@@ -408,6 +408,8 @@ export interface Olympiad {
   is_registered: boolean;
   /** Зритель зарегистрирован официально (true) или вне конкурса (false); null — не зарегистрирован. */
   is_official: boolean | null;
+  /** Зритель в жюри: проверяет решения, участвовать не может. */
+  is_jury: boolean;
   created_at: string;
 }
 
@@ -825,4 +827,12 @@ export interface OlympiadEditorial {
   available_at: string;
   text: string;
   tasks: { id: number; label: string; title: string; answer: string; unit: string | null; max_points: number; solution: string }[];
+}
+
+export interface JuryMember {
+  user_id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  added_at: string;
 }

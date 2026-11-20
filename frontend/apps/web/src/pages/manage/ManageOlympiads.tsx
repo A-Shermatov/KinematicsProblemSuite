@@ -34,6 +34,7 @@ import {
   type OlympiadTaskInput,
   t,
   levelRange,
+  Avatar,
   useAuth,
   SourcePicker,
   usePlatformSettings,
@@ -58,14 +59,18 @@ export function ManageOlympiads() {
           {data.map((olympiad) => {
             const status = olympiadStatusMeta[olympiad.status];
             return (
-              <Link key={olympiad.id} to={`/manage/olympiads/${olympiad.id}`} className="flex flex-wrap items-center gap-4 px-5 py-4 hover:bg-surface-2">
+              <Link
+                key={olympiad.id}
+                to={olympiad.is_jury ? `/olympiads/${olympiad.id}/jury` : `/manage/olympiads/${olympiad.id}`}
+                className="flex flex-wrap items-center gap-4 px-5 py-4 hover:bg-surface-2"
+              >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-fg">{olympiad.title}</p>
                   <p className="text-xs text-muted">
                     {formatRange(olympiad.starts_at, olympiad.ends_at)} · {olympiad.tasks_count}  {t("задач ·")} {olympiad.participants_count}  {t("участников")}
                   </p>
                 </div>
-                <Badge tone={status.tone}>{status.label}</Badge>
+                {olympiad.is_jury ? <Badge tone="primary">⚖️ {t("Вы в жюри")}</Badge> : <Badge tone={status.tone}>{status.label}</Badge>}
                 {olympiad.status === "published" && <Badge tone={olympiadPhaseMeta[olympiad.phase].tone}>{olympiadPhaseMeta[olympiad.phase].label}</Badge>}
               </Link>
             );
@@ -514,6 +519,8 @@ export function OlympiadEditor() {
         </section>
       )}
 
+      {olympiad && olympiad.phase !== "finished" && <JuryCard olympiadId={olympiad.id} />}
+
       {olympiad && editable && (
         <Card className="flex flex-wrap items-center gap-4 p-5">
           <p className="flex-1 text-sm text-muted">{t("Когда всё готово, отправьте олимпиаду администратору. После публикации задачи можно только исправлять — участники получат объявление.")}</p>
@@ -644,7 +651,9 @@ export function OlympiadJury({ embedded = false }: { embedded?: boolean }) {
   };
 
   const juryActions =
-    olympiad.phase === "checking" ? (
+    olympiad.phase === "checking" && !olympiad.can_manage ? (
+      <Badge tone="warning">{t("Итоги опубликует организатор")}</Badge>
+    ) : olympiad.phase === "checking" ? (
       <Button onClick={publish}>{t("Опубликовать итоги")}</Button>
     ) : locked ? (
       <ButtonLink to={`/olympiads/${olympiad.id}`} variant="secondary">
@@ -815,5 +824,65 @@ function AttemptsList({ olympiadId, userId, taskId, onZoom }: { olympiadId: numb
         </div>
       ))}
     </div>
+  );
+}
+
+/** Жюри олимпиады: организатор приглашает учителей по логину. Жюри проверяет решения, но не участвует. */
+function JuryCard({ olympiadId }: { olympiadId: number }) {
+  const { data, setData, error } = useAsync(() => api.olympiads.juryMembers(olympiadId), [olympiadId]);
+  const [username, setUsername] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      setData(await api.olympiads.addJury(olympiadId, username));
+      setUsername("");
+    } catch (err) {
+      setMessage(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (userId: number) => {
+    try {
+      await api.olympiads.removeJury(olympiadId, userId);
+      setData((prev) => prev!.filter((member) => member.user_id !== userId));
+    } catch (err) {
+      setMessage(errorText(err));
+    }
+  };
+  return (
+    <Card className="space-y-4 p-6">
+      <div>
+        <h2 className="font-semibold text-fg">⚖️ {t("Жюри")}</h2>
+        <p className="text-sm text-muted">{t("Учителя из жюри проверяют решения и делают объявления. Участвовать в этой олимпиаде они не могут — как и вы, автор.")}</p>
+      </div>
+      {(error || message) && <ErrorMessage>{error ?? message}</ErrorMessage>}
+      {data && data.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {data.map((member) => (
+            <span key={member.user_id} className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-2 py-1 pl-1 pr-2 text-sm">
+              <Avatar src={member.avatar_url} name={member.name || member.username} size={24} />
+              <span className="text-fg">{member.name || member.username}</span>
+              <span className="text-xs text-muted">@{member.username}</span>
+              <button onClick={() => remove(member.user_id)} className="text-muted hover:text-danger" aria-label={t("Убрать из жюри")}>
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <form onSubmit={add} className="flex flex-wrap items-end gap-2">
+        <div className="w-64">
+          <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={t("Логин учителя")} required aria-label={t("Логин учителя")} />
+        </div>
+        <Button type="submit" variant="secondary" loading={busy}>
+          {t("+ В жюри")}
+        </Button>
+      </form>
+    </Card>
   );
 }
