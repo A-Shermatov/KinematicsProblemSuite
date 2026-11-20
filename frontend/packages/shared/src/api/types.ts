@@ -667,3 +667,14 @@ export interface OlympiadStandings {
   tasks: { id: number; label: string; max_points: number }[];
   rows: StandingsRow[];
 }
+
+/** Одна отправка из «Мои отправки»; засчитывается последняя по задаче (current). */
+export interface OlympiadHistoryItem {
+  id: number;
+  task_id: number;
+  answer: string;
+  submitted_at: string;
+  current: boolean;
+  /** Вердикт автопроверки — только после публикации итогов. */
+  auto_correct: boolean | null;
+}

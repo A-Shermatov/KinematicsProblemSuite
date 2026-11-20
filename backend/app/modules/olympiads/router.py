@@ -178,6 +178,7 @@ async def submit(
     except Exception:
         delete_file(settings.upload_dir, path)
         raise
+    await conn.execute(q.INSERT_HISTORY, olympiad_id, task_id, student.id, answer, correct)
     delete_file(settings.upload_dir, old_image)
     saved = await conn.fetchrow(q.GET_SUBMISSION, submission_id, olympiad_id)
     return SubmissionOut.from_row(saved, reveal=False)
@@ -188,6 +189,25 @@ async def my_submissions(olympiad_id: int, user: User, conn: Conn) -> list[Submi
     row = await _get(conn, olympiad_id, user)
     rows = await conn.fetch(q.MY_SUBMISSIONS, olympiad_id, user.id)
     return [SubmissionOut.from_row(r, reveal=row["phase"] == "finished") for r in rows]
+
+
+@router.get("/{olympiad_id}/my-history")
+async def my_history(olympiad_id: int, user: User, conn: Conn) -> list[dict]:
+    """Все отправки участника, как «Мои посылки» на Codeforces. Вердикт автопроверки — только после итогов."""
+    row = await _get(conn, olympiad_id, user)
+    reveal = row["phase"] == "finished"
+    rows = await conn.fetch(q.MY_HISTORY, olympiad_id, user.id)
+    return [
+        {
+            "id": r["id"],
+            "task_id": r["task_id"],
+            "answer": r["answer"],
+            "submitted_at": r["submitted_at"],
+            "current": r["current"],
+            "auto_correct": r["auto_correct"] if reveal else None,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/{olympiad_id}/results")

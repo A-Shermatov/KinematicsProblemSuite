@@ -36,6 +36,10 @@ def test_live_standings(client: ApiClient) -> None:
     at_minute(client, "vali", 25)
     at_minute(client, "sami", 3)
 
+    # «Мои отправки»: обе попытки ali, засчитывается последняя; вердикт скрыт до итогов.
+    history = client.get(f"/api/olympiads/{oid}/my-history", students["ali"]).json()
+    assert [(h["answer"], h["current"], h["auto_correct"]) for h in history] == [("20", True, None), ("1", False, None)]
+
     live = client.get(url).json()
     assert live["phase"] == "running" and live["provisional"] is True
     assert [t["label"] for t in live["tasks"]] == ["A", "B"]
@@ -72,3 +76,5 @@ def test_live_standings(client: ApiClient) -> None:
         ("sami", 3, None),
     ]
     assert client.get(url).json()["provisional"] is False
+    history = client.get(f"/api/olympiads/{oid}/my-history", students["ali"]).json()
+    assert [(h["answer"], h["auto_correct"]) for h in history] == [("20", True), ("1", False)]

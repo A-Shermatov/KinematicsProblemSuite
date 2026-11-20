@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from "react-router-dom";
 import {
   APP_NAME,
   Avatar,
@@ -28,6 +28,8 @@ import {
   useNow,
   type Olympiad,
   type OlympiadDetail,
+  type OlympiadHistoryItem,
+  type OlympiadResults,
   type OlympiadPhase,
   type OlympiadSubmission,
   type OlympiadTask,
@@ -335,8 +337,27 @@ function VirtualStandings({ rows, maxScore, highlight }: { rows: VirtualStanding
   );
 }
 
+/** Буква задачи, как на Codeforces: A, B, C… */
+const taskLabel = (index: number) => String.fromCharCode(65 + index);
+
+interface OlympiadContext {
+  olympiad: OlympiadDetail;
+  submissions: OlympiadSubmission[];
+  results: OlympiadResults | null;
+  run: VirtualRun | null;
+  virtualRows: VirtualStandingRow[];
+  virtualActive: boolean;
+  setRun: (run: VirtualRun) => void;
+  saveSubmission: (submission: OlympiadSubmission) => void;
+  zoom: (url: string) => void;
+}
+
+const useOlympiad = () => useOutletContext<OlympiadContext>();
+
+/** Оболочка страницы олимпиады: шапка с таймером и вкладки «Задачи · Таблица · Мои отправки · Проверка». */
 export function OlympiadPage() {
   const olympiadId = Number(useParams().olympiadId);
+  const { pathname } = useLocation();
   const { user } = useAuth();
   const now = useNow(5000);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -356,9 +377,8 @@ export function OlympiadPage() {
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? t("Олимпиада не найдена")}</ErrorMessage>;
-  const { olympiad, submissions, results, run, virtualRows } = data;
+  const { olympiad, results, run } = data;
   const virtualActive = !!run?.active;
-  const virtualByTask = new Map(run?.submissions.map((s) => [s.task_id, s]));
   const canVirtual = !!user && olympiad.phase === "finished" && !olympiad.can_manage && !olympiad.is_registered && !run;
   const setRun = (next: VirtualRun) => {
     // Начало и конец виртуального участия меняют то, что видно на странице (ответы), — перезагружаем.
@@ -374,7 +394,6 @@ export function OlympiadPage() {
     }
   };
   const phase = olympiadPhaseMeta[olympiad.phase];
-  const byTask = new Map(submissions.map((s) => [s.task_id, s]));
   const myRow = results?.rows.find((row) => row.user_id === user?.id);
   // Этап мог смениться, пока страница открыта.
   const phaseChanged =
@@ -399,12 +418,28 @@ export function OlympiadPage() {
     }
   };
 
+  const base = `/olympiads/${olympiad.id}`;
+  const tabs = [
+    { to: base, label: t("Задачи"), end: true, show: true },
+    { to: `${base}/standings`, label: t("Таблица"), show: olympiad.phase !== "upcoming" },
+    { to: `${base}/submissions`, label: t("Мои отправки"), show: olympiad.is_registered || !!run },
+    { to: `${base}/jury`, label: t("Проверка"), show: olympiad.can_manage && olympiad.phase !== "upcoming" },
+  ].filter((tab) => tab.show);
+
+  const context: OlympiadContext = {
+    ...data,
+    virtualActive,
+    setRun,
+    saveSubmission: (saved) => setData((prev) => ({ ...prev!, submissions: [...prev!.submissions.filter((s) => s.task_id !== saved.task_id), saved] })),
+    zoom: setZoom,
+  };
+
   return (
-    <div className="space-y-8">
-      <Card className="relative overflow-hidden p-6 sm:p-8">
+    <div className="space-y-6">
+      <Card className="relative overflow-hidden p-5 sm:p-6">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" aria-hidden />
-        <div className="relative flex flex-wrap items-start gap-6">
-          <div className="min-w-0 flex-1 space-y-3">
+        <div className="relative flex flex-wrap items-center gap-6">
+          <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={phase.tone}>{phase.label}</Badge>
               {olympiad.subject_title && <Badge>{olympiad.subject_title}</Badge>}
@@ -417,13 +452,12 @@ export function OlympiadPage() {
               <Link to={`/teachers/${olympiad.organizer_id}`} className="text-primary hover:underline">
                 {olympiad.organizer_name}
               </Link>
-            </p>
-            <p className="text-sm text-muted">
+              {" · "}
               {olympiad.tasks_count} {plural(olympiad.tasks_count, ["задача", "задачи", "задач"])}  {t("· максимум")} {olympiad.max_score}  {t("баллов ·")}{" "}
               {olympiad.participants_count} {plural(olympiad.participants_count, ["участник", "участника", "участников"])}
             </p>
           </div>
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
             {olympiad.phase === "upcoming" && <Countdown to={olympiad.starts_at} label={t("До начала")} />}
             {olympiad.phase === "running" && <Countdown to={olympiad.ends_at} label={t("До конца")} />}
             {virtualActive && <Countdown to={run!.ends_at} label={t("Ваше время")} />}
@@ -438,7 +472,7 @@ export function OlympiadPage() {
               </Button>
             )}
             {!user && (
-              <ButtonLink to="/login" state={{ from: `/olympiads/${olympiad.id}` }} size="lg">
+              <ButtonLink to="/login" state={{ from: base }} size="lg">
                 {olympiad.phase === "finished" ? t("Войти, чтобы решить виртуально") : t("Войти, чтобы участвовать")}
               </ButtonLink>
             )}
@@ -462,24 +496,6 @@ export function OlympiadPage() {
         </Card>
       )}
 
-      {olympiad.description && (
-        <Card className="p-6">
-          <Markdown source={olympiad.description} />
-        </Card>
-      )}
-
-      {olympiad.phase === "upcoming" && (
-        <EmptyState icon="🔒" title={t("Условия откроются в момент начала")}>
-          {t("Зарегистрируйтесь заранее — в")} {formatDateTime(olympiad.starts_at)}  {t("задачи появятся на этой странице.")}
-        </EmptyState>
-      )}
-
-      {olympiad.phase === "checking" && (
-        <EmptyState icon="🧐" title={t("Олимпиада завершена, жюри проверяет решения")}>
-          {t("Итоги и дипломы появятся здесь после публикации.")}
-        </EmptyState>
-      )}
-
       {canVirtual && <VirtualStartCard olympiad={olympiad} onStarted={setRun} />}
       {run && !run.active && <VirtualResultCard run={run} />}
 
@@ -494,18 +510,234 @@ export function OlympiadPage() {
             </p>
             <p className="text-sm text-muted">{myRow.diploma ? DIPLOMA[myRow.diploma] : t("Сертификат участника")}</p>
           </div>
-          <ButtonLink to={`/olympiads/${olympiad.id}/diploma`}>{myRow.diploma ? t("Открыть диплом") : t("Сертификат участника")}</ButtonLink>
+          <ButtonLink to={`${base}/diploma`}>{myRow.diploma ? t("Открыть диплом") : t("Сертификат участника")}</ButtonLink>
         </Card>
       )}
 
-      {results && !virtualActive && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-fg">{t("Итоговая таблица")}</h2>
-          <OlympiadStandingsTable olympiadId={olympiad.id} live={false} highlight={user?.id} />
-        </section>
-      )}
+      <nav className="flex gap-1 overflow-x-auto border-b border-border" aria-label={t("Разделы олимпиады")}>
+        {tabs.map((tab) => (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            end={tab.end}
+            className={({ isActive }: { isActive: boolean }) =>
+              cx(
+                "whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+                isActive || (tab.end && pathname.startsWith(`${base}/problems/`)) ? "border-primary text-primary" : "border-transparent text-muted hover:text-fg",
+              )
+            }
+          >
+            {tab.label}
+          </NavLink>
+        ))}
+      </nav>
 
-      {virtualRows.length > 0 && !virtualActive && (
+      <Outlet context={context} />
+
+      <Modal open={!!zoom} onClose={() => setZoom(null)} title={t("Фото решения")}>
+        {zoom && <img src={zoom} alt={t("Фото решения")} className="max-h-[80vh] rounded-lg object-contain" />}
+      </Modal>
+    </div>
+  );
+}
+
+/** Статус задачи для участника — колонка «Моё» в списке задач. */
+function MyTaskStatus({ task }: { task: OlympiadTask }) {
+  const { olympiad, submissions, run, virtualActive } = useOlympiad();
+  const submission = submissions.find((s) => s.task_id === task.id);
+  const virtual = run?.submissions.find((s) => s.task_id === task.id);
+  if (virtual) {
+    if (virtualActive) return <Badge>{t("ответ сохранён")}</Badge>;
+    return <Badge tone={virtual.correct ? "success" : "danger"}>{virtual.points} / {task.max_points}</Badge>;
+  }
+  if (!submission) return <span className="text-muted">—</span>;
+  if (olympiad.phase === "finished") {
+    return (
+      <Badge tone={submission.points === task.max_points ? "success" : submission.points > 0 ? "warning" : "danger"}>
+        {submission.points} / {task.max_points}
+      </Badge>
+    );
+  }
+  if (olympiad.phase === "checking") return <Badge tone="warning">{t("ждёт проверки")}</Badge>;
+  return <Badge tone="primary">{t("✓ отправлено")}</Badge>;
+}
+
+/** Вкладка «Задачи»: список A, B, C… со счётчиком решивших. */
+export function OlympiadProblems() {
+  const { olympiad, virtualActive } = useOlympiad();
+  const showSolved = olympiad.phase !== "upcoming" && !virtualActive;
+  const { data: standings } = useAsync(
+    () => (showSolved ? api.olympiads.standings(olympiad.id) : Promise.resolve(null)),
+    [olympiad.id, showSolved],
+  );
+  const solved = (taskId: number) => standings?.rows.filter((row) => (row.cells[String(taskId)]?.points ?? 0) > 0).length ?? 0;
+
+  return (
+    <div className="space-y-6">
+      {olympiad.description && (
+        <Card className="p-6">
+          <Markdown source={olympiad.description} />
+        </Card>
+      )}
+      {olympiad.phase === "upcoming" && (
+        <EmptyState icon="🔒" title={t("Условия откроются в момент начала")}>
+          {t("Зарегистрируйтесь заранее — в")} {formatDateTime(olympiad.starts_at)}  {t("задачи появятся на этой странице.")}
+        </EmptyState>
+      )}
+      {olympiad.phase === "checking" && (
+        <Card className="border-warning/40 p-4 text-sm text-fg">
+          🧐 {t("Олимпиада завершена, жюри проверяет решения")}. {t("Итоги и дипломы появятся здесь после публикации.")}
+        </Card>
+      )}
+      {olympiad.tasks.length > 0 && (
+        <Card className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="w-14 px-4 py-3 font-medium">#</th>
+                <th className="px-4 py-3 font-medium">{t("Название")}</th>
+                <th className="px-4 py-3 text-right font-medium">{t("Баллы")}</th>
+                {showSolved && <th className="px-4 py-3 text-right font-medium">{t("Решили")}</th>}
+                <th className="px-4 py-3 text-right font-medium">{t("Моё")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {olympiad.tasks.map((task, index) => (
+                <tr key={task.id} className="hover:bg-surface-2/60">
+                  <td className="px-4 py-3">
+                    <Link to={`/olympiads/${olympiad.id}/problems/${taskLabel(index)}`} className="text-base font-bold text-primary">
+                      {taskLabel(index)}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link to={`/olympiads/${olympiad.id}/problems/${taskLabel(index)}`} className="font-medium text-fg hover:text-primary">
+                      {task.title}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-muted">{task.max_points}</td>
+                  {showSolved && (
+                    <td className="px-4 py-3 text-right tabular-nums text-fg">
+                      <Link to={`/olympiads/${olympiad.id}/standings`} className="hover:text-primary" title={t("Сколько участников получили баллы")}>
+                        👤 ×{solved(task.id)}
+                      </Link>
+                    </td>
+                  )}
+                  <td className="px-4 py-3 text-right">
+                    <MyTaskStatus task={task} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/** Отдельная задача: /olympiads/:id/problems/A — условие и отправка. */
+export function OlympiadProblem() {
+  const { label = "" } = useParams();
+  const { olympiad, submissions, run, virtualActive, setRun, saveSubmission, zoom } = useOlympiad();
+  const index = label.toUpperCase().charCodeAt(0) - 65;
+  const task = olympiad.tasks[index];
+  if (!task) return <EmptyState icon="🔍" title={t("Задача не найдена")} />;
+  const submission = submissions.find((s) => s.task_id === task.id);
+  const virtual = run?.submissions.find((s) => s.task_id === task.id);
+  const base = `/olympiads/${olympiad.id}/problems`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {olympiad.tasks.map((other, i) => (
+          <Link
+            key={other.id}
+            to={`${base}/${taskLabel(i)}`}
+            className={cx(
+              "flex h-9 w-9 items-center justify-center rounded-lg text-sm font-bold transition-colors",
+              i === index ? "bg-primary text-primary-fg" : "bg-surface-2 text-muted hover:text-fg",
+            )}
+            title={other.title}
+          >
+            {taskLabel(i)}
+          </Link>
+        ))}
+      </div>
+      <Card className="space-y-4 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-fg">
+            {taskLabel(index)}. {task.title}
+          </h2>
+          <Badge>{task.max_points}  {t("баллов")}</Badge>
+        </div>
+        <UntranslatedNote lang={task.lang} />
+        <Markdown source={task.condition} />
+        {olympiad.phase === "running" && olympiad.is_registered && (
+          <SubmitForm olympiadId={olympiad.id} task={task} submission={submission} onSaved={saveSubmission} />
+        )}
+        {virtualActive && <VirtualAnswerForm olympiadId={olympiad.id} task={task} saved={virtual?.answer} onSaved={setRun} />}
+        {olympiad.phase === "finished" && !virtualActive && (
+          <div className="space-y-2 border-t border-border pt-4 text-sm">
+            {task.answer && (
+              <p className="text-muted">
+                {t("Ответ:")} <span className="font-mono text-fg">{task.answer}{task.unit ? ` ${task.unit}` : ""}</span>
+              </p>
+            )}
+            {submission && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={submission.points === task.max_points ? "success" : submission.points > 0 ? "warning" : "danger"}>
+                  {submission.points} / {task.max_points}
+                </Badge>
+                <span className="font-mono text-fg">{submission.answer || "—"}</span>
+                <button className="text-xs text-primary hover:underline" onClick={() => zoom(submission.image_url)}>
+                  {t("моё фото")}
+                </button>
+                {submission.jury_comment && <span className="text-muted">{t("Жюри: «")}{submission.jury_comment}»</span>}
+              </div>
+            )}
+            {virtual && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={virtual.correct ? "success" : "danger"}>
+                  {virtual.points} / {task.max_points}
+                </Badge>
+                <span className="font-mono text-fg">{virtual.answer}</span>
+                <span className="text-xs text-muted">{t("виртуально")}</span>
+              </div>
+            )}
+          </div>
+        )}
+        {olympiad.phase === "checking" && submission && (
+          <p className="border-t border-border pt-4 text-sm text-muted">{t("✓ Решение отправлено, ждёт проверки жюри")}</p>
+        )}
+      </Card>
+      <div className="flex justify-between">
+        {index > 0 ? (
+          <ButtonLink to={`${base}/${taskLabel(index - 1)}`} variant="ghost">
+            ← {taskLabel(index - 1)}
+          </ButtonLink>
+        ) : (
+          <span />
+        )}
+        {index < olympiad.tasks.length - 1 && (
+          <ButtonLink to={`${base}/${taskLabel(index + 1)}`} variant="ghost">
+            {taskLabel(index + 1)} →
+          </ButtonLink>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Вкладка «Таблица»: живая во время олимпиады, итоговая после, плюс виртуальные участники. */
+export function OlympiadStandingsTab() {
+  const { olympiad, virtualRows, virtualActive } = useOlympiad();
+  const { user } = useAuth();
+  if (olympiad.phase === "upcoming") return <EmptyState icon="🔒" title={t("Таблица появится после начала")} />;
+  if (virtualActive) return <EmptyState icon="⏱" title={t("Таблица скрыта, пока идёт ваше виртуальное участие")} />;
+  return (
+    <div className="space-y-6">
+      <OlympiadStandingsTable olympiadId={olympiad.id} live={olympiad.phase !== "finished"} highlight={user?.id} />
+      {virtualRows.length > 0 && (
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold text-fg">{t("Виртуальные участники")}</h2>
@@ -514,82 +746,121 @@ export function OlympiadPage() {
           <VirtualStandings rows={virtualRows} maxScore={olympiad.max_score} highlight={user?.id} />
         </section>
       )}
+    </div>
+  );
+}
 
-      {olympiad.tasks.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-fg">{t("Задачи")}</h2>
-          {olympiad.tasks.map((task, index) => {
-            const submission = byTask.get(task.id);
-            return (
-              <Card key={task.id} className="space-y-4 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-semibold text-fg">
-                    {index + 1}. {task.title}
-                  </h3>
-                  <Badge>{task.max_points}  {t("баллов")}</Badge>
-                </div>
-                <UntranslatedNote lang={task.lang} />
-                <Markdown source={task.condition} />
-                {olympiad.phase === "running" && olympiad.is_registered && (
-                  <SubmitForm
-                    olympiadId={olympiad.id}
-                    task={task}
-                    submission={submission}
-                    onSaved={(saved) => setData((prev) => ({ ...prev!, submissions: [...prev!.submissions.filter((s) => s.task_id !== saved.task_id), saved] }))}
-                  />
-                )}
-                {virtualActive && (
-                  <VirtualAnswerForm olympiadId={olympiad.id} task={task} saved={virtualByTask.get(task.id)?.answer} onSaved={setRun} />
-                )}
-                {olympiad.phase === "finished" && !virtualActive && (
-                  <div className="space-y-2 border-t border-border pt-4 text-sm">
-                    {task.answer && (
-                      <p className="text-muted">
-                        {t("Ответ:")} <span className="font-mono text-fg">{task.answer}{task.unit ? ` ${task.unit}` : ""}</span>
-                      </p>
-                    )}
-                    {submission && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={submission.points === task.max_points ? "success" : submission.points > 0 ? "warning" : "danger"}>
-                          {submission.points} / {task.max_points}
-                        </Badge>
-                        <span className="font-mono text-fg">{submission.answer || "—"}</span>
-                        <button className="text-xs text-primary hover:underline" onClick={() => setZoom(submission.image_url)}>
-                          {t("моё фото")}
+/** Вкладка «Мои отправки» — все попытки, как «Мои посылки» на Codeforces. */
+export function OlympiadMySubmissions() {
+  const { olympiad, submissions, run, zoom } = useOlympiad();
+  const { data, error, loading } = useAsync(
+    () => (olympiad.is_registered ? api.olympiads.myHistory(olympiad.id) : Promise.resolve([])),
+    [olympiad.id, olympiad.is_registered, submissions.length, submissions.map((s) => s.submitted_at).join()],
+  );
+  if (loading && !data) return <Loading />;
+  if (error) return <ErrorMessage>{error}</ErrorMessage>;
+  const labelOf = new Map(olympiad.tasks.map((task, index) => [task.id, { label: taskLabel(index), task }]));
+  const start = new Date(olympiad.starts_at).getTime();
+  const finished = olympiad.phase === "finished";
+
+  const verdict = (item: OlympiadHistoryItem) => {
+    const max = labelOf.get(item.task_id)?.task.max_points ?? 0;
+    if (!item.current) {
+      return finished && item.auto_correct !== null ? (
+        <span className={item.auto_correct ? "text-success" : "text-danger"}>{item.auto_correct ? t("верно") : t("неверно")} · {t("заменено")}</span>
+      ) : (
+        <span className="text-muted">{t("заменено следующей отправкой")}</span>
+      );
+    }
+    const current = submissions.find((s) => s.task_id === item.task_id);
+    if (finished && current) {
+      return (
+        <Badge tone={current.points === max ? "success" : current.points > 0 ? "warning" : "danger"}>
+          {current.points} / {max}
+        </Badge>
+      );
+    }
+    if (current?.jury_points !== null && current?.jury_points !== undefined) return <Badge tone="success">{t("проверено жюри")}</Badge>;
+    return <Badge tone="primary">{olympiad.phase === "running" ? t("засчитывается") : t("ждёт проверки")}</Badge>;
+  };
+
+  return (
+    <div className="space-y-6">
+      {data && data.length > 0 ? (
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3 font-medium">{t("Когда")}</th>
+                <th className="px-4 py-3 font-medium">{t("Задача")}</th>
+                <th className="px-4 py-3 font-medium">{t("Ответ")}</th>
+                <th className="px-4 py-3 font-medium">{t("Вердикт")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {data.map((item) => {
+                const meta = labelOf.get(item.task_id);
+                const current = item.current ? submissions.find((s) => s.task_id === item.task_id) : undefined;
+                const minute = Math.max(0, Math.floor((new Date(item.submitted_at).getTime() - start) / 60000));
+                return (
+                  <tr key={item.id} className={cx(!item.current && "opacity-70")}>
+                    <td className="px-4 py-3 tabular-nums">
+                      <span className="font-medium text-fg">{Math.floor(minute / 60)}:{String(minute % 60).padStart(2, "0")}</span>
+                      <span className="ml-2 text-xs text-muted">{formatDateTime(item.submitted_at)}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {meta && (
+                        <Link to={`/olympiads/${olympiad.id}/problems/${meta.label}`} className="text-fg hover:text-primary">
+                          <b>{meta.label}</b>. {meta.task.title}
+                        </Link>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-fg">{item.answer || "—"}</span>
+                      {current && (
+                        <button className="ml-2 text-xs text-primary hover:underline" onClick={() => zoom(current.image_url)}>
+                          {t("фото")}
                         </button>
-                        {submission.jury_comment && <span className="text-muted">{t("Жюри: «")}{submission.jury_comment}»</span>}
-                      </div>
-                    )}
-                    {virtualByTask.has(task.id) && (
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={virtualByTask.get(task.id)!.correct ? "success" : "danger"}>
-                          {virtualByTask.get(task.id)!.points} / {task.max_points}
-                        </Badge>
-                        <span className="font-mono text-fg">{virtualByTask.get(task.id)!.answer}</span>
-                        <span className="text-xs text-muted">{t("виртуально")}</span>
+                        {verdict(item)}
+                        {current?.jury_comment && <span className="text-xs text-muted">{t("Жюри: «")}{current.jury_comment}»</span>}
                       </div>
-                    )}
-                  </div>
-                )}
-                {olympiad.phase === "checking" && submission && (
-                  <p className="border-t border-border pt-4 text-sm text-muted">{t("✓ Решение отправлено, ждёт проверки жюри")}</p>
-                )}
-              </Card>
-            );
-          })}
-        </section>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      ) : (
+        olympiad.is_registered && <EmptyState icon="📭" title={t("Вы ещё ничего не отправили")} />
       )}
-
-      {(olympiad.phase === "running" || olympiad.phase === "checking") && (
+      {run && run.submissions.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-fg">{olympiad.phase === "running" ? t("Таблица в реальном времени") : t("Таблица (идёт проверка жюри)")}</h2>
-          <OlympiadStandingsTable olympiadId={olympiad.id} live highlight={user?.id} />
+          <h2 className="text-lg font-semibold text-fg">{t("Виртуальное участие")}</h2>
+          <Card className="divide-y divide-border">
+            {run.submissions.map((s) => {
+              const meta = labelOf.get(s.task_id);
+              return (
+                <div key={s.task_id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                  <span className="text-fg">
+                    <b>{meta?.label}</b>. {meta?.task.title}
+                  </span>
+                  <span className="font-mono text-fg">{s.answer}</span>
+                  {!run.active && (
+                    <Badge tone={s.correct ? "success" : "danger"}>
+                      {s.points} / {meta?.task.max_points}
+                    </Badge>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
         </section>
       )}
-
-      <Modal open={!!zoom} onClose={() => setZoom(null)} title={t("Фото решения")}>
-        {zoom && <img src={zoom} alt={t("Фото решения")} className="max-h-[80vh] rounded-lg object-contain" />}
-      </Modal>
     </div>
   );
 }
