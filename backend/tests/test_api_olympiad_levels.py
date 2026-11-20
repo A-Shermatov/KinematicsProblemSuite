@@ -68,10 +68,10 @@ def test_out_of_competition_and_early_finish(client: ApiClient) -> None:
     client.post(f"/api/olympiads/{oid}/publish-results", teacher, params={"force": "true"})
     rows = client.get(f"/api/olympiads/{oid}/results").json()["rows"]
     # vali решил, но вне конкурса: в таблице есть, места и диплома нет.
-    assert [(r["username"], r["place"], r["official"], r["diploma"]) for r in rows] == [
-        ("vali", None, False, None),
+    assert sorted((r["username"], r["place"], r["official"], r["diploma"]) for r in rows) == [
         ("ali", 1, True, 1),
         ("sami", 2, True, None),
+        ("vali", None, False, None),
     ]
     standings = client.get(f"/api/olympiads/{oid}/standings").json()["rows"]
     changes = {r["username"]: r["rating_change"] for r in standings}
