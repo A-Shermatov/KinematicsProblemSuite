@@ -232,3 +232,67 @@ def validate_expected_answer(answer: str, answer_type: str, unit: str | None) ->
             parse_unit(effective_unit)
         except UnitError as exc:
             raise ValueError(f"Неизвестные единицы «{effective_unit}»") from exc
+
+
+# ---------- Подсказки к неверному ответу ----------
+
+
+def _comparable(student: str, expected: str, unit: str | None) -> tuple[float, float] | None:
+    """Значения ответа ученика и эталона в одних единицах — или None, если сравнить нельзя."""
+    try:
+        student_q = parse_quantity(student)
+        expected_q = parse_quantity(expected)
+    except ValueError:
+        return None
+    try:
+        if student_q.unit and (expected_q.unit or unit):
+            student_si, student_dims = _to_si(student_q, None)
+            expected_si, expected_dims = _to_si(expected_q, unit)
+            if student_dims != expected_dims:
+                return None
+            return student_si, expected_si
+    except UnitError:
+        return None
+    return student_q.value, expected_q.value
+
+
+def _close(a: float, b: float, rel: float = 0.01) -> bool:
+    return math.isclose(a, b, rel_tol=rel)
+
+
+def mistake_hint(
+    student: str,
+    *,
+    expected: str,
+    answer_type: str,
+    unit: str | None,
+    tolerance: float,
+    mistakes: list[dict[str, str]],
+) -> str | None:
+    """Пояснение к неверному ответу: сначала частые ошибки, которые указал учитель, затем типичные промахи."""
+    for mistake in mistakes:
+        if check_answer(
+            student, expected=mistake["answer"], answer_type=answer_type, unit=unit, tolerance=tolerance
+        ).correct:
+            return mistake["message"]
+    if answer_type != "number":
+        return None
+    values = _comparable(student, expected, unit)
+    if values is None:
+        return None
+    given, right = values
+    if right == 0 or given == 0:
+        return None
+    ratio = given / right
+    if _close(ratio, -1):
+        return "Проверьте знак ответа"
+    if _close(ratio, 3.6) or _close(ratio, 1 / 3.6):
+        return "Похоже, перепутаны км/ч и м/с (1 м/с = 3,6 км/ч)"
+    if _close(ratio, 2) or _close(ratio, 0.5):
+        return "Ответ отличается ровно в 2 раза — проверьте формулу (например, множитель ½)"
+    if _close(ratio, 9.8 / 10, 0.003) or _close(ratio, 10 / 9.8, 0.003) or _close(ratio, 9.81 / 10, 0.003):
+        return "Ответ очень близок — проверьте, какое значение g нужно взять (9,8 или 10 м/с²)"
+    exponent = round(math.log10(abs(ratio)))
+    if exponent != 0 and abs(exponent) <= 9 and _close(abs(ratio), 10.0**exponent):
+        return "Порядок величины не тот — проверьте перевод единиц (степени десяти: км → м, г → кг, см² → м²…)"
+    return None

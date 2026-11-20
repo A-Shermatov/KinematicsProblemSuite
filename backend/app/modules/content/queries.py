@@ -142,15 +142,15 @@ WHERE k.id = $1 AND k.is_active
 """
 
 GET_TASK_FULL = f"""
-SELECT {TASK_PUBLIC_COLUMNS}, k.answer, k.tolerance, FALSE AS solved
+SELECT {TASK_PUBLIC_COLUMNS}, k.answer, k.tolerance, FALSE AS solved, k.hints, k.explanation, k.mistakes
 {TASK_FROM}
 WHERE k.id = $1 AND k.is_active
 """
 
 INSERT_TASK = """
 INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit, tolerance,
-                   source_id, source_number, is_original, translations)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)
+                   source_id, source_number, is_original, translations, hints, explanation, mistakes)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb)
 RETURNING id
 """
 
@@ -159,7 +159,7 @@ UPDATE tasks
 SET theme_id = $2, title = $3, condition = $4, difficulty = $5, check_mode = $6,
     answer_type = $7, answer = $8, unit = $9, tolerance = $10,
     source_id = $11, source_number = $12, is_original = $13,
-    translations = $14::jsonb, updated_at = now()
+    translations = $14::jsonb, hints = $15::jsonb, explanation = $16, mistakes = $17::jsonb, updated_at = now()
 WHERE id = $1 AND is_active
 RETURNING id
 """
@@ -227,3 +227,23 @@ SOURCE_FOREIGN_TASKS = "SELECT EXISTS (SELECT 1 FROM tasks WHERE source_id = $1 
 MERGE_SOURCE = "UPDATE tasks SET source_id = $2, updated_at = now() WHERE source_id = $1"
 
 DELETE_SOURCE = "DELETE FROM sources WHERE id = $1 RETURNING id"
+
+
+# ---------- Подсказки и разбор ----------
+
+# $1 задача, $2 ученик (может быть NULL)
+TASK_HELP = """
+SELECT k.id, k.author_id, k.difficulty, k.hints, k.explanation,
+       (SELECT count(*) FROM task_hint_opens h WHERE h.task_id = k.id AND h.user_id = $2)::int AS opened,
+       EXISTS (SELECT 1 FROM attempts a WHERE a.task_id = k.id AND a.student_id = $2
+               AND a.status IN ('correct', 'graded') AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50) AS solved,
+       (SELECT count(*) FROM attempts a
+        WHERE a.task_id = k.id AND a.student_id = $2 AND a.status = 'incorrect')::int AS wrong_attempts
+FROM tasks k
+WHERE k.id = $1 AND k.is_active
+"""
+
+OPEN_HINT = """
+INSERT INTO task_hint_opens (task_id, user_id, hint_index) VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+"""

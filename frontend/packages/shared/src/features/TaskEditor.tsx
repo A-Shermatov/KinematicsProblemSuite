@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, type AnswerType, type CheckMode, type DuplicateHit, type TaskFull, type TaskInput } from "../api";
 import { TranslatableFields, cleanTranslations } from "../components/TranslatableFields";
-import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
+import { MarkdownEditor } from "../components/MarkdownEditor";
+import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, Textarea, cx } from "../components/ui";
 import { formatSource } from "../lib/format";
 import { SourcePicker, type PickedSource } from "./SourcePicker";
 import { AiModelSelect, aiModelLabel, useAiModel } from "./AiModelSelect";
@@ -30,6 +31,9 @@ const EMPTY: TaskInput = {
   source_number: null,
   is_original: false,
   translations: {},
+  hints: [],
+  explanation: "",
+  mistakes: [],
 };
 
 interface TaskEditorProps {
@@ -86,6 +90,9 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
         source_number: task.source_number,
         is_original: task.is_original ?? false,
         translations: task.translations ?? {},
+        hints: task.hints ?? [],
+        explanation: task.explanation ?? "",
+        mistakes: task.mistakes ?? [],
       });
     } else if (themeList.length > 0) {
       setForm((prev) => (prev && prev.theme_id === 0 ? { ...prev, theme_id: themeList[0].id } : prev));
@@ -170,6 +177,9 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
         ...form,
         unit: form.answer_type === "number" ? form.unit?.trim() || null : null,
         translations: cleanTranslations(form.translations),
+        hints: form.hints.map((hint) => hint.trim()).filter(Boolean),
+        explanation: form.explanation.trim(),
+        mistakes: form.mistakes.filter((m) => m.answer.trim() && m.message.trim()),
       };
       const saved = taskId ? await api.tasks.update(taskId, payload) : await api.tasks.create(payload);
       setSimilar(null);
@@ -339,6 +349,76 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
                   onChange={(e) => set("tolerance", Number(e.target.value) / 100)}
                 />
               </>
+            )}
+          </div>
+        </Card>
+
+        <Card className="space-y-5 p-6">
+          <div>
+            <h2 className="font-semibold text-fg">💡 {t("Подсказки и разбор")}</h2>
+            <p className="text-sm text-muted">{t("Необязательно. Каждая открытая подсказка снижает очки за задачу на 20%. Разбор ученик увидит после верного ответа или 3 неверных попыток.")}</p>
+          </div>
+          {form.hints.map((hint, index) => (
+            <div key={index} className="flex items-start gap-2">
+              <div className="flex-1">
+                <Textarea
+                  label={t("Подсказка {0}", [index + 1])}
+                  rows={2}
+                  value={hint}
+                  maxLength={2000}
+                  onChange={(e) => setForm({ ...form, hints: form.hints.map((h, i) => (i === index ? e.target.value : h)) })}
+                  placeholder={index === 0 ? t("Например: переведите скорость в м/с") : undefined}
+                />
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="mt-7" onClick={() => setForm({ ...form, hints: form.hints.filter((_, i) => i !== index) })} aria-label={t("Удалить")}>
+                ✕
+              </Button>
+            </div>
+          ))}
+          {form.hints.length < 3 && (
+            <Button type="button" variant="secondary" size="sm" onClick={() => setForm({ ...form, hints: [...form.hints, ""] })}>
+              + {t("Подсказка")}
+            </Button>
+          )}
+          <MarkdownEditor
+            label={t("Разбор решения")}
+            value={form.explanation}
+            onChange={(explanation) => setForm({ ...form, explanation })}
+            rows={6}
+            placeholder={t("Пошаговое решение с формулами")}
+            onUploadImage={api.imports.uploadImage}
+          />
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-fg">{t("Частые ошибки")}</p>
+              <p className="text-xs text-muted">{t("Если ученик ответит так — он увидит ваше пояснение. Типичные промахи (единицы, знак, порядок величины) система подсказывает сама.")}</p>
+            </div>
+            {form.mistakes.map((mistake, index) => (
+              <div key={index} className="grid gap-2 sm:grid-cols-[10rem_1fr_auto] sm:items-center">
+                <Input
+                  value={mistake.answer}
+                  placeholder={t("Ответ, например 72")}
+                  aria-label={t("Неверный ответ")}
+                  className="font-mono"
+                  maxLength={100}
+                  onChange={(e) => setForm({ ...form, mistakes: form.mistakes.map((m, i) => (i === index ? { ...m, answer: e.target.value } : m)) })}
+                />
+                <Input
+                  value={mistake.message}
+                  placeholder={t("Пояснение: не перевели км/ч в м/с")}
+                  aria-label={t("Пояснение")}
+                  maxLength={300}
+                  onChange={(e) => setForm({ ...form, mistakes: form.mistakes.map((m, i) => (i === index ? { ...m, message: e.target.value } : m)) })}
+                />
+                <Button type="button" variant="ghost" size="sm" onClick={() => setForm({ ...form, mistakes: form.mistakes.filter((_, i) => i !== index) })} aria-label={t("Удалить")}>
+                  ✕
+                </Button>
+              </div>
+            ))}
+            {form.mistakes.length < 10 && (
+              <Button type="button" variant="secondary" size="sm" onClick={() => setForm({ ...form, mistakes: [...form.mistakes, { answer: "", message: "" }] })}>
+                + {t("Частая ошибка")}
+              </Button>
             )}
           </div>
         </Card>

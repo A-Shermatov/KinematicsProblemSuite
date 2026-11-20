@@ -105,6 +105,27 @@ export interface TaskFull extends Task {
   tolerance: number;
   /** Переводы для редактора; title/condition при этом — русский оригинал. */
   translations: TaskTranslations;
+  hints: string[];
+  explanation: string;
+  mistakes: TaskMistake[];
+}
+
+/** Частый неверный ответ и пояснение, которое увидит ученик. */
+export interface TaskMistake {
+  answer: string;
+  message: string;
+}
+
+/** Подсказки и разбор на странице задачи. */
+export interface TaskHelp {
+  hints_total: number;
+  hints: string[];
+  points: number;
+  hint_penalty: number;
+  has_explanation: boolean;
+  explanation: string | null;
+  attempts_until_explanation: number;
+  can_open_hints: boolean;
 }
 
 /** Задача, совпадающая или похожая на ту, что сейчас редактируют. */
@@ -137,6 +158,9 @@ export interface TaskInput {
   unit: string | null;
   tolerance: number;
   translations: TaskTranslations;
+  hints: string[];
+  explanation: string;
+  mistakes: TaskMistake[];
 }
 
 export interface Attempt {

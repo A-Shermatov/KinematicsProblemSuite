@@ -25,6 +25,7 @@ import {
   t,
   UntranslatedNote,
 } from "@kps/shared";
+import { TaskHelpPanel } from "../components/TaskHelpPanel";
 
 function AttemptResult({ attempt }: { attempt: Attempt }) {
   const meta = statusMeta[attempt.status];
@@ -55,11 +56,12 @@ export function TaskPage() {
   const { user } = useAuth();
   const { data, error, loading, setData } = useAsync(async () => {
     const task = await api.tasks.get(taskId);
-    const [siblings, attempts] = await Promise.all([
+    const [siblings, attempts, help] = await Promise.all([
       api.tasks.list({ theme_id: task.theme_id }),
       user && user.role !== "admin" ? api.attempts.list({ scope: "mine", task_id: taskId }) : Promise.resolve([] as Attempt[]),
+      api.tasks.help(taskId),
     ]);
-    return { task, siblings, attempts };
+    return { task, siblings, attempts, help };
   }, [taskId, user?.id]);
   useDocumentTitle(data?.task.title);
 
@@ -74,7 +76,7 @@ export function TaskPage() {
 
   if (loading) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? t("Задача не найдена")}</ErrorMessage>;
-  const { task, siblings, attempts } = data;
+  const { task, siblings, attempts, help } = data;
 
   const index = siblings.findIndex((t) => t.id === task.id);
   const prev = index > 0 ? siblings[index - 1] : null;
@@ -98,6 +100,8 @@ export function TaskPage() {
       const attempt = await api.attempts.submit(task.id, answer, image);
       setLast(attempt);
       setData((prev) => (prev ? { ...prev, attempts: [attempt, ...prev.attempts] } : prev!));
+      // После попытки может открыться разбор.
+      api.tasks.help(task.id).then((next) => setData((prev) => (prev ? { ...prev, help: next } : prev!)), () => undefined);
       if (attempt.status === "correct") setAnswer("");
       pickImage(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -205,6 +209,8 @@ export function TaskPage() {
             </form>
           )}
         </Card>
+
+        <TaskHelpPanel taskId={task.id} help={help} onChange={(next) => setData((prev) => (prev ? { ...prev, help: next } : prev!))} />
 
         {attempts.length > 0 && (
           <Card className="overflow-hidden">

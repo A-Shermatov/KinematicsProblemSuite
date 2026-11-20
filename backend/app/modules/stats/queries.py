@@ -53,19 +53,23 @@ SELECT (SELECT count(*) FROM users WHERE role = 'student')  AS students,
 # Задача считается решённой, если есть верная автопроверка или оценка учителя не ниже 50.
 SOLVED_CONDITION = "a.status IN ('correct', 'graded') AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50"
 
+# Очки за решённую задачу: сложность минус 20% за каждую открытую до решения подсказку.
+TASK_POINTS = "(k.difficulty * (100 - 20 * LEAST(sv.hints_used, 3)) / 100)"
+
 # Решённые задачи (каждая один раз) за период, по предмету. Очки = сумма сложностей.
 _SOLVED_CTE = f"""
 solved AS (
-    SELECT DISTINCT a.student_id, a.task_id
+    SELECT a.student_id, a.task_id, min(a.hints_used) AS hints_used
     FROM attempts a
     JOIN tasks k ON k.id = a.task_id AND k.is_active
     JOIN themes t ON t.id = k.theme_id
     WHERE {SOLVED_CONDITION}
       AND a.created_at > COALESCE($2::timestamptz, '-infinity')
       AND ($3::bigint IS NULL OR t.subject_id = $3)
+    GROUP BY a.student_id, a.task_id
 ),
 per_student AS (
-    SELECT sv.student_id, count(*) AS solved_tasks, sum(k.difficulty) AS points
+    SELECT sv.student_id, count(*) AS solved_tasks, sum({TASK_POINTS}) AS points
     FROM solved sv JOIN tasks k ON k.id = sv.task_id
     GROUP BY sv.student_id
 )
@@ -139,15 +143,16 @@ olympiad_places AS (
 # Сводка ученика для профиля: очки, решённые задачи, олимпиады. $1 ученик.
 STUDENT_PROFILE = f"""
 WITH solved AS (
-    SELECT DISTINCT a.task_id
+    SELECT a.task_id, min(a.hints_used) AS hints_used
     FROM attempts a
     JOIN tasks k ON k.id = a.task_id AND k.is_active
     WHERE a.student_id = $1 AND {SOLVED_CONDITION}
+    GROUP BY a.task_id
 ),
 {_OLYMPIAD_PLACES}
 SELECT
     (SELECT count(*) FROM solved)::int AS solved_tasks,
-    (SELECT COALESCE(sum(k.difficulty), 0) FROM solved s JOIN tasks k ON k.id = s.task_id)::int AS points,
+    (SELECT COALESCE(sum({TASK_POINTS}), 0) FROM solved sv JOIN tasks k ON k.id = sv.task_id)::int AS points,
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1)::int AS olympiads,
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place <= 3 AND total > 0)::int AS olympiad_prizes,
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place = 1 AND total > 0)::int AS olympiad_wins

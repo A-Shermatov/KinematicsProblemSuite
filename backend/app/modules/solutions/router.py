@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
@@ -7,7 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, sta
 from app.deps import Conn, SettingsDep, User, not_found
 from app.modules.content import queries as content_q
 from app.modules.solutions import queries as q
-from app.modules.solutions.checker import check_answer
+from app.modules.solutions.checker import check_answer, mistake_hint
 from app.modules.solutions.schemas import AttemptOut, AttemptStatus, GradeIn, Scope
 from app.storage import delete_file, save_image
 
@@ -55,6 +56,18 @@ async def create_attempt(
         attempt_status, system_grade, feedback = (
             ("correct", 100, result.feedback) if result.correct else ("incorrect", 0, result.feedback)
         )
+        if not result.correct:
+            mistakes = json.loads(task["mistakes"]) if isinstance(task["mistakes"], str) else task["mistakes"]
+            hint = mistake_hint(
+                answer,
+                expected=task["answer"],
+                answer_type=task["answer_type"],
+                unit=task["unit"],
+                tolerance=task["tolerance"],
+                mistakes=mistakes or [],
+            )
+            if hint:
+                feedback = f"{feedback}. {hint}" if not feedback.endswith((".", "!")) else f"{feedback} {hint}"
     else:
         attempt_status, system_grade, feedback = "pending", None, "Ожидает проверки учителем"
 

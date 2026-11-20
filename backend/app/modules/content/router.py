@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, not_found
+from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, User, not_found
 from app.i18n import DEFAULT_LANG, RequestLang, clean_translations, localize
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
@@ -18,6 +19,7 @@ from app.modules.content.schemas import (
     SourceType,
     SubjectOut,
     TaskFull,
+    TaskHelpOut,
     TaskIn,
     TaskOut,
     ThemeOut,
@@ -205,6 +207,9 @@ async def insert_task(conn: asyncpg.Connection, data: TaskIn, user: CurrentUser)
             data.source_number,
             data.is_original,
             clean_translations(data.translations),
+            json.dumps(data.hints, ensure_ascii=False),
+            data.explanation.strip(),
+            json.dumps([m.model_dump() for m in data.mistakes], ensure_ascii=False),
         )
     except asyncpg.UniqueViolationError:
         raise await _duplicate_error(conn, data, user, None) from None
@@ -235,6 +240,9 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
             data.source_number,
             data.is_original,
             clean_translations(data.translations),
+            json.dumps(data.hints, ensure_ascii=False),
+            data.explanation.strip(),
+            json.dumps([m.model_dump() for m in data.mistakes], ensure_ascii=False),
         )
     except asyncpg.UniqueViolationError:
         raise await _duplicate_error(conn, data, user, task_id) from None
@@ -319,3 +327,49 @@ async def merge_source(source_id: int, data: SourceMergeIn, _: Admin, conn: Conn
         await conn.execute(q.MERGE_SOURCE, source_id, data.into_id)
         await conn.execute(q.DELETE_SOURCE, source_id)
     return await _source_or_404(conn, target.id)
+
+
+# ---------- Подсказки и разбор ----------
+
+HINT_PENALTY = 20  # % очков за каждую открытую подсказку
+EXPLANATION_AFTER_WRONG = 3  # разбор открывается после стольких неверных попыток
+
+
+def _help_out(row: asyncpg.Record, user: CurrentUser | None) -> TaskHelpOut:
+    hints = json.loads(row["hints"]) if isinstance(row["hints"], str) else row["hints"]
+    staff_view = user is not None and (user.is_admin or row["author_id"] == user.id)
+    opened = len(hints) if staff_view else min(row["opened"], len(hints))
+    explanation_open = staff_view or row["solved"] or row["wrong_attempts"] >= EXPLANATION_AFTER_WRONG
+    return TaskHelpOut(
+        hints_total=len(hints),
+        hints=hints[:opened],
+        points=row["difficulty"] * (100 - HINT_PENALTY * (0 if staff_view else opened)) // 100,
+        hint_penalty=HINT_PENALTY,
+        has_explanation=bool(row["explanation"].strip()),
+        explanation=row["explanation"] if explanation_open and row["explanation"].strip() else None,
+        attempts_until_explanation=max(0, EXPLANATION_AFTER_WRONG - row["wrong_attempts"]),
+        can_open_hints=user is not None and user.is_student and opened < len(hints),
+    )
+
+
+@router.get("/tasks/{task_id}/help", response_model=TaskHelpOut)
+async def task_help(task_id: int, conn: Conn, user: OptionalUser) -> TaskHelpOut:
+    row = await conn.fetchrow(q.TASK_HELP, task_id, user.id if user else None)
+    if row is None:
+        raise not_found("Задача")
+    return _help_out(row, user)
+
+
+@router.post("/tasks/{task_id}/hints", response_model=TaskHelpOut)
+async def open_hint(task_id: int, user: User, conn: Conn) -> TaskHelpOut:
+    """Открыть следующую подсказку. Подсказки открываются строго по очереди."""
+    row = await conn.fetchrow(q.TASK_HELP, task_id, user.id)
+    if row is None:
+        raise not_found("Задача")
+    if not user.is_student:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Подсказки открывают ученики")
+    hints = json.loads(row["hints"]) if isinstance(row["hints"], str) else row["hints"]
+    if row["opened"] >= len(hints):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Все подсказки уже открыты")
+    await conn.execute(q.OPEN_HINT, task_id, user.id, row["opened"])
+    return _help_out(await conn.fetchrow(q.TASK_HELP, task_id, user.id), user)
