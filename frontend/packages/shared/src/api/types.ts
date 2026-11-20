@@ -20,6 +20,8 @@ export interface User {
   role: Role;
   is_active: boolean;
   avatar_url: string | null;
+  city: string | null;
+  school: string | null;
   created_at: string;
 }
 
@@ -141,14 +143,56 @@ export interface AdminStats {
 
 export type Stats = StudentStats | TeacherStats;
 
+export type Period = "week" | "month" | "all";
+
 export interface LeaderboardRow {
   rank: number;
   user_id: number;
   username: string;
   name: string;
   avatar_url: string | null;
+  city: string | null;
+  school: string | null;
   solved_tasks: number;
   points: number;
+}
+
+export interface SchoolRow {
+  rank: number;
+  school: string;
+  city: string | null;
+  students: number;
+  solved_tasks: number;
+  points: number;
+}
+
+export interface CityRow {
+  rank: number;
+  city: string;
+  students: number;
+  schools: number;
+  solved_tasks: number;
+  points: number;
+}
+
+export interface AchievementBadge {
+  code: string;
+  icon: string;
+  title: string;
+  description: string;
+  earned: boolean;
+  progress: number;
+  target: number;
+}
+
+export interface Achievements {
+  solved_tasks: number;
+  points: number;
+  hard_solved: number;
+  best_streak: number;
+  current_streak: number;
+  mastered_themes: number;
+  badges: AchievementBadge[];
 }
 
 export type CertificateStatus = "pending" | "verified" | "rejected";

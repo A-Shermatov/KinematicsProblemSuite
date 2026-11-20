@@ -50,20 +50,111 @@ SELECT (SELECT count(*) FROM users WHERE role = 'student')  AS students,
        (SELECT count(*) FROM attempts WHERE status = 'pending') AS pending
 """
 
-# Рейтинг: очки = сумма сложностей решённых задач (каждая задача считается один раз).
-LEADERBOARD = """
-WITH solved AS (
+# Задача считается решённой, если есть верная автопроверка или оценка учителя не ниже 50.
+SOLVED_CONDITION = "a.status IN ('correct', 'graded') AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50"
+
+# Решённые задачи (каждая один раз) за период, по предмету. Очки = сумма сложностей.
+_SOLVED_CTE = f"""
+solved AS (
     SELECT DISTINCT a.student_id, a.task_id
     FROM attempts a
-    WHERE a.status IN ('correct', 'graded') AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50
+    JOIN tasks k ON k.id = a.task_id AND k.is_active
+    JOIN themes t ON t.id = k.theme_id
+    WHERE {SOLVED_CONDITION}
       AND a.created_at > COALESCE($2::timestamptz, '-infinity')
+      AND ($3::bigint IS NULL OR t.subject_id = $3)
+),
+per_student AS (
+    SELECT sv.student_id, count(*) AS solved_tasks, sum(k.difficulty) AS points
+    FROM solved sv JOIN tasks k ON k.id = sv.task_id
+    GROUP BY sv.student_id
 )
+"""
+
+# $1 limit, $2 с какой даты, $3 предмет, $4 город, $5 школа, $6 метрика ('points' | 'solved').
+LEADERBOARD = f"""
+WITH {_SOLVED_CTE}
 SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
-       count(*) AS solved_tasks, sum(k.difficulty) AS points
-FROM solved sv
-JOIN users u ON u.id = sv.student_id AND u.is_active AND u.role = 'student'
-JOIN tasks k ON k.id = sv.task_id AND k.is_active
-GROUP BY u.id
-ORDER BY points DESC, solved_tasks DESC, u.id
+       u.city, u.school, ps.solved_tasks, ps.points
+FROM per_student ps
+JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
+WHERE ($4::text IS NULL OR lower(u.city) = lower($4))
+  AND ($5::text IS NULL OR lower(u.school) = lower($5))
+ORDER BY CASE WHEN $6::text = 'solved' THEN ps.solved_tasks ELSE ps.points END DESC,
+         ps.points DESC, ps.solved_tasks DESC, u.id
 LIMIT $1
+"""
+
+# Школы: сумма очков учеников школы. $4 — фильтр по городу.
+SCHOOL_LEADERBOARD = f"""
+WITH {_SOLVED_CTE}
+SELECT min(u.school) AS school, min(u.city) AS city,
+       count(*) AS students, sum(ps.solved_tasks)::bigint AS solved_tasks, sum(ps.points)::bigint AS points
+FROM per_student ps
+JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
+WHERE u.school IS NOT NULL AND ($4::text IS NULL OR lower(u.city) = lower($4))
+GROUP BY lower(COALESCE(u.city, '')), lower(u.school)
+ORDER BY points DESC, students DESC
+LIMIT $1
+"""
+
+CITY_LEADERBOARD = f"""
+WITH {_SOLVED_CTE}
+SELECT min(u.city) AS city, count(*) AS students, count(DISTINCT lower(u.school)) AS schools,
+       sum(ps.solved_tasks)::bigint AS solved_tasks, sum(ps.points)::bigint AS points
+FROM per_student ps
+JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
+WHERE u.city IS NOT NULL
+GROUP BY lower(u.city)
+ORDER BY points DESC, students DESC
+LIMIT $1
+"""
+
+# Подсказки для полей «город» и «школа».
+CITIES = """
+SELECT min(city) AS name, count(*) AS users FROM users
+WHERE city IS NOT NULL AND is_active
+GROUP BY lower(city) ORDER BY users DESC, name LIMIT 50
+"""
+
+SCHOOLS = """
+SELECT min(school) AS name, count(*) AS users FROM users
+WHERE school IS NOT NULL AND is_active AND ($1::text IS NULL OR lower(city) = lower($1))
+GROUP BY lower(school) ORDER BY users DESC, name LIMIT 100
+"""
+
+# Всё для значков одним запросом. $1 ученик, $2 часовой пояс (для серий по дням).
+ACHIEVEMENTS = f"""
+WITH solved AS (
+    SELECT DISTINCT ON (a.task_id) a.task_id, a.created_at
+    FROM attempts a
+    JOIN tasks k ON k.id = a.task_id AND k.is_active
+    WHERE a.student_id = $1 AND {SOLVED_CONDITION}
+    ORDER BY a.task_id, a.created_at
+),
+days AS (
+    SELECT DISTINCT (a.created_at AT TIME ZONE $2::text)::date AS d
+    FROM attempts a
+    WHERE a.student_id = $1 AND {SOLVED_CONDITION}
+),
+islands AS (
+    SELECT d, d - (row_number() OVER (ORDER BY d))::int AS grp FROM days
+),
+streaks AS (
+    SELECT count(*) AS len, max(d) AS last_day FROM islands GROUP BY grp
+)
+SELECT
+    (SELECT count(*) FROM solved) AS solved_tasks,
+    (SELECT COALESCE(sum(k.difficulty), 0) FROM solved s JOIN tasks k ON k.id = s.task_id) AS points,
+    (SELECT count(*) FROM solved s JOIN tasks k ON k.id = s.task_id WHERE k.difficulty = 5) AS hard_solved,
+    COALESCE((SELECT max(len) FROM streaks), 0) AS best_streak,
+    COALESCE((SELECT len FROM streaks
+              WHERE last_day >= (now() AT TIME ZONE $2::text)::date - 1
+              ORDER BY last_day DESC LIMIT 1), 0) AS current_streak,
+    (SELECT count(*) FROM themes t
+     WHERE t.is_active
+       AND (SELECT count(*) FROM tasks k WHERE k.theme_id = t.id AND k.is_active) >= 3
+       AND NOT EXISTS (SELECT 1 FROM tasks k
+                       WHERE k.theme_id = t.id AND k.is_active
+                         AND k.id NOT IN (SELECT task_id FROM solved))) AS mastered_themes
 """

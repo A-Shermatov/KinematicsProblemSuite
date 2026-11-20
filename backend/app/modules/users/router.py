@@ -28,7 +28,9 @@ async def get_me(user: User, conn: Conn) -> UserOut:
 async def update_me(data: ProfileUpdate, user: User, conn: Conn) -> UserOut:
     if await conn.fetchval(q.USERNAME_TAKEN, data.username, user.id):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Имя пользователя уже занято")
-    row = await conn.fetchrow(q.UPDATE_PROFILE, user.id, data.username, data.first_name, data.last_name)
+    row = await conn.fetchrow(
+        q.UPDATE_PROFILE, user.id, data.username, data.first_name, data.last_name, data.city, data.school
+    )
     return UserOut.from_row(row)
 
 

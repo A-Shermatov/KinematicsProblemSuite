@@ -5,6 +5,7 @@ import {
   Card,
   ErrorMessage,
   Input,
+  PlaceFields,
   api,
   errorText,
   useAuth,
@@ -80,7 +81,7 @@ export function Login() {
 export function Register() {
   useDocumentTitle("Регистрация");
   const navigate = useNavigate();
-  const [form, setForm] = useState({ first_name: "", last_name: "", username: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", username: "", password: "", confirm: "", city: "", school: "" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm({ ...form, [key]: event.target.value });
@@ -99,6 +100,8 @@ export function Register() {
         password: form.password,
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
+        city: form.city.trim() || null,
+        school: form.school.trim() || null,
       });
       navigate("/login", { state: { registered: true } });
     } catch (err) {
@@ -140,6 +143,7 @@ export function Register() {
         />
         <Input label="Пароль" type="password" value={form.password} onChange={set("password")} required minLength={8} maxLength={72} hint="Не меньше 8 символов" autoComplete="new-password" />
         <Input label="Повторите пароль" type="password" value={form.confirm} onChange={set("confirm")} required autoComplete="new-password" />
+        <PlaceFields city={form.city} school={form.school} onChange={(place) => setForm({ ...form, ...place })} />
         <Button type="submit" className="w-full" size="lg" loading={loading}>
           Зарегистрироваться
         </Button>

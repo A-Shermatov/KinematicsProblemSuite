@@ -42,6 +42,8 @@ async def ensure_admin(pool: asyncpg.Pool, settings: Settings) -> None:
             "",
             hash_password(settings.admin_password),
             "admin",
+            None,
+            None,
         )
         logger.info("Created admin user %s", settings.admin_username)
 
