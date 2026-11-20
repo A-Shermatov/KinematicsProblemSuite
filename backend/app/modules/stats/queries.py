@@ -170,3 +170,44 @@ SELECT
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place <= 3 AND total > 0) AS olympiad_prizes,
     (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place = 1 AND total > 0) AS olympiad_wins
 """
+
+# Активность по дням за последний год: любая отправленная попытка (задачи и олимпиады).
+# $1 пользователь, $2 часовой пояс, $3 сколько дней назад.
+ACTIVITY = """
+WITH events AS (
+    SELECT created_at AS at FROM attempts WHERE student_id = $1
+    UNION ALL
+    SELECT submitted_at FROM olympiad_submissions WHERE user_id = $1
+)
+SELECT (at AT TIME ZONE $2::text)::date AS day, count(*) AS count
+FROM events
+WHERE at >= now() - make_interval(days => $3::int)
+GROUP BY day
+ORDER BY day
+"""
+
+# Решённые и нерешённые задачи по уровням сложности.
+BY_DIFFICULTY = f"""
+WITH tried AS (
+    SELECT a.task_id, bool_or({SOLVED_CONDITION}) AS solved
+    FROM attempts a
+    WHERE a.student_id = $1
+    GROUP BY a.task_id
+)
+SELECT k.difficulty, count(*) FILTER (WHERE tr.solved) AS solved, count(*) FILTER (WHERE NOT tr.solved) AS unsolved
+FROM tried tr
+JOIN tasks k ON k.id = tr.task_id
+GROUP BY k.difficulty
+ORDER BY k.difficulty
+"""
+
+BY_SUBJECT = f"""
+SELECT s.id AS subject_id, s.title AS subject_title, count(DISTINCT a.task_id) AS solved
+FROM attempts a
+JOIN tasks k ON k.id = a.task_id
+JOIN themes t ON t.id = k.theme_id
+JOIN subjects s ON s.id = t.subject_id
+WHERE a.student_id = $1 AND {SOLVED_CONDITION}
+GROUP BY s.id, s.title
+ORDER BY solved DESC
+"""

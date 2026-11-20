@@ -48,6 +48,44 @@ async def achievements(user_id: int, conn: Conn, settings: SettingsDep) -> dict[
     return {**stats, "badges": badges.evaluate(stats)}
 
 
+@router.get("/activity/{user_id}")
+async def activity(
+    user_id: int,
+    conn: Conn,
+    settings: SettingsDep,
+    days: Annotated[int, Query(ge=7, le=366)] = 365,
+) -> dict[str, Any]:
+    """Тепловая карта: число отправленных попыток по дням. День активен, если была хотя бы одна попытка."""
+    if await conn.fetchrow(user_q.GET_ACTIVE_BY_ID, user_id) is None:
+        raise not_found("Пользователь")
+    rows = await conn.fetch(q.ACTIVITY, user_id, settings.timezone, days)
+    counts = [{"date": row["day"].isoformat(), "count": row["count"]} for row in rows]
+    # Самая длинная серия активных дней за период.
+    best = current = 0
+    previous = None
+    for row in rows:
+        current = current + 1 if previous is not None and (row["day"] - previous).days == 1 else 1
+        best = max(best, current)
+        previous = row["day"]
+    return {
+        "days": counts,
+        "total": sum(item["count"] for item in counts),
+        "active_days": len(counts),
+        "best_streak": best,
+        "timezone": settings.timezone,
+    }
+
+
+@router.get("/difficulty/{user_id}")
+async def difficulty_breakdown(user_id: int, conn: Conn) -> dict[str, Any]:
+    """Решённые и нерешённые задачи по уровням сложности и по предметам — для диаграмм в профиле."""
+    if await conn.fetchrow(user_q.GET_ACTIVE_BY_ID, user_id) is None:
+        raise not_found("Пользователь")
+    levels = [dict(row) for row in await conn.fetch(q.BY_DIFFICULTY, user_id)]
+    subjects = [dict(row) for row in await conn.fetch(q.BY_SUBJECT, user_id)]
+    return {"levels": levels, "subjects": subjects}
+
+
 @router.get("/leaderboard")
 async def leaderboard(
     conn: Conn,

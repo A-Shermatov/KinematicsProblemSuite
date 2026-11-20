@@ -1,6 +1,8 @@
 import { request } from "./client";
 import type {
   Achievements,
+  Activity,
+  DifficultyBreakdown,
   PlatformSettings,
   Olympiad,
   OlympiadDetail,
@@ -138,6 +140,9 @@ export const api = {
       request<CityRow[]>("/api/stats/leaderboard/cities", { query, auth: false }),
     olympiadLeaderboard: (query: LeaderboardQuery) =>
       request<OlympiadLeaderRow[]>("/api/stats/leaderboard/olympiads", { query, auth: false }),
+    activity: (userId: number, days = 365) =>
+      request<Activity>(`/api/stats/activity/${userId}`, { query: { days }, auth: false }),
+    difficulty: (userId: number) => request<DifficultyBreakdown>(`/api/stats/difficulty/${userId}`, { auth: false }),
     achievements: (userId: number) => request<Achievements>(`/api/stats/achievements/${userId}`, { auth: false }),
     places: (city?: string) =>
       request<{ cities: string[]; schools: string[] }>("/api/stats/places", { query: { city }, auth: false }),
