@@ -72,7 +72,11 @@ def test_import_errors(client: ApiClient) -> None:
     assert client.post("/api/tasks/import/parse", teacher, files=upload("empty.txt", b"   ")).status_code == 422
     # Без ключа Claude API фото не распознаются, но файлы работают.
     caps = client.get("/api/tasks/import/capabilities", teacher).json()
-    assert caps["ai_enabled"] is False and ".csv" in caps["file_formats"]
+    assert caps["ai_enabled"] is False and ".csv" in caps["file_formats"] and caps["ai_models"] == []
+    bad_model = client.post(
+        "/api/tasks/import/parse", teacher, files=upload("p.jpg", b"\xff\xd8"), data={"model": "gpt-9"}
+    )
+    assert bad_model.status_code == 422
     assert client.post("/api/tasks/import/parse", teacher, files=upload("photo.jpg", b"\xff\xd8")).status_code == 503
 
 

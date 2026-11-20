@@ -517,12 +517,21 @@ export interface ImportParseResult {
   method: "file" | "ai";
   drafts: TaskDraft[];
   notes: string;
+  /** Какая модель Gemini распознала (если выбранная была занята — запасная). */
+  model: string | null;
+}
+
+export interface AiModel {
+  id: string;
+  label: string;
+  hint: string;
 }
 
 export interface ImportCapabilities {
   file_formats: string[];
   ai_formats: string[];
   ai_enabled: boolean;
+  ai_models: AiModel[];
 }
 
 export interface ImportItem {

@@ -4,6 +4,7 @@ import { TranslatableFields, cleanTranslations } from "../components/Translatabl
 import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
 import { formatSource } from "../lib/format";
 import { SourcePicker, type PickedSource } from "./SourcePicker";
+import { AiModelSelect, aiModelLabel, useAiModel } from "./AiModelSelect";
 import { usePlatformSettings } from "../settings/SettingsContext";
 import { errorText, useAsync, useDocumentTitle } from "../lib/hooks";
 import { t } from "../i18n";
@@ -60,7 +61,9 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
   const photoRef = useRef<HTMLInputElement>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [photoNote, setPhotoNote] = useState<{ tone: "info" | "warning"; text: string } | null>(null);
-  const { data: aiEnabled } = useAsync(() => api.imports.capabilities().then((c) => c.ai_enabled).catch(() => false), []);
+  const { data: capabilities } = useAsync(() => api.imports.capabilities().catch(() => null), []);
+  const aiEnabled = !!capabilities?.ai_enabled;
+  const [aiModel, setAiModel] = useAiModel(capabilities?.ai_models);
 
   const { data: themes, error, loading } = useAsync(async () => {
     const [themeList, task] = await Promise.all([api.themes.list(), taskId ? api.tasks.getFull(taskId) : Promise.resolve(null)]);
@@ -104,7 +107,7 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
     setSaveError(null);
     setPhotoNote(null);
     try {
-      const { drafts, notes } = await api.imports.parse(file);
+      const { drafts, notes, model } = await api.imports.parse(file, aiModel);
       const draft = drafts[0];
       setForm({
         ...form,
@@ -121,6 +124,7 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
       if (draft.duplicate) parts.push(t("Такая задача уже есть: «{0}» (№{1}, автор {2}).", [draft.duplicate.title, draft.duplicate.id, draft.duplicate.author_name]));
       if (drafts.length > 1) parts.push(t("На фото задач: {0}. Заполнена первая — чтобы добавить все сразу, воспользуйтесь импортом.", [drafts.length]));
       if (notes) parts.push(notes);
+      if (model) parts.push(t("Распознала модель: {0}.", [aiModelLabel(capabilities?.ai_models, model)]));
       setPhotoNote({ tone: draft.answer_is_guess || draft.duplicate || drafts.length > 1 ? "warning" : "info", text: parts.join(" ") });
     } catch (err) {
       setSaveError(errorText(err));
@@ -190,11 +194,12 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
         {saveError && <ErrorMessage>{saveError}</ErrorMessage>}
         <Card className="space-y-5 p-6">
           {aiEnabled && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary-soft/30 px-4 py-3">
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-primary/40 bg-primary-soft/30 px-4 py-3">
               <span className="text-2xl" aria-hidden>
                 📷
               </span>
               <p className="min-w-[14rem] flex-1 text-sm text-fg">{t("Сфотографируйте задачу из книги — ИИ заполнит название, условие с формулами и ответ.")}</p>
+              <AiModelSelect models={capabilities?.ai_models ?? []} value={aiModel} onChange={setAiModel} className="w-full sm:w-72" />
               <input ref={photoRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && fillFromPhoto(e.target.files[0])} />
               <Button type="button" variant="secondary" loading={recognizing} onClick={() => photoRef.current?.click()}>
                 {recognizing ? t("Распознаём…") : t("Заполнить с фото")}

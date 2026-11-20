@@ -10,7 +10,7 @@ import re
 from pathlib import PurePath
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import ValidationError
 
 from app.deps import Conn, SettingsDep, Staff
@@ -34,11 +34,21 @@ def _answer_type(answer: str) -> str:
 @router.get("/capabilities")
 async def capabilities(_: Staff) -> dict[str, object]:
     """Какие форматы доступны: фото и PDF — только если настроен ключ Gemini API."""
-    return {"file_formats": sorted(TEXT_FORMATS), "ai_formats": sorted(AI_FORMATS), "ai_enabled": ai.ai_enabled()}
+    return {
+        "file_formats": sorted(TEXT_FORMATS),
+        "ai_formats": sorted(AI_FORMATS),
+        "ai_enabled": ai.ai_enabled(),
+        "ai_models": await ai.model_choices(),
+    }
 
 
 @router.post("/parse", response_model=ParseResult)
-async def parse(file: Annotated[UploadFile, File()], _: Staff, conn: Conn) -> ParseResult:
+async def parse(
+    file: Annotated[UploadFile, File()],
+    _: Staff,
+    conn: Conn,
+    model: Annotated[str | None, Form(description="Модель Gemini для фото/PDF; auto — по умолчанию")] = None,
+) -> ParseResult:
     extension = PurePath(file.filename or "").suffix.lower()
     if extension not in TEXT_FORMATS and extension not in AI_FORMATS:
         raise HTTPException(
@@ -48,14 +58,17 @@ async def parse(file: Annotated[UploadFile, File()], _: Staff, conn: Conn) -> Pa
     content = await file.read(MAX_IMPORT_BYTES + 1)
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Файл больше 10 МБ")
+    if model and model != ai.AUTO and model not in ai.configured_models():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Эта модель недоступна для распознавания")
     notes = ""
+    used_model: str | None = None
     try:
         if extension in TEXT_FORMATS:
             method = "file"
             raw = parse_file(extension, content)
         else:
             method = "ai"
-            raw, notes = await ai.recognize(content, AI_FORMATS[extension])
+            raw, notes, used_model = await ai.recognize(content, AI_FORMATS[extension], model)
     except ImportFormatError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from None
     except ai.AIUnavailableError as exc:
@@ -72,7 +85,7 @@ async def parse(file: Annotated[UploadFile, File()], _: Staff, conn: Conn) -> Pa
                 similar=found.similar,
             )
         )
-    return ParseResult(method=method, drafts=drafts, notes=notes)
+    return ParseResult(method=method, drafts=drafts, notes=notes, model=used_model)
 
 
 def _error_text(exc: Exception) -> str:

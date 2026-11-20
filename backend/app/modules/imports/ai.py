@@ -22,9 +22,20 @@ from typing import Any
 from app.modules.imports.parsers import ImportFormatError, normalize_draft
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-# Модели по очереди: если первая перегружена (503) или исчерпан её бесплатный лимит (429), пробуем следующую.
-# Алиасы *-latest Google сам переводит на актуальные модели бесплатного уровня.
-DEFAULT_MODELS = ("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash")
+LIST_URL = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
+
+# Модели бесплатного уровня Gemini API, из которых учитель выбирает. Порядок — он же порядок запасных:
+# если выбранная модель перегружена (503) или исчерпан её лимит (429), пробуем следующие.
+# Список можно заменить переменной GEMINI_MODELS (id через запятую). Модели, которых нет у ключа, скрываются.
+FREE_MODELS: dict[str, tuple[str, str]] = {
+    "gemini-flash-latest": ("Gemini Flash (последняя)", "Быстрая и точная — рекомендуется"),
+    "gemini-3.8-flash": ("Gemini 3.8 Flash", "Самая умная Flash: сложные формулы и рукописный текст"),
+    "gemini-3.7-flash": ("Gemini 3.7 Flash", "Хорошо читает фото и PDF"),
+    "gemini-flash-lite-latest": ("Gemini Flash-Lite (последняя)", "Самая быстрая, выше лимиты, но проще"),
+    "gemini-2.5-flash": ("Gemini 2.5 Flash", "Проверенная модель предыдущего поколения"),
+    "gemini-2.5-flash-lite": ("Gemini 2.5 Flash-Lite", "Лёгкая модель предыдущего поколения"),
+}
+AUTO = "auto"
 TIMEOUT_SECONDS = 120
 # Повторы одной модели при временной перегрузке: паузы в секундах между попытками.
 RETRY_DELAYS = (2, 5)
@@ -58,10 +69,53 @@ def ai_enabled() -> bool:
     return bool(os.getenv("GEMINI_API_KEY"))
 
 
-def models() -> list[str]:
-    """GEMINI_MODEL может содержать одну модель или несколько через запятую."""
-    configured = [name.strip() for name in (os.getenv("GEMINI_MODEL") or "").split(",") if name.strip()]
-    return configured or list(DEFAULT_MODELS)
+def configured_models() -> list[str]:
+    """Модели для выбора: GEMINI_MODELS (или старая GEMINI_MODEL), иначе бесплатные по умолчанию."""
+    raw = os.getenv("GEMINI_MODELS") or os.getenv("GEMINI_MODEL") or ""
+    configured = [name.strip() for name in raw.split(",") if name.strip()]
+    return configured or list(FREE_MODELS)
+
+
+_available_cache: tuple[float, set[str] | None] = (0.0, None)
+
+
+def _list_available() -> set[str] | None:
+    """Модели, доступные этому ключу (generateContent). None — список получить не удалось."""
+    request = urllib.request.Request(LIST_URL, headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]})
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 — фиксированный https URL
+            data = json.loads(response.read())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    return {
+        item["name"].removeprefix("models/")
+        for item in data.get("models", [])
+        if "generateContent" in item.get("supportedGenerationMethods", [])
+    }
+
+
+async def model_choices() -> list[dict[str, str]]:
+    """Список для выбора в интерфейсе; модели, которых нет у ключа, скрываются (список кешируется на час)."""
+    global _available_cache
+    if not ai_enabled():
+        return []
+    checked_at, available = _available_cache
+    if time.monotonic() - checked_at > 3600:
+        available = await asyncio.to_thread(_list_available)
+        _available_cache = (time.monotonic(), available)
+    names = [name for name in configured_models() if available is None or name in available]
+    return [
+        {"id": name, "label": FREE_MODELS.get(name, (name, ""))[0], "hint": FREE_MODELS.get(name, ("", ""))[1]}
+        for name in names or configured_models()
+    ]
+
+
+def models(preferred: str | None = None) -> list[str]:
+    """Порядок попыток: выбранная модель, затем остальные как запасные."""
+    order = configured_models()
+    if preferred and preferred != AUTO:
+        order = [preferred, *(name for name in order if name != preferred)]
+    return order
 
 
 class _TemporaryError(Exception):
@@ -81,9 +135,12 @@ def _call(model: str, body: bytes) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310 — фиксированный https URL
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:500]
+        if exc.code == 429 and "limit: 0" in detail:
+            raise _TemporaryError(404) from exc  # модель не входит в бесплатный уровень этого ключа — к следующей
         if exc.code in TEMPORARY_ERRORS or exc.code == 404:  # 404 — модель переименована/недоступна: берём следующую
             raise _TemporaryError(exc.code) from exc
-        detail = exc.read().decode("utf-8", "replace")[:300]
+        detail = detail[:300]
         if exc.code in (400, 401, 403) and "API key" in detail:
             raise AIUnavailableError("Ключ GEMINI_API_KEY не подходит — создайте новый в Google AI Studio") from exc
         raise AIUnavailableError(f"Сервис распознавания вернул ошибку {exc.code}: {detail}") from exc
@@ -91,7 +148,9 @@ def _call(model: str, body: bytes) -> dict[str, Any]:
         raise _TemporaryError(0) from exc
 
 
-def _request(content: bytes, media_type: str, sleep: Any = time.sleep) -> dict[str, Any]:
+def _request(
+    content: bytes, media_type: str, preferred: str | None = None, sleep: Any = time.sleep
+) -> tuple[dict[str, Any], str]:
     body = json.dumps(
         {
             "contents": [
@@ -107,10 +166,10 @@ def _request(content: bytes, media_type: str, sleep: Any = time.sleep) -> dict[s
         }
     ).encode("utf-8")
     codes: list[int] = []
-    for model in models():
+    for model in models(preferred):
         for delay in (*RETRY_DELAYS, None):
             try:
-                return _call(model, body)
+                return _call(model, body), model
             except _TemporaryError as exc:
                 codes.append(exc.code)
                 # Нет модели (404) или сеть не ответила (0, долгий таймаут) — сразу к следующей модели.
@@ -144,11 +203,11 @@ def response_text(response: dict[str, Any]) -> str:
     return "".join(part.get("text", "") for part in parts)
 
 
-async def recognize(content: bytes, media_type: str) -> tuple[list[dict[str, Any]], str]:
-    """Черновики задач и заметки модели. Черновик дополнительно содержит answer_is_guess."""
+async def recognize(content: bytes, media_type: str, model: str | None = None) -> tuple[list[dict[str, Any]], str, str]:
+    """Черновики задач, заметки модели и какая модель в итоге ответила. Черновик содержит answer_is_guess."""
     if not ai_enabled():
         raise AIUnavailableError("Распознавание фото и PDF не настроено: администратор должен задать GEMINI_API_KEY")
-    response = await asyncio.to_thread(_request, content, media_type)
+    response, used = await asyncio.to_thread(_request, content, media_type, model)
     data = extract_json(response_text(response))
     drafts = []
     for item in data["tasks"]:
@@ -160,4 +219,4 @@ async def recognize(content: bytes, media_type: str) -> tuple[list[dict[str, Any
             drafts.append(draft)
     if not drafts:
         raise ImportFormatError("На изображении не найдено задач")
-    return drafts, str(data.get("notes") or "")
+    return drafts, str(data.get("notes") or ""), used

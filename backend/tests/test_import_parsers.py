@@ -106,10 +106,22 @@ def test_gemini_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(ai, "_call", fake_call)
     monkeypatch.setenv("GEMINI_MODEL", "busy, missing, good")
-    assert ai._request(b"x", "image/png", sleep=lambda _: None) == {"ok": "good"}
+    assert ai._request(b"x", "image/png", sleep=lambda _: None) == ({"ok": "good"}, "good")
     # Перегруженная модель пробуется 3 раза, отсутствующая — 1, затем следующая.
     assert calls == ["busy", "busy", "busy", "missing", "good"]
 
     monkeypatch.setenv("GEMINI_MODEL", "busy")
     with pytest.raises(ai.AIUnavailableError, match="перегружен"):
         ai._request(b"x", "image/png", sleep=lambda _: None)
+
+
+def test_model_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.modules.imports import ai
+
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    monkeypatch.setenv("GEMINI_MODELS", "a, b, c")
+    assert ai.models() == ["a", "b", "c"]
+    assert ai.models("auto") == ["a", "b", "c"]
+    assert ai.models("c") == ["c", "a", "b"]  # выбранная — первой, остальные — запасные
+    monkeypatch.delenv("GEMINI_MODELS")
+    assert ai.configured_models() == list(ai.FREE_MODELS)
