@@ -420,7 +420,8 @@ export interface OlympiadLevel {
 
 export type OlympiadLevelInput = Omit<OlympiadLevel, "id">;
 
-export interface OlympiadTask {
+/** Задача олимпиады. Уровень и источник участникам видны только после итогов. */
+export interface OlympiadTask extends TaskSource {
   id: number;
   olympiad_id: number;
   position: number;
@@ -435,6 +436,7 @@ export interface OlympiadTask {
   available_langs: string[];
   /** Только организатору. */
   translations: TaskTranslations | null;
+  difficulty: number | null;
 }
 
 export interface OlympiadDetail extends Olympiad {
@@ -462,6 +464,10 @@ export interface OlympiadTaskInput {
   tolerance: number;
   max_points: number;
   translations: TaskTranslations;
+  difficulty: number | null;
+  source_id: number | null;
+  source_number: string | null;
+  is_original: boolean;
 }
 
 export interface OlympiadSubmission {
@@ -729,6 +735,45 @@ export interface OlympiadHistoryItem {
   answer: string;
   submitted_at: string;
   current: boolean;
+  /** Фото совпало с фото другого участника — попытка не засчитана. */
+  rejected: boolean;
+  image_url: string | null;
   /** Вердикт автопроверки — только после публикации итогов. */
   auto_correct: boolean | null;
+}
+
+/** Попытка в списке для админа (все) или организатора (отклонённые — подозрение на списывание). */
+export interface OlympiadAttempt extends OlympiadHistoryItem {
+  user_id: number;
+  username: string;
+  user_name: string;
+  matched_user_id: number | null;
+  matched_username: string | null;
+  matched_name: string | null;
+}
+
+/** Фрагмент диффа исправления: equal — без изменений, delete — убрано, insert — добавлено. */
+export interface DiffSegment {
+  op: "equal" | "delete" | "insert";
+  text: string;
+}
+
+export interface AnnouncementChange {
+  field: string;
+  label: string;
+  diff?: DiffSegment[];
+  /** Ответ во время олимпиады не раскрывается — только факт исправления. */
+  hidden?: boolean;
+  before?: string;
+  after?: string;
+}
+
+/** Объявление жюри или исправление условия во время олимпиады. */
+export interface OlympiadAnnouncement {
+  id: number;
+  olympiad_id: number;
+  task_id: number | null;
+  text: string;
+  changes: AnnouncementChange[];
+  created_at: string;
 }

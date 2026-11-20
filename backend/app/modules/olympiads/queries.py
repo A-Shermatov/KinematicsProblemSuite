@@ -109,28 +109,52 @@ RETURNING id
 
 # ---------- Задачи ----------
 
-TASK_COLUMNS = (
-    "id, olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points, translations"
-)
-
-LIST_TASKS = f"SELECT {TASK_COLUMNS} FROM olympiad_tasks WHERE olympiad_id = $1 ORDER BY position, id"
-
-GET_TASK = f"SELECT {TASK_COLUMNS} FROM olympiad_tasks WHERE id = $1 AND olympiad_id = $2"
-
-INSERT_TASK = f"""
-INSERT INTO olympiad_tasks (olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points,
-                            translations)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-RETURNING {TASK_COLUMNS}
+TASK_COLUMNS = """
+ot.id, ot.olympiad_id, ot.position, ot.title, ot.condition, ot.answer_type, ot.answer, ot.unit, ot.tolerance,
+ot.max_points, ot.translations, ot.difficulty, ot.source_id, ot.source_number, ot.is_original,
+src.type AS source_type, src.title AS source_title, src.year AS source_year, src.author AS source_author
 """
 
-UPDATE_TASK = f"""
+_TASK_FROM = "FROM olympiad_tasks ot LEFT JOIN sources src ON src.id = ot.source_id"
+
+LIST_TASKS = f"SELECT {TASK_COLUMNS} {_TASK_FROM} WHERE ot.olympiad_id = $1 ORDER BY ot.position, ot.id"
+
+GET_TASK = f"SELECT {TASK_COLUMNS} {_TASK_FROM} WHERE ot.id = $1 AND ot.olympiad_id = $2"
+
+INSERT_TASK = """
+INSERT INTO olympiad_tasks (olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points,
+                            translations, difficulty, source_id, source_number, is_original)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14)
+RETURNING id
+"""
+
+UPDATE_TASK = """
 UPDATE olympiad_tasks
 SET position = $3, title = $4, condition = $5, answer_type = $6, answer = $7, unit = $8, tolerance = $9,
-    max_points = $10, translations = $11::jsonb
+    max_points = $10, translations = $11::jsonb, difficulty = $12, source_id = $13, source_number = $14,
+    is_original = $15
 WHERE id = $1 AND olympiad_id = $2
-RETURNING {TASK_COLUMNS}
+RETURNING id
 """
+
+# Перепроверка после исправления ответа: новые баллы автопроверки (балл жюри остаётся).
+TASK_SUBMISSIONS = "SELECT id, answer FROM olympiad_submissions WHERE task_id = $1"
+REJUDGE = "UPDATE olympiad_submissions SET auto_correct = $2, auto_points = $3 WHERE id = $1"
+
+# ---------- Объявления ----------
+
+ANNOUNCEMENT_COLUMNS = "a.id, a.olympiad_id, a.task_id, a.text, a.changes::text AS changes, a.created_at"
+LIST_ANNOUNCEMENTS = f"""
+SELECT {ANNOUNCEMENT_COLUMNS} FROM olympiad_announcements a
+WHERE a.olympiad_id = $1
+ORDER BY a.created_at DESC, a.id DESC
+"""
+INSERT_ANNOUNCEMENT = f"""
+INSERT INTO olympiad_announcements AS a (olympiad_id, task_id, text, changes, created_by)
+VALUES ($1, $2, $3, $4::jsonb, $5)
+RETURNING {ANNOUNCEMENT_COLUMNS}
+"""
+PARTICIPANT_IDS = "SELECT user_id FROM olympiad_participants WHERE olympiad_id = $1"
 
 DELETE_TASK = "DELETE FROM olympiad_tasks WHERE id = $1 AND olympiad_id = $2 RETURNING id"
 
@@ -161,7 +185,6 @@ JOIN olympiad_tasks t ON t.id = sb.task_id
 JOIN users u ON u.id = sb.user_id
 """
 
-GET_SUBMISSION_IMAGE = "SELECT image_path FROM olympiad_submissions WHERE task_id = $1 AND user_id = $2"
 
 # Повторная отправка заменяет решение и сбрасывает оценку жюри.
 UPSERT_SUBMISSION = """
@@ -175,16 +198,30 @@ RETURNING id
 """
 
 INSERT_HISTORY = """
-INSERT INTO olympiad_submission_history (olympiad_id, task_id, user_id, answer, auto_correct)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO olympiad_submission_history (olympiad_id, task_id, user_id, answer, auto_correct, image_path, image_sha256,
+                                         image_phash, rejected, matched_user_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 """
 
-# Все отправки участника, новые сверху; current — последняя по задаче, она засчитывается.
-MY_HISTORY = """
-SELECT h.id, h.task_id, h.answer, h.auto_correct, h.submitted_at,
-       h.id = max(h.id) OVER (PARTITION BY h.task_id) AS current
+# Отпечатки фото других участников этой олимпиады — для проверки на списывание.
+OTHER_PHOTOS = """
+SELECT user_id, image_sha256, image_phash FROM olympiad_submission_history
+WHERE olympiad_id = $1 AND user_id <> $2 AND NOT rejected AND image_sha256 IS NOT NULL
+"""
+
+# Попытки: засчитывается последняя не отклонённая по задаче (current). $2 участник (NULL — все), $3 задача,
+# $4 только отклонённые (списывание).
+HISTORY = """
+SELECT h.id, h.task_id, h.user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS user_name,
+       h.answer, h.auto_correct, h.submitted_at, h.image_path, h.rejected, h.matched_user_id,
+       mu.username AS matched_username, trim(mu.first_name || ' ' || mu.last_name) AS matched_name,
+       NOT h.rejected AND h.id = max(h.id) FILTER (WHERE NOT h.rejected) OVER (PARTITION BY h.user_id, h.task_id)
+           AS current
 FROM olympiad_submission_history h
-WHERE h.olympiad_id = $1 AND h.user_id = $2
+JOIN users u ON u.id = h.user_id
+LEFT JOIN users mu ON mu.id = h.matched_user_id
+WHERE h.olympiad_id = $1 AND ($2::bigint IS NULL OR h.user_id = $2) AND ($3::bigint IS NULL OR h.task_id = $3)
+  AND (NOT $4::boolean OR h.rejected)
 ORDER BY h.submitted_at DESC, h.id DESC
 """
 

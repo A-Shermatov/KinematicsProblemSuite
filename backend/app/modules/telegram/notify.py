@@ -62,3 +62,16 @@ async def olympiad_results(conn: asyncpg.Connection, olympiad: asyncpg.Record, r
             if new and old and (first or new.min_rating > old.min_rating):
                 text = f"{new.icon} Новое звание: <b>{esc(new.name)}</b>! Оно теперь видно рядом с вашим именем."
                 await enqueue(conn, row["user_id"], "title", new.code, text, f"/users/{row['user_id']}")
+
+
+async def olympiad_announcement(
+    conn: asyncpg.Connection, olympiad: asyncpg.Record, announcement_id: int, text: str
+) -> None:
+    """Объявление (в т. ч. исправление условия) — всем зарегистрированным участникам."""
+    from app.modules.olympiads import queries as olympiads_q
+
+    message = f"📢 Олимпиада «{esc(olympiad['title'])}»: {esc(text)}"
+    for row in await conn.fetch(olympiads_q.PARTICIPANT_IDS, olympiad["id"]):
+        await enqueue(
+            conn, row["user_id"], "announcement", str(announcement_id), message, f"/olympiads/{olympiad['id']}"
+        )

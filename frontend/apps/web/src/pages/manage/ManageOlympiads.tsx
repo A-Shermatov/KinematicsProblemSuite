@@ -34,6 +34,10 @@ import {
   type OlympiadTaskInput,
   t,
   levelRange,
+  useAuth,
+  SourcePicker,
+  usePlatformSettings,
+  type PickedSource,
 } from "@kps/shared";
 
 export function ManageOlympiads() {
@@ -82,9 +86,37 @@ const EMPTY_TASK: OlympiadTaskInput = {
   tolerance: 0.01,
   max_points: 10,
   translations: {},
+  difficulty: null,
+  source_id: null,
+  source_number: null,
+  is_original: false,
 };
 
-function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olympiadId: number; task: OlympiadTask | null; nextPosition: number; onSaved: () => void; onCancel: () => void }) {
+type SourceMode = "none" | "own" | "source";
+
+function TaskForm({
+  olympiadId,
+  task,
+  nextPosition,
+  onSaved,
+  onCancel,
+  correction,
+}: {
+  olympiadId: number;
+  task: OlympiadTask | null;
+  nextPosition: number;
+  onSaved: () => void;
+  onCancel: () => void;
+  /** Исправление во время олимпиады — участники получат объявление. */
+  correction?: boolean;
+}) {
+  const { settings } = usePlatformSettings();
+  const [sourceMode, setSourceMode] = useState<SourceMode>(task?.is_original ? "own" : task?.source_id ? "source" : "none");
+  const [picked, setPicked] = useState<PickedSource | null>(
+    task?.source_id && task.source_type && task.source_title
+      ? { id: task.source_id, type: task.source_type, title: task.source_title, author: task.source_author ?? "", year: task.source_year }
+      : null,
+  );
   const [form, setForm] = useState<OlympiadTaskInput>(
     task
       ? {
@@ -97,6 +129,10 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
           tolerance: task.tolerance ?? 0.01,
           max_points: task.max_points,
           translations: task.translations ?? {},
+          difficulty: task.difficulty,
+          source_id: task.source_id ?? null,
+          source_number: task.source_number,
+          is_original: !!task.is_original,
         }
       : { ...EMPTY_TASK, position: nextPosition },
   );
@@ -112,6 +148,9 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
         ...form,
         unit: form.answer_type === "number" ? form.unit?.trim() || null : null,
         translations: cleanTranslations(form.translations),
+        is_original: sourceMode === "own",
+        source_id: sourceMode === "source" ? (picked?.id ?? null) : null,
+        source_number: sourceMode === "source" ? form.source_number?.trim() || null : null,
       };
       if (task) await api.olympiads.updateTask(olympiadId, task.id, payload);
       else await api.olympiads.addTask(olympiadId, payload);
@@ -164,12 +203,71 @@ function TaskForm({ olympiadId, task, nextPosition, onSaved, onCancel }: { olymp
           </>
         )}
       </div>
+      <div className="grid gap-4 rounded-xl border border-border p-4 lg:grid-cols-[180px_1fr]">
+        <Select
+          label={t("Сложность")}
+          value={form.difficulty ?? ""}
+          onChange={(e) => setForm({ ...form, difficulty: e.target.value ? Number(e.target.value) : null })}
+          hint={t("Для архива олимпиадных задач")}
+        >
+          <option value="">{t("Не указана")}</option>
+          {settings.difficulty_levels.map((level) => (
+            <option key={level} value={level}>
+              {level}
+            </option>
+          ))}
+        </Select>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-fg">{t("Источник")}</p>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("Источник")}>
+            {(
+              [
+                ["none", t("Не указан")],
+                ["own", t("Авторская задача")],
+                ["source", t("Из книги, олимпиады, экзамена")],
+              ] as [SourceMode, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={sourceMode === key}
+                onClick={() => setSourceMode(key)}
+                className={cx(
+                  "rounded-xl border px-3 py-1.5 text-sm font-medium",
+                  sourceMode === key ? "border-primary bg-primary-soft text-primary" : "border-border text-muted hover:text-fg",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {sourceMode === "source" && (
+            <div className="grid gap-3 sm:grid-cols-[3fr_1fr] sm:items-start">
+              <SourcePicker value={picked} onChange={setPicked} />
+              <Input
+                label={t("Номер задачи")}
+                value={form.source_number ?? ""}
+                onChange={(e) => setForm({ ...form, source_number: e.target.value || null })}
+                maxLength={30}
+                placeholder={t("123 или 5.14")}
+              />
+            </div>
+          )}
+          <p className="text-xs text-muted">{t("Участникам уровень и источник покажутся только после итогов — по источнику легко найти решение.")}</p>
+        </div>
+      </div>
+      {correction && (
+        <p className="rounded-xl bg-warning-soft p-3 text-sm text-warning">
+          {t("Олимпиада идёт: участники получат объявление с тем, что именно исправлено. Если исправите ответ — автопроверка пересчитается.")}
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel}>
           {t("Отмена")}
         </Button>
         <Button type="submit" loading={saving}>
-          {task ? t("Сохранить задачу") : t("Добавить задачу")}
+          {correction ? t("Исправить и объявить") : task ? t("Сохранить задачу") : t("Добавить задачу")}
         </Button>
       </div>
     </form>
@@ -222,6 +320,8 @@ export function OlympiadEditor() {
   if (loading || !data || !info) return <Loading />;
   const olympiad: OlympiadDetail | null = data.olympiad;
   const editable = !olympiad || olympiad.status === "draft" || olympiad.status === "rejected";
+  // Опубликованную олимпиаду можно исправлять до итогов (во время — с объявлением участникам).
+  const canCorrect = olympiad?.status === "published" && olympiad.phase !== "finished";
 
   const saveInfo = async (event: FormEvent) => {
     event.preventDefault();
@@ -357,7 +457,17 @@ export function OlympiadEditor() {
           {olympiad.tasks.map((task, index) =>
             editingTask !== "new" && editingTask?.id === task.id ? (
               <Card key={task.id} className="p-6">
-                <TaskForm olympiadId={olympiad.id} task={task} nextPosition={index} onSaved={() => { setEditingTask(null); reload(); }} onCancel={() => setEditingTask(null)} />
+                <TaskForm
+                  olympiadId={olympiad.id}
+                  task={task}
+                  nextPosition={index}
+                  correction={olympiad.status === "published" && (olympiad.phase === "running" || olympiad.phase === "checking")}
+                  onSaved={() => {
+                    setEditingTask(null);
+                    reload();
+                  }}
+                  onCancel={() => setEditingTask(null)}
+                />
               </Card>
             ) : (
               <Card key={task.id} className="space-y-3 p-5">
@@ -370,6 +480,12 @@ export function OlympiadEditor() {
                     {t("Ответ:")} {task.answer}
                     {task.unit ? ` ${task.unit}` : ""}
                   </Badge>
+                  {task.difficulty && <Badge>{task.difficulty}</Badge>}
+                  {!editable && canCorrect && (
+                    <Button size="sm" variant="ghost" onClick={() => setEditingTask(task)}>
+                      {t("Исправить")}
+                    </Button>
+                  )}
                   {editable && (
                     <>
                       <Button size="sm" variant="ghost" onClick={() => setEditingTask(task)}>
@@ -400,7 +516,7 @@ export function OlympiadEditor() {
 
       {olympiad && editable && (
         <Card className="flex flex-wrap items-center gap-4 p-5">
-          <p className="flex-1 text-sm text-muted">{t("Когда всё готово, отправьте олимпиаду администратору. После публикации задачи изменить нельзя.")}</p>
+          <p className="flex-1 text-sm text-muted">{t("Когда всё готово, отправьте олимпиаду администратору. После публикации задачи можно только исправлять — участники получат объявление.")}</p>
           <Button variant="ghost" onClick={() => window.confirm(t("Удалить олимпиаду?")) && action(async () => { await api.olympiads.remove(olympiad.id); navigate("/manage/olympiads"); })}>
             {t("Удалить")}
           </Button>
@@ -413,7 +529,21 @@ export function OlympiadEditor() {
   );
 }
 
-function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympiadId: number; submission: OlympiadSubmission; onSaved: (s: OlympiadSubmission) => void; onZoom: (url: string) => void; locked: boolean }) {
+function GradeRow({
+  olympiadId,
+  submission,
+  onSaved,
+  onZoom,
+  onAttempts,
+  locked,
+}: {
+  olympiadId: number;
+  submission: OlympiadSubmission;
+  onSaved: (s: OlympiadSubmission) => void;
+  onZoom: (url: string) => void;
+  onAttempts?: (s: OlympiadSubmission) => void;
+  locked: boolean;
+}) {
   const [points, setPoints] = useState(String(submission.jury_points ?? submission.auto_points));
   const [comment, setComment] = useState(submission.jury_comment);
   const [saving, setSaving] = useState(false);
@@ -447,6 +577,11 @@ function GradeRow({ olympiadId, submission, onSaved, onZoom, locked }: { olympia
           {t("Ответ:")} <span className="font-mono text-fg">{submission.answer || "—"}</span>  {t("· эталон")}{" "}
           <span className="font-mono text-fg">{submission.correct_answer}</span>{" "}
           <Badge tone={submission.auto_correct ? "success" : "danger"}>{submission.auto_correct ? t("авто: верно") : t("авто: неверно")}</Badge>
+          {onAttempts && (
+            <button type="button" onClick={() => onAttempts(submission)} className="ml-2 text-xs text-primary hover:underline">
+              {t("все попытки")}
+            </button>
+          )}
         </p>
         <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder={t("Комментарий участнику")} disabled={locked} aria-label={t("Комментарий")} />
       </div>
@@ -480,6 +615,8 @@ export function OlympiadJury({ embedded = false }: { embedded?: boolean }) {
   const [ungraded, setUngraded] = useState(false);
   const [zoom, setZoom] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const [attemptsOf, setAttemptsOf] = useState<OlympiadSubmission | null>(null);
   const { data, loading, setData, reload } = useAsync(async () => {
     const [olympiad, submissions] = await Promise.all([
       api.olympiads.get(olympiadId),
@@ -555,6 +692,8 @@ export function OlympiadJury({ embedded = false }: { embedded?: boolean }) {
           {t("Не проверено в списке:")} {left}  {t("из")} {submissions.length}
         </span>
       </div>
+      <PlagiarismPanel olympiadId={olympiad.id} onZoom={setZoom} />
+      {(olympiad.phase === "running" || olympiad.phase === "checking") && <AnnounceForm olympiadId={olympiad.id} tasks={olympiad.tasks} />}
       {submissions.length === 0 ? (
         <EmptyState icon="📭" title={t("Решений нет")} />
       ) : (
@@ -566,14 +705,115 @@ export function OlympiadJury({ embedded = false }: { embedded?: boolean }) {
               submission={submission}
               locked={locked}
               onZoom={setZoom}
+              onAttempts={user?.role === "admin" ? setAttemptsOf : undefined}
               onSaved={(saved) => setData((prev) => ({ ...prev!, submissions: prev!.submissions.map((s) => (s.id === saved.id ? saved : s)) }))}
             />
           ))}
         </Card>
       )}
+      <Modal open={!!attemptsOf} onClose={() => setAttemptsOf(null)} title={t("Все попытки: {0}", [attemptsOf?.user_name || attemptsOf?.username || ""])}>
+        {attemptsOf && <AttemptsList olympiadId={olympiad.id} userId={attemptsOf.user_id} taskId={attemptsOf.task_id} onZoom={setZoom} />}
+      </Modal>
       <Modal open={!!zoom} onClose={() => setZoom(null)} title={t("Фото решения")}>
         {zoom && <img src={zoom} alt={t("Фото решения")} className="max-h-[85vh] rounded-lg object-contain" />}
       </Modal>
+    </div>
+  );
+}
+
+/** Подозрения на списывание: попытки, у которых фото совпало с фото другого участника (они не засчитаны). */
+function PlagiarismPanel({ olympiadId, onZoom }: { olympiadId: number; onZoom: (url: string) => void }) {
+  const { data } = useAsync(() => api.olympiads.attempts(olympiadId, { rejected: true }), [olympiadId]);
+  if (!data || data.length === 0) return null;
+  return (
+    <Card className="space-y-2 border-danger/40 p-4">
+      <p className="text-sm font-semibold text-danger">
+        ⚠ {t("Подозрения на списывание")} · {data.length}
+      </p>
+      <p className="text-xs text-muted">{t("Фото совпало с фото другого участника — такие попытки не засчитаны и жюри их не проверяет.")}</p>
+      <div className="divide-y divide-border">
+        {data.map((item) => (
+          <div key={item.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+            {item.image_url && (
+              <button onClick={() => onZoom(item.image_url!)} className="h-12 w-12 overflow-hidden rounded-lg bg-surface-2" aria-label={t("Открыть фото решения")}>
+                <img src={item.image_url} alt="" className="h-full w-full object-cover" />
+              </button>
+            )}
+            <span className="flex-1 text-fg">
+              <b>{item.user_name || item.username}</b> {t("прислал фото, как у")} <b>{item.matched_name || item.matched_username}</b>
+            </span>
+            <span className="text-xs text-muted">{formatDateTime(item.submitted_at)}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** Объявление участникам — придёт на страницу олимпиады и в Telegram. */
+function AnnounceForm({ olympiadId, tasks }: { olympiadId: number; tasks: OlympiadTask[] }) {
+  const [text, setText] = useState("");
+  const [taskId, setTaskId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const send = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.olympiads.announce(olympiadId, text, taskId ? Number(taskId) : null);
+      setText("");
+      setMessage(t("Отправлено участникам"));
+    } catch (err) {
+      setMessage(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="p-4">
+      <form onSubmit={send} className="flex flex-wrap items-end gap-3">
+        <select value={taskId} onChange={(e) => setTaskId(e.target.value)} className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-fg" aria-label={t("Задача")}>
+          <option value="">{t("Ко всей олимпиаде")}</option>
+          {tasks.map((task, index) => (
+            <option key={task.id} value={task.id}>
+              {String.fromCharCode(65 + index)}. {task.title}
+            </option>
+          ))}
+        </select>
+        <div className="min-w-64 flex-1">
+          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Объявление участникам: уточнение, ответ на вопрос…")} minLength={3} maxLength={2000} required aria-label={t("Объявление")} />
+        </div>
+        <Button type="submit" variant="secondary" loading={busy}>
+          📢 {t("Объявить")}
+        </Button>
+        {message && <span className="text-sm text-muted">{message}</span>}
+      </form>
+    </Card>
+  );
+}
+
+/** Все попытки участника по задаче — только для админа. */
+function AttemptsList({ olympiadId, userId, taskId, onZoom }: { olympiadId: number; userId: number; taskId: number; onZoom: (url: string) => void }) {
+  const { data, loading, error } = useAsync(() => api.olympiads.attempts(olympiadId, { user_id: userId, task_id: taskId }), [olympiadId, userId, taskId]);
+  if (loading) return <Loading />;
+  if (error) return <ErrorMessage>{error}</ErrorMessage>;
+  return (
+    <div className="w-[min(90vw,640px)] divide-y divide-border">
+      {data?.map((item) => (
+        <div key={item.id} className="flex items-center gap-3 py-2 text-sm">
+          {item.image_url && (
+            <button onClick={() => onZoom(item.image_url!)} className="h-14 w-14 overflow-hidden rounded-lg bg-surface-2" aria-label={t("Открыть фото решения")}>
+              <img src={item.image_url} alt="" className="h-full w-full object-cover" />
+            </button>
+          )}
+          <span className="font-mono text-fg">{item.answer || "—"}</span>
+          {item.current && <Badge tone="primary">{t("засчитывается")}</Badge>}
+          {item.rejected && <Badge tone="danger">{t("списано у {0}", [item.matched_username ?? ""])}</Badge>}
+          {item.auto_correct !== null && !item.rejected && <Badge tone={item.auto_correct ? "success" : "danger"}>{item.auto_correct ? t("авто: верно") : t("авто: неверно")}</Badge>}
+          <span className="ml-auto text-xs text-muted">{formatDateTime(item.submitted_at)}</span>
+        </div>
+      ))}
     </div>
   );
 }

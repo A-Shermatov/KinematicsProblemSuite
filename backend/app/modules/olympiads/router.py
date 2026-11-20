@@ -15,8 +15,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 
 from app.deps import Conn, CurrentUser, OptionalUser, SettingsDep, User, not_found, require_roles
 from app.i18n import DEFAULT_LANG, Lang, RequestLang, clean_translations
+from app.modules.olympiads import corrections, photos
 from app.modules.olympiads import queries as q
 from app.modules.olympiads.schemas import (
+    AnnouncementIn,
     GradeIn,
     LevelOut,
     OlympiadDetail,
@@ -182,7 +184,28 @@ async def submit(
             tolerance=task["tolerance"],
         ).correct
     )
-    old_image = await conn.fetchval(q.GET_SUBMISSION_IMAGE, task_id, student.id)
+    # Проверка на списывание: то же фото уже прислал другой участник — попытка не засчитывается.
+    print_ = photos.fingerprint((settings.upload_dir / path).read_bytes())
+    for other in await conn.fetch(q.OTHER_PHOTOS, olympiad_id, student.id):
+        if photos.same_photo(print_, other["image_sha256"], other["image_phash"]):
+            await conn.execute(
+                q.INSERT_HISTORY,
+                olympiad_id,
+                task_id,
+                student.id,
+                answer,
+                correct,
+                path,
+                print_.sha256,
+                print_.phash,
+                True,
+                other["user_id"],
+            )
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="Это фото уже отправлял другой участник — отправка не засчитана. "
+                "Сфотографируйте своё решение. Если это ошибка, напишите организатору.",
+            )
     try:
         submission_id = await conn.fetchval(
             q.UPSERT_SUBMISSION,
@@ -197,8 +220,20 @@ async def submit(
     except Exception:
         delete_file(settings.upload_dir, path)
         raise
-    await conn.execute(q.INSERT_HISTORY, olympiad_id, task_id, student.id, answer, correct)
-    delete_file(settings.upload_dir, old_image)
+    # Старое фото не удаляем: все попытки с фото видят сам участник и админ.
+    await conn.execute(
+        q.INSERT_HISTORY,
+        olympiad_id,
+        task_id,
+        student.id,
+        answer,
+        correct,
+        path,
+        print_.sha256,
+        print_.phash,
+        False,
+        None,
+    )
     saved = await conn.fetchrow(q.GET_SUBMISSION, submission_id, olympiad_id)
     return SubmissionOut.from_row(saved, reveal=False)
 
@@ -212,21 +247,53 @@ async def my_submissions(olympiad_id: int, user: User, conn: Conn) -> list[Submi
 
 @router.get("/{olympiad_id}/my-history")
 async def my_history(olympiad_id: int, user: User, conn: Conn) -> list[dict]:
-    """Все отправки участника, как «Мои посылки» на Codeforces. Вердикт автопроверки — только после итогов."""
+    """Все отправки участника с фото, как «Мои посылки» на Codeforces. Вердикт автопроверки — только после итогов."""
     row = await _get(conn, olympiad_id, user)
-    reveal = row["phase"] == "finished"
-    rows = await conn.fetch(q.MY_HISTORY, olympiad_id, user.id)
-    return [
-        {
-            "id": r["id"],
-            "task_id": r["task_id"],
-            "answer": r["answer"],
-            "submitted_at": r["submitted_at"],
-            "current": r["current"],
-            "auto_correct": r["auto_correct"] if reveal else None,
+    rows = await conn.fetch(q.HISTORY, olympiad_id, user.id, None, False)
+    return [_history_item(r, reveal=row["phase"] == "finished") for r in rows]
+
+
+def _history_item(r: asyncpg.Record, *, reveal: bool, who: bool = False) -> dict[str, Any]:
+    item = {
+        "id": r["id"],
+        "task_id": r["task_id"],
+        "answer": r["answer"],
+        "submitted_at": r["submitted_at"],
+        "current": r["current"],
+        "rejected": r["rejected"],
+        "image_url": public_url(r["image_path"]),
+        "auto_correct": r["auto_correct"] if reveal else None,
+    }
+    if who:
+        item |= {
+            "user_id": r["user_id"],
+            "username": r["username"],
+            "user_name": r["user_name"],
+            "matched_user_id": r["matched_user_id"],
+            "matched_username": r["matched_username"],
+            "matched_name": r["matched_name"],
         }
-        for r in rows
-    ]
+    return item
+
+
+@router.get("/{olympiad_id}/attempts")
+async def all_attempts(
+    olympiad_id: int,
+    user: User,
+    conn: Conn,
+    user_id: int | None = None,
+    task_id: int | None = None,
+    rejected: bool = False,
+) -> list[dict]:
+    """Все попытки участников. Целиком — только админ; организатор видит лишь отклонённые (подозрение на списывание).
+
+    Жюри проверяет только последнюю попытку (/submissions) — предыдущие ему не показываются.
+    """
+    await _managed(conn, olympiad_id, user)
+    if not user.is_admin and not rejected:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Все попытки видит только администратор")
+    rows = await conn.fetch(q.HISTORY, olympiad_id, user_id, task_id, rejected)
+    return [_history_item(r, reveal=True, who=True) for r in rows]
 
 
 @router.get("/{olympiad_id}/results")
@@ -357,12 +424,8 @@ async def delete(olympiad_id: int, user: User, conn: Conn) -> None:
     await conn.execute(q.DELETE, olympiad_id)
 
 
-@router.post("/{olympiad_id}/tasks", response_model=OlympiadTaskOut, status_code=status.HTTP_201_CREATED)
-async def add_task(olympiad_id: int, data: OlympiadTaskIn, user: User, conn: Conn) -> OlympiadTaskOut:
-    _require_editable(await _managed(conn, olympiad_id, user))
-    row = await conn.fetchrow(
-        q.INSERT_TASK,
-        olympiad_id,
+def _task_args(data: OlympiadTaskIn) -> tuple[Any, ...]:
+    return (
         data.position,
         data.title,
         data.condition,
@@ -372,30 +435,105 @@ async def add_task(olympiad_id: int, data: OlympiadTaskIn, user: User, conn: Con
         data.tolerance,
         data.max_points,
         clean_translations(data.translations),
+        data.difficulty,
+        None if data.is_original else data.source_id,
+        None if data.is_original or data.source_id is None else data.source_number,
+        data.is_original,
     )
-    return OlympiadTaskOut.from_row(row, reveal=True, manage=True)
+
+
+@router.post("/{olympiad_id}/tasks", response_model=OlympiadTaskOut, status_code=status.HTTP_201_CREATED)
+async def add_task(olympiad_id: int, data: OlympiadTaskIn, user: User, conn: Conn) -> OlympiadTaskOut:
+    _require_editable(await _managed(conn, olympiad_id, user))
+    task_id = await conn.fetchval(q.INSERT_TASK, olympiad_id, *_task_args(data))
+    return OlympiadTaskOut.from_row(await conn.fetchrow(q.GET_TASK, task_id, olympiad_id), reveal=True, manage=True)
 
 
 @router.put("/{olympiad_id}/tasks/{task_id}", response_model=OlympiadTaskOut)
 async def update_task(olympiad_id: int, task_id: int, data: OlympiadTaskIn, user: User, conn: Conn) -> OlympiadTaskOut:
-    _require_editable(await _managed(conn, olympiad_id, user))
-    row = await conn.fetchrow(
-        q.UPDATE_TASK,
-        task_id,
-        olympiad_id,
-        data.position,
-        data.title,
-        data.condition,
-        data.answer_type,
-        data.answer,
-        data.unit,
-        data.tolerance,
-        data.max_points,
-        clean_translations(data.translations),
-    )
-    if row is None:
+    """Черновик правится свободно. Опубликованную олимпиаду можно исправлять до публикации итогов:
+    во время олимпиады и проверки участникам приходит объявление — что именно исправлено (как на Codeforces),
+    а при исправлении ответа автопроверка пересчитывается.
+    """
+    row = await _managed(conn, olympiad_id, user)
+    correcting = row["status"] == "published"
+    if correcting and row["phase"] == "finished":
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Итоги опубликованы — задачу изменить нельзя")
+    if not correcting:
+        _require_editable(row)
+    old = await conn.fetchrow(q.GET_TASK, task_id, olympiad_id)
+    if old is None:
         raise not_found("Задача")
-    return OlympiadTaskOut.from_row(row, reveal=True, manage=True)
+    async with conn.transaction():
+        await conn.execute(q.UPDATE_TASK, task_id, olympiad_id, *_task_args(data))
+        new = await conn.fetchrow(q.GET_TASK, task_id, olympiad_id)
+        if correcting and row["phase"] in ("running", "checking"):
+            await _announce_correction(conn, row, old, new, user)
+    return OlympiadTaskOut.from_row(new, reveal=True, manage=True)
+
+
+async def _announce_correction(
+    conn: asyncpg.Connection, olympiad: asyncpg.Record, old: asyncpg.Record, new: asyncpg.Record, user: CurrentUser
+) -> None:
+    as_dict = {**dict(new), "translations": _json(new["translations"])}
+    old_dict = {**dict(old), "translations": _json(old["translations"])}
+    found = corrections.changes(old_dict, as_dict)
+    if not found:
+        return
+    if any(item["field"] == "answer" for item in found) or old["max_points"] != new["max_points"]:
+        for sub in await conn.fetch(q.TASK_SUBMISSIONS, new["id"]):
+            correct = (
+                bool(sub["answer"])
+                and check_answer(
+                    sub["answer"],
+                    expected=new["answer"],
+                    answer_type=new["answer_type"],
+                    unit=new["unit"],
+                    tolerance=new["tolerance"],
+                ).correct
+            )
+            await conn.execute(q.REJUDGE, sub["id"], correct, new["max_points"] if correct else 0)
+    ids = [t["id"] for t in await conn.fetch(q.LIST_TASKS, olympiad["id"])]
+    label = _label(ids.index(new["id"]))
+    text = corrections.summary(label, new["title"], found)
+    announcement = await conn.fetchrow(
+        q.INSERT_ANNOUNCEMENT, olympiad["id"], new["id"], text, json.dumps(found, ensure_ascii=False), user.id
+    )
+    await notify.olympiad_announcement(conn, olympiad, announcement["id"], text)
+
+
+def _label(index: int) -> str:
+    return chr(ord("A") + index) if index < 26 else str(index + 1)
+
+
+def _json(value: Any) -> Any:
+    return json.loads(value) if isinstance(value, str) else (value or {})
+
+
+def _announcement_out(row: asyncpg.Record) -> dict[str, Any]:
+    return {**dict(row), "changes": json.loads(row["changes"])}
+
+
+@router.get("/{olympiad_id}/announcements")
+async def announcements(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> list[dict[str, Any]]:
+    """Объявления жюри и исправления условий — новые сверху."""
+    row = await _get(conn, olympiad_id, viewer)
+    if not _visible(row, viewer):
+        raise not_found("Олимпиада")
+    if row["phase"] == "upcoming" and not _can_manage(row, viewer):
+        return []
+    return [_announcement_out(r) for r in await conn.fetch(q.LIST_ANNOUNCEMENTS, olympiad_id)]
+
+
+@router.post("/{olympiad_id}/announcements", status_code=status.HTTP_201_CREATED)
+async def announce(olympiad_id: int, data: AnnouncementIn, user: User, conn: Conn) -> dict[str, Any]:
+    """Сообщение жюри всем участникам (во время олимпиады или проверки), приходит и в Telegram."""
+    row = await _managed(conn, olympiad_id, user)
+    if row["status"] != "published" or row["phase"] not in ("running", "checking"):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Объявления — только во время олимпиады и проверки")
+    created = await conn.fetchrow(q.INSERT_ANNOUNCEMENT, olympiad_id, data.task_id, data.text, "[]", user.id)
+    await notify.olympiad_announcement(conn, row, created["id"], data.text)
+    return _announcement_out(created)
 
 
 @router.delete("/{olympiad_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from "react-router-dom";
 import {
   APP_NAME,
@@ -29,6 +29,7 @@ import {
   type Olympiad,
   type OlympiadDetail,
   type OlympiadHistoryItem,
+  type OlympiadAnnouncement,
   type OlympiadResults,
   type OlympiadPhase,
   type OlympiadSubmission,
@@ -39,8 +40,10 @@ import {
   UntranslatedNote,
   intlLocale,
   levelRange,
+  formatSource,
 } from "@kps/shared";
 import { OlympiadStandingsTable } from "../components/OlympiadStandings";
+import { ChangeDiff, OlympiadAnnouncements } from "../components/OlympiadAnnouncements";
 
 const PHASE_TABS: { key: OlympiadPhase; label: string }[] = [
   { key: "running", label: t("Идут сейчас") },
@@ -389,6 +392,7 @@ interface OlympiadContext {
   setRun: (run: VirtualRun) => void;
   saveSubmission: (submission: OlympiadSubmission) => void;
   zoom: (url: string) => void;
+  announcements: OlympiadAnnouncement[];
 }
 
 const useOlympiad = () => useOutletContext<OlympiadContext>();
@@ -413,10 +417,21 @@ export function OlympiadPage() {
     return { olympiad, submissions, results, run, virtualRows };
   }, [olympiadId, user?.id]);
   useDocumentTitle(data?.olympiad.title);
+  const { data: news, reload: reloadNews } = useAsync(() => api.olympiads.announcements(olympiadId).catch(() => []), [olympiadId]);
+  const livePhase = data?.olympiad.phase === "running" || data?.olympiad.phase === "checking";
+  useEffect(() => {
+    if (!livePhase) return;
+    const timer = window.setInterval(reloadNews, 30_000);
+    return () => window.clearInterval(timer);
+  }, [livePhase, reloadNews]);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? t("Олимпиада не найдена")}</ErrorMessage>;
   const { olympiad, results, run } = data;
+  const labelOfTask = (taskId: number | null) => {
+    const index = olympiad.tasks.findIndex((task) => task.id === taskId);
+    return index >= 0 ? taskLabel(index) : undefined;
+  };
   const virtualActive = !!run?.active;
   const canVirtual = !!user && olympiad.phase === "finished" && !olympiad.can_manage && !olympiad.is_registered && !run;
   const setRun = (next: VirtualRun) => {
@@ -484,6 +499,7 @@ export function OlympiadPage() {
     setRun,
     saveSubmission: (saved) => setData((prev) => ({ ...prev!, submissions: [...prev!.submissions.filter((s) => s.task_id !== saved.task_id), saved] })),
     zoom: setZoom,
+    announcements: news ?? [],
   };
 
   return (
@@ -577,6 +593,8 @@ export function OlympiadPage() {
           <ButtonLink to={`${base}/diploma`}>{myRow.diploma ? t("Открыть диплом") : t("Сертификат участника")}</ButtonLink>
         </Card>
       )}
+
+      <OlympiadAnnouncements olympiadId={olympiad.id} items={news ?? []} taskLabel={labelOfTask} />
 
       <nav className="flex gap-1 overflow-x-auto border-b border-border" aria-label={t("Разделы олимпиады")}>
         {tabs.map((tab) => (
@@ -702,7 +720,7 @@ export function OlympiadProblems() {
 /** Отдельная задача: /olympiads/:id/problems/A — условие и отправка. */
 export function OlympiadProblem() {
   const { label = "" } = useParams();
-  const { olympiad, submissions, run, virtualActive, setRun, saveSubmission, zoom } = useOlympiad();
+  const { olympiad, submissions, run, virtualActive, setRun, saveSubmission, zoom, announcements } = useOlympiad();
   const index = label.toUpperCase().charCodeAt(0) - 65;
   const task = olympiad.tasks[index];
   if (!task) return <EmptyState icon="🔍" title={t("Задача не найдена")} />;
@@ -734,8 +752,28 @@ export function OlympiadProblem() {
           </h2>
           <Badge>{task.max_points}  {t("баллов")}</Badge>
         </div>
+        {announcements
+          .filter((item) => item.task_id === task.id && item.changes.length > 0)
+          .map((item) => (
+            <details key={item.id} className="rounded-xl border border-warning/50 bg-warning-soft/40 px-4 py-2 text-sm" open>
+              <summary className="cursor-pointer font-medium text-fg">
+                ✏️ {t("Условие исправлено")} · {formatDateTime(item.created_at)}
+              </summary>
+              <div className="mt-2 space-y-2">
+                {item.changes.map((change) => (
+                  <ChangeDiff key={change.field} change={change} />
+                ))}
+              </div>
+            </details>
+          ))}
         <UntranslatedNote lang={task.lang} />
         <Markdown source={task.condition} />
+        {(task.difficulty || formatSource(task)) && (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            {task.difficulty && <Badge>{t("Сложность {0}", [task.difficulty])}</Badge>}
+            {formatSource(task) && <span>{t("Источник:")} {formatSource(task)}</span>}
+          </p>
+        )}
         {olympiad.phase === "running" && olympiad.is_registered && (
           <SubmitForm olympiadId={olympiad.id} task={task} submission={submission} onSaved={saveSubmission} />
         )}
@@ -829,6 +867,13 @@ export function OlympiadMySubmissions() {
 
   const verdict = (item: OlympiadHistoryItem) => {
     const max = labelOf.get(item.task_id)?.task.max_points ?? 0;
+    if (item.rejected) {
+      return (
+        <span title={t("Это фото уже отправлял другой участник")}>
+          <Badge tone="danger">{t("⚠ не засчитано: фото совпало с чужим")}</Badge>
+        </span>
+      );
+    }
     if (!item.current) {
       return finished && item.auto_correct !== null ? (
         <span className={item.auto_correct ? "text-success" : "text-danger"}>{item.auto_correct ? t("верно") : t("неверно")} · {t("заменено")}</span>
@@ -881,8 +926,8 @@ export function OlympiadMySubmissions() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-fg">{item.answer || "—"}</span>
-                      {current && (
-                        <button className="ml-2 text-xs text-primary hover:underline" onClick={() => zoom(current.image_url)}>
+                      {item.image_url && (
+                        <button className="ml-2 text-xs text-primary hover:underline" onClick={() => zoom(item.image_url!)}>
                           {t("фото")}
                         </button>
                       )}

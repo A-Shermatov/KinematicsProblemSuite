@@ -77,6 +77,11 @@ class OlympiadTaskIn(BaseModel):
     tolerance: float = Field(default=0.01, ge=0, lt=1)
     max_points: int = Field(default=10, ge=1, le=100)
     translations: dict[TranslationLang, TranslationIn] = Field(default_factory=dict)
+    # Уровень и источник — как у задач платформы; участникам видны только после итогов (источник гуглится).
+    difficulty: int | None = Field(default=None, ge=1, le=10_000)
+    source_id: int | None = None
+    source_number: str | None = Field(default=None, max_length=30)
+    is_original: bool = False
 
     @field_validator("title", "answer")
     @classmethod
@@ -110,14 +115,30 @@ class OlympiadTaskOut(BaseModel):
     lang: str = "ru"
     available_langs: list[str] = ["ru"]
     translations: dict[str, dict[str, str]] | None = None
+    difficulty: int | None = None
+    source_id: int | None = None
+    source_type: str | None = None
+    source_title: str | None = None
+    source_year: int | None = None
+    source_author: str = ""
+    source_number: str | None = None
+    is_original: bool = False
 
     @classmethod
     def from_row(cls, row: Any, *, reveal: bool, lang: Lang = DEFAULT_LANG, manage: bool = False) -> OlympiadTaskOut:
         # Организатору — русский оригинал и переводы отдельно (для редактора), остальным — перевод с фолбэком.
         data = localize(row, DEFAULT_LANG if manage else lang, keep_translations=manage)
+        data["source_author"] = data.get("source_author") or ""
+        if data.get("is_original") and not data.get("source_type"):
+            data["source_type"] = "own"
         if not reveal:
             data["answer"] = None
             data["tolerance"] = None
+            # Источник и сложность до итогов скрыты: по источнику легко найти решение.
+            for key in ("difficulty", "source_id", "source_type", "source_title", "source_year", "source_number"):
+                data[key] = None
+            data["source_author"] = ""
+            data["is_original"] = False
         return cls(**data)
 
 
@@ -227,3 +248,13 @@ class LevelIn(BaseModel):
 
 class LevelOut(LevelIn):
     id: int
+
+
+class AnnouncementIn(BaseModel):
+    text: str = Field(min_length=3, max_length=2000)
+    task_id: int | None = None
+
+    @field_validator("text")
+    @classmethod
+    def strip(cls, value: str) -> str:
+        return value.strip()
