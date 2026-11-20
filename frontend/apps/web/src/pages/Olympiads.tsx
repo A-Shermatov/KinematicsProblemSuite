@@ -29,7 +29,6 @@ import {
   type Olympiad,
   type OlympiadDetail,
   type OlympiadPhase,
-  type OlympiadResults,
   type OlympiadSubmission,
   type OlympiadTask,
   type VirtualRun,
@@ -38,6 +37,7 @@ import {
   UntranslatedNote,
   intlLocale,
 } from "@kps/shared";
+import { OlympiadStandingsTable } from "../components/OlympiadStandings";
 
 const PHASE_TABS: { key: OlympiadPhase; label: string }[] = [
   { key: "running", label: t("Идут сейчас") },
@@ -335,55 +335,6 @@ function VirtualStandings({ rows, maxScore, highlight }: { rows: VirtualStanding
   );
 }
 
-function ResultsTable({ results, tasks, highlight }: { results: OlympiadResults; tasks: OlympiadTask[]; highlight?: number }) {
-  if (results.rows.length === 0) return <EmptyState title={t("Никто не отправил решений")} />;
-  return (
-    <Card className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-            <th className="px-4 py-3 font-medium">{t("Место")}</th>
-            <th className="px-4 py-3 font-medium">{t("Участник")}</th>
-            {tasks.map((task, index) => (
-              <th key={task.id} className="px-2 py-3 text-center font-medium" title={task.title}>
-                {index + 1}
-              </th>
-            ))}
-            <th className="px-4 py-3 text-right font-medium">{t("Сумма")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {results.rows.map((row) => (
-            <tr key={row.user_id} className={cx(row.user_id === highlight && "bg-primary-soft/60")}>
-              <td className="px-4 py-3 text-lg font-bold text-muted">{row.diploma ? MEDAL[row.diploma] : row.place}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <Avatar src={row.avatar_url} name={row.name || row.username} size={32} />
-                  <div className="min-w-0">
-                    <Link to={`/users/${row.user_id}`} className="font-medium text-fg hover:text-primary">
-                      {row.name || row.username}
-                    </Link>
-                    <p className="truncate text-xs text-muted">{[row.school, row.city].filter(Boolean).join(", ")}</p>
-                  </div>
-                </div>
-              </td>
-              {tasks.map((task) => (
-                <td key={task.id} className="px-2 py-3 text-center tabular-nums text-fg">
-                  {row.task_points[String(task.id)] ?? "—"}
-                </td>
-              ))}
-              <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-primary">
-                {row.total}
-                <span className="text-xs font-normal text-muted"> / {results.max_score}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
-  );
-}
-
 export function OlympiadPage() {
   const olympiadId = Number(useParams().olympiadId);
   const { user } = useAuth();
@@ -550,7 +501,7 @@ export function OlympiadPage() {
       {results && !virtualActive && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-fg">{t("Итоговая таблица")}</h2>
-          <ResultsTable results={results} tasks={olympiad.tasks} highlight={user?.id} />
+          <OlympiadStandingsTable olympiadId={olympiad.id} live={false} highlight={user?.id} />
         </section>
       )}
 
@@ -626,6 +577,13 @@ export function OlympiadPage() {
               </Card>
             );
           })}
+        </section>
+      )}
+
+      {(olympiad.phase === "running" || olympiad.phase === "checking") && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-fg">{olympiad.phase === "running" ? t("Таблица в реальном времени") : t("Таблица (идёт проверка жюри)")}</h2>
+          <OlympiadStandingsTable olympiadId={olympiad.id} live highlight={user?.id} />
         </section>
       )}
 

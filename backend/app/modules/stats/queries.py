@@ -1,5 +1,7 @@
 """SQL для статистики и рейтинга."""
 
+from app.modules.olympiads.queries import PENALTY, POINTS
+
 STUDENT_SUMMARY = """
 SELECT count(*)                                         AS attempts,
        count(*) FILTER (WHERE status = 'correct')       AS correct,
@@ -128,15 +130,15 @@ GROUP BY lower(school) ORDER BY users DESC, name LIMIT 100
 """
 
 # Призовые места (1–3 с ненулевым баллом) по олимпиадам с опубликованными итогами — для званий.
-_OLYMPIAD_PLACES = """
+_OLYMPIAD_PLACES = f"""
 olympiad_scores AS (
-    SELECT sb.olympiad_id, sb.user_id, sum(COALESCE(sb.jury_points, sb.auto_points)) AS total
+    SELECT sb.olympiad_id, sb.user_id, sum({POINTS}) AS total, {PENALTY} AS penalty
     FROM olympiad_submissions sb
     JOIN olympiads o ON o.id = sb.olympiad_id AND o.results_published
     GROUP BY sb.olympiad_id, sb.user_id
 ),
 olympiad_places AS (
-    SELECT *, RANK() OVER (PARTITION BY olympiad_id ORDER BY total DESC) AS place FROM olympiad_scores
+    SELECT *, RANK() OVER (PARTITION BY olympiad_id ORDER BY total DESC, penalty) AS place FROM olympiad_scores
 )
 """
 

@@ -212,11 +212,55 @@ async def results(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[st
                 "city": r["city"],
                 "school": r["school"],
                 "total": r["total"],
+                "penalty": r["penalty"],
                 "task_points": {int(k): v for k, v in json.loads(r["task_points"]).items()},
                 # Дипломы I–III степени за первые три места (при ненулевом балле).
                 "diploma": r["place"] if r["place"] <= 3 and r["total"] > 0 else None,
             }
             for r in rows
+        ],
+    }
+
+
+@router.get("/{olympiad_id}/standings")
+async def standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[str, Any]:
+    """Живая таблица, как на Codeforces: видна всем с начала олимпиады.
+
+    Места: больше баллов — выше; при равенстве выше тот, кто быстрее (меньше штраф в минутах).
+    Пока жюри не проверило решение, в клетке балл автопроверки (graded=false) — таблица предварительная.
+    """
+    row = await _get(conn, olympiad_id, viewer)
+    if row["status"] != "published" and not _can_manage(row, viewer):
+        raise not_found("Олимпиада")
+    if row["phase"] == "upcoming":
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Олимпиада ещё не началась")
+    tasks = await conn.fetch(q.LIST_TASKS, olympiad_id)
+    rows = await conn.fetch(q.RESULTS, olympiad_id)
+    cells = [{int(k): v for k, v in json.loads(r["cells"]).items()} for r in rows]
+    return {
+        "phase": row["phase"],
+        "starts_at": row["starts_at"],
+        "max_score": row["max_score"],
+        # Окончательная — только после публикации итогов; до этого баллы могут измениться после проверки жюри.
+        "provisional": row["phase"] != "finished",
+        "tasks": [
+            {"id": t["id"], "label": chr(ord("A") + i) if i < 26 else str(i + 1), "max_points": t["max_points"]}
+            for i, t in enumerate(tasks)
+        ],
+        "rows": [
+            {
+                "place": r["place"],
+                "user_id": r["user_id"],
+                "username": r["username"],
+                "name": r["name"],
+                "avatar_url": public_url(r["avatar_path"]),
+                "school": r["school"],
+                "city": r["city"],
+                "total": r["total"],
+                "penalty": r["penalty"],
+                "cells": cell,
+            }
+            for r, cell in zip(rows, cells, strict=True)
         ],
     }
 
