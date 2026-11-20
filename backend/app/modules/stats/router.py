@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Query
 
 from app.deps import Conn, SettingsDep, User, not_found
+from app.modules.olympiads import queries as olympiads_q
 from app.modules.stats import badges
 from app.modules.stats import queries as q
 from app.modules.users import queries as user_q
@@ -93,6 +94,26 @@ async def city_leaderboard(
 ) -> list[dict[str, Any]]:
     rows = await conn.fetch(q.CITY_LEADERBOARD, limit, _since(period), subject_id)
     return [{"rank": index, **dict(row)} for index, row in enumerate(rows, start=1)]
+
+
+@router.get("/leaderboard/olympiads")
+async def olympiad_leaderboard(
+    conn: Conn,
+    period: Period = "all",
+    subject_id: int | None = None,
+    city: Annotated[str | None, Query(max_length=60)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[dict[str, Any]]:
+    """Рейтинг по олимпиадам: сумма процентов от максимума по всем олимпиадам с опубликованными итогами."""
+    rows = await conn.fetch(olympiads_q.LEADERBOARD, limit, _since(period), subject_id, _clean(city))
+    return [
+        {
+            "rank": index,
+            **{k: v for k, v in dict(row).items() if k != "avatar_path"},
+            "avatar_url": public_url(row["avatar_path"]),
+        }
+        for index, row in enumerate(rows, start=1)
+    ]
 
 
 @router.get("/places")

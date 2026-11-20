@@ -17,6 +17,7 @@ from app.modules.admin.router import router as admin_router
 from app.modules.auth import queries as auth_q
 from app.modules.auth.router import router as auth_router
 from app.modules.content.router import router as content_router
+from app.modules.olympiads.router import router as olympiads_router
 from app.modules.solutions.router import router as solutions_router
 from app.modules.stats.router import router as stats_router
 from app.modules.teachers.router import router as teachers_router
@@ -85,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         solutions_router,
         stats_router,
         teachers_router,
+        olympiads_router,
         admin_router,
     ):
         api.include_router(router)
