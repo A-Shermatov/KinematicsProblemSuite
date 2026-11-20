@@ -1,6 +1,16 @@
 import { request } from "./client";
 import type {
   Achievements,
+  Olympiad,
+  OlympiadDetail,
+  OlympiadInput,
+  OlympiadLeaderRow,
+  OlympiadPhase,
+  OlympiadResults,
+  OlympiadStatus,
+  OlympiadSubmission,
+  OlympiadTask,
+  OlympiadTaskInput,
   AdminStats,
   CityRow,
   Period,
@@ -125,6 +135,8 @@ export const api = {
     schools: (query: LeaderboardQuery) => request<SchoolRow[]>("/api/stats/leaderboard/schools", { query, auth: false }),
     cities: (query: Omit<LeaderboardQuery, "city">) =>
       request<CityRow[]>("/api/stats/leaderboard/cities", { query, auth: false }),
+    olympiadLeaderboard: (query: LeaderboardQuery) =>
+      request<OlympiadLeaderRow[]>("/api/stats/leaderboard/olympiads", { query, auth: false }),
     achievements: (userId: number) => request<Achievements>(`/api/stats/achievements/${userId}`, { auth: false }),
     places: (city?: string) =>
       request<{ cities: string[]; schools: string[] }>("/api/stats/places", { query: { city }, auth: false }),
@@ -153,6 +165,40 @@ export const api = {
     deleteReview: (teacherId: number) => request<void>(`/api/teachers/${teacherId}/reviews/me`, { method: "DELETE" }),
   },
 
+  olympiads: {
+    list: (phase?: OlympiadPhase) => request<Olympiad[]>("/api/olympiads", { query: { phase } }),
+    mine: () => request<Olympiad[]>("/api/olympiads/mine"),
+    get: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}`),
+    create: (data: OlympiadInput) => request<OlympiadDetail>("/api/olympiads", { method: "POST", json: data }),
+    update: (id: number, data: OlympiadInput) => request<OlympiadDetail>(`/api/olympiads/${id}`, { method: "PUT", json: data }),
+    remove: (id: number) => request<void>(`/api/olympiads/${id}`, { method: "DELETE" }),
+    addTask: (id: number, data: OlympiadTaskInput) =>
+      request<OlympiadTask>(`/api/olympiads/${id}/tasks`, { method: "POST", json: data }),
+    updateTask: (id: number, taskId: number, data: OlympiadTaskInput) =>
+      request<OlympiadTask>(`/api/olympiads/${id}/tasks/${taskId}`, { method: "PUT", json: data }),
+    removeTask: (id: number, taskId: number) => request<void>(`/api/olympiads/${id}/tasks/${taskId}`, { method: "DELETE" }),
+    submitForReview: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/submit-for-review`, { method: "POST" }),
+    register: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/register`, { method: "POST" }),
+    unregister: (id: number) => request<void>(`/api/olympiads/${id}/register`, { method: "DELETE" }),
+    submit: (id: number, taskId: number, answer: string, image: File) => {
+      const form = new FormData();
+      form.append("answer", answer);
+      form.append("image", image);
+      return request<OlympiadSubmission>(`/api/olympiads/${id}/tasks/${taskId}/submit`, { method: "POST", form });
+    },
+    mySubmissions: (id: number) => request<OlympiadSubmission[]>(`/api/olympiads/${id}/my-submissions`),
+    results: (id: number) => request<OlympiadResults>(`/api/olympiads/${id}/results`),
+    jury: (id: number, query: { task_id?: number; ungraded?: boolean } = {}) =>
+      request<OlympiadSubmission[]>(`/api/olympiads/${id}/submissions`, { query }),
+    grade: (id: number, submissionId: number, points: number, comment: string) =>
+      request<OlympiadSubmission>(`/api/olympiads/${id}/submissions/${submissionId}/grade`, {
+        method: "POST",
+        json: { points, comment },
+      }),
+    publishResults: (id: number, force = false) =>
+      request<OlympiadDetail>(`/api/olympiads/${id}/publish-results`, { method: "POST", query: { force: force || undefined } }),
+  },
+
   /** Только для админ-панели: всё под /api/admin. */
   admin: {
     stats: () => request<AdminStats>("/api/admin/stats"),
@@ -176,6 +222,9 @@ export const api = {
     reviewCertificate: (id: number, status: "verified" | "rejected", reason = "") =>
       request<Certificate>(`/api/admin/certificates/${id}/review`, { method: "POST", json: { status, reason } }),
     reviews: (hidden?: boolean) => request<Review[]>("/api/admin/reviews", { query: { hidden } }),
+    olympiads: (status?: OlympiadStatus) => request<Olympiad[]>("/api/admin/olympiads", { query: { status } }),
+    reviewOlympiad: (id: number, status: "published" | "rejected", reason = "") =>
+      request<Olympiad>(`/api/admin/olympiads/${id}/review`, { method: "POST", json: { status, reason } }),
     setReviewHidden: (id: number, is_hidden: boolean) =>
       request<Review>(`/api/admin/reviews/${id}`, { method: "PATCH", json: { is_hidden } }),
   },

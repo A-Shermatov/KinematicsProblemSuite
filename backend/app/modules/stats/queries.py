@@ -142,6 +142,15 @@ islands AS (
 ),
 streaks AS (
     SELECT count(*) AS len, max(d) AS last_day FROM islands GROUP BY grp
+),
+olympiad_scores AS (
+    SELECT sb.olympiad_id, sb.user_id, sum(COALESCE(sb.jury_points, sb.auto_points)) AS total
+    FROM olympiad_submissions sb
+    JOIN olympiads o ON o.id = sb.olympiad_id AND o.results_published
+    GROUP BY sb.olympiad_id, sb.user_id
+),
+olympiad_places AS (
+    SELECT *, RANK() OVER (PARTITION BY olympiad_id ORDER BY total DESC) AS place FROM olympiad_scores
 )
 SELECT
     (SELECT count(*) FROM solved) AS solved_tasks,
@@ -156,5 +165,8 @@ SELECT
        AND (SELECT count(*) FROM tasks k WHERE k.theme_id = t.id AND k.is_active) >= 3
        AND NOT EXISTS (SELECT 1 FROM tasks k
                        WHERE k.theme_id = t.id AND k.is_active
-                         AND k.id NOT IN (SELECT task_id FROM solved))) AS mastered_themes
+                         AND k.id NOT IN (SELECT task_id FROM solved))) AS mastered_themes,
+    (SELECT count(*) FROM olympiad_places WHERE user_id = $1) AS olympiads,
+    (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place <= 3 AND total > 0) AS olympiad_prizes,
+    (SELECT count(*) FROM olympiad_places WHERE user_id = $1 AND place = 1 AND total > 0) AS olympiad_wins
 """

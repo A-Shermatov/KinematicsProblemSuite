@@ -261,3 +261,124 @@ export interface TeacherProfileInput {
   experience_years: number | null;
   subject_ids: number[];
 }
+
+export type OlympiadStatus = "draft" | "pending" | "published" | "rejected";
+export type OlympiadPhase = "upcoming" | "running" | "checking" | "finished";
+
+export interface Olympiad {
+  id: number;
+  title: string;
+  description: string;
+  subject_id: number | null;
+  subject_title: string | null;
+  organizer_id: number;
+  organizer_name: string;
+  starts_at: string;
+  ends_at: string;
+  status: OlympiadStatus;
+  reject_reason: string;
+  results_published: boolean;
+  phase: OlympiadPhase;
+  participants_count: number;
+  tasks_count: number;
+  max_score: number;
+  is_registered: boolean;
+  created_at: string;
+}
+
+export interface OlympiadTask {
+  id: number;
+  olympiad_id: number;
+  position: number;
+  title: string;
+  condition: string;
+  answer_type: AnswerType;
+  unit: string | null;
+  max_points: number;
+  answer: string | null;
+  tolerance: number | null;
+}
+
+export interface OlympiadDetail extends Olympiad {
+  tasks: OlympiadTask[];
+  can_manage: boolean;
+  ungraded_count: number | null;
+}
+
+export interface OlympiadInput {
+  title: string;
+  description: string;
+  subject_id: number | null;
+  starts_at: string;
+  ends_at: string;
+}
+
+export interface OlympiadTaskInput {
+  position: number;
+  title: string;
+  condition: string;
+  answer_type: AnswerType;
+  answer: string;
+  unit: string | null;
+  tolerance: number;
+  max_points: number;
+}
+
+export interface OlympiadSubmission {
+  id: number;
+  olympiad_id: number;
+  task_id: number;
+  task_title: string;
+  task_position: number;
+  max_points: number;
+  user_id: number;
+  username: string;
+  user_name: string;
+  school: string | null;
+  city: string | null;
+  answer: string;
+  image_url: string;
+  auto_correct: boolean;
+  auto_points: number;
+  jury_points: number | null;
+  jury_comment: string;
+  points: number;
+  graded_at: string | null;
+  submitted_at: string;
+  correct_answer: string | null;
+  task_unit: string | null;
+}
+
+export interface OlympiadResultRow {
+  place: number;
+  user_id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  city: string | null;
+  school: string | null;
+  total: number;
+  task_points: Record<string, number>;
+  diploma: 1 | 2 | 3 | null;
+}
+
+export interface OlympiadResults {
+  max_score: number;
+  published: boolean;
+  rows: OlympiadResultRow[];
+}
+
+export interface OlympiadLeaderRow {
+  rank: number;
+  user_id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  city: string | null;
+  school: string | null;
+  olympiads: number;
+  points: number;
+  gold: number;
+  silver: number;
+  bronze: number;
+}

@@ -27,6 +27,9 @@ RULES: list[BadgeRule] = [
     BadgeRule("theme_master", "🧩", "Мастер темы", "Решите все задачи одной темы (от 3 задач)", "mastered_themes", 1),
     BadgeRule("hard_solver", "🧠", "Олимпиадник", "Решите задачу высшей сложности", "hard_solved", 1),
     BadgeRule("hard_10", "🏆", "Гроза олимпиад", "Решите 10 задач высшей сложности", "hard_solved", 10),
+    BadgeRule("olympiad_participant", "🎫", "Участник олимпиады", "Примите участие в олимпиаде", "olympiads", 1),
+    BadgeRule("olympiad_prize", "🥉", "Призёр олимпиады", "Займите призовое место на олимпиаде", "olympiad_prizes", 1),
+    BadgeRule("olympiad_win", "🥇", "Победитель олимпиады", "Займите первое место на олимпиаде", "olympiad_wins", 1),
 ]
 
 

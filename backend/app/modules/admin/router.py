@@ -15,6 +15,10 @@ from app.deps import Admin, Conn, not_found, require_roles
 from app.modules.auth import queries as auth_q
 from app.modules.content import queries as content_q
 from app.modules.content.schemas import SubjectIn, SubjectOut, ThemeIn, ThemeOut
+from app.modules.olympiads import queries as olympiads_q
+from app.modules.olympiads.schemas import OlympiadOut
+from app.modules.olympiads.schemas import ReviewIn as OlympiadReviewIn
+from app.modules.olympiads.schemas import Status as OlympiadStatus
 from app.modules.solutions import queries as solutions_q
 from app.modules.solutions.schemas import AttemptOut, AttemptStatus
 from app.modules.stats import queries as stats_q
@@ -198,3 +202,24 @@ async def set_review_hidden(review_id: int, data: HiddenUpdate, conn: Conn) -> R
     if await conn.fetchval(teachers_q.SET_REVIEW_HIDDEN, review_id, data.is_hidden) is None:
         raise not_found("Отзыв")
     return ReviewOut.from_row(await conn.fetchrow(teachers_q.GET_REVIEW, review_id))
+
+
+# ---------- Олимпиады ----------
+
+
+@router.get("/olympiads", response_model=list[OlympiadOut])
+async def list_olympiads(
+    conn: Conn, status_filter: Annotated[OlympiadStatus | None, Query(alias="status")] = None
+) -> list[OlympiadOut]:
+    return [OlympiadOut(**dict(row)) for row in await conn.fetch(olympiads_q.ADMIN_LIST, status_filter)]
+
+
+@router.post("/olympiads/{olympiad_id}/review", response_model=OlympiadOut)
+async def review_olympiad(olympiad_id: int, data: OlympiadReviewIn, admin: Admin, conn: Conn) -> OlympiadOut:
+    """Опубликовать олимпиаду учителя или вернуть её на доработку с причиной."""
+    if data.status == "rejected" and not data.reason.strip():
+        raise HTTPException(422, detail="Укажите причину отказа")
+    reason = data.reason.strip() if data.status == "rejected" else ""
+    if await conn.fetchval(olympiads_q.REVIEW, olympiad_id, data.status, reason) is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Олимпиада не ожидает проверки")
+    return OlympiadOut(**dict(await conn.fetchrow(olympiads_q.GET, olympiad_id, admin.id)))

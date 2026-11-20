@@ -22,6 +22,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/catalog", label: "Задачи" },
+  { to: "/olympiads", label: "Олимпиады" },
   { to: "/teachers", label: "Учителя" },
   { to: "/leaderboard", label: "Рейтинг" },
   { to: "/attempts", label: "Решения", roles: ["student", "teacher", "admin"] },
@@ -107,7 +108,7 @@ function Navbar() {
     cx("rounded-lg px-3 py-2 text-sm font-medium transition-colors", isActive ? "bg-primary-soft text-primary" : "text-muted hover:text-fg hover:bg-surface-2");
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-bg/80 backdrop-blur-lg">
+    <header className="sticky top-0 z-20 border-b border-border bg-bg/80 backdrop-blur-lg print:hidden">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Logo />
         <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label="Основное меню">
@@ -173,7 +174,7 @@ export function Layout() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <Outlet />
       </main>
-      <footer className="border-t border-border py-6 text-center text-sm text-muted">
+      <footer className="border-t border-border py-6 text-center text-sm text-muted print:hidden">
         Kinematics — задачи по физике и математике · {new Date().getFullYear()}
       </footer>
     </div>

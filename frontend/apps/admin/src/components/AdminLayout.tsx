@@ -22,6 +22,7 @@ const NAV = [
   { to: "/catalog", label: "Предметы и темы", icon: "▤" },
   { to: "/tasks", label: "Задачи", icon: "✎" },
   { to: "/attempts", label: "Решения", icon: "✓" },
+  { to: "/olympiads", label: "Олимпиады", icon: "🏁" },
   { to: "/certificates", label: "Сертификаты", icon: "🎓" },
   { to: "/reviews", label: "Отзывы", icon: "💬" },
 ];

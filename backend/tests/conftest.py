@@ -117,6 +117,20 @@ class ApiClient:
 
     # ---- хелперы ----
 
+    def sql(self, query: str, *args: object) -> None:
+        """Прямой SQL в тестовую базу — например, чтобы «перемотать время» олимпиады."""
+
+        async def run() -> None:
+            import asyncpg
+
+            conn = await asyncpg.connect(TEST_DATABASE_URL)
+            try:
+                await conn.execute(query, *args)
+            finally:
+                await conn.close()
+
+        asyncio.run(run())
+
     def login(self, username: str, password: str = PASSWORD) -> dict:
         response = self.post("/api/auth/login", json={"username": username, "password": password})
         assert response.status_code == 200, response.text
