@@ -17,10 +17,11 @@ import {
   type Period,
 } from "@kps/shared";
 
-type Tab = "students" | "schools" | "cities";
+type Tab = "students" | "olympiads" | "schools" | "cities";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "students", label: "Ученики" },
+  { key: "olympiads", label: "Олимпиады" },
   { key: "schools", label: "Школы" },
   { key: "cities", label: "Города" },
 ];
@@ -77,6 +78,7 @@ export function Leaderboard() {
     const base = { period, subject_id: subjectId };
     if (tab === "schools") return { tab, rows: await api.stats.schools({ ...base, city: city || undefined }) } as const;
     if (tab === "cities") return { tab, rows: await api.stats.cities(base) } as const;
+    if (tab === "olympiads") return { tab, rows: await api.stats.olympiadLeaderboard({ ...base, city: city || undefined }) } as const;
     return {
       tab,
       rows: await api.stats.leaderboard({ ...base, metric, city: city || undefined, school: school || undefined }),
@@ -86,9 +88,11 @@ export function Leaderboard() {
   const subtitle =
     tab === "students"
       ? "Очки — сумма сложностей решённых задач, каждая задача засчитывается один раз."
-      : tab === "schools"
-        ? "Сумма очков всех учеников школы. Укажите школу в профиле, чтобы играть за неё."
-        : "Сумма очков всех учеников города.";
+      : tab === "olympiads"
+        ? "Очки — сумма процентов от максимума по всем олимпиадам. Медали — призовые места."
+        : tab === "schools"
+          ? "Сумма очков всех учеников школы. Укажите школу в профиле, чтобы играть за неё."
+          : "Сумма очков всех учеников города.";
 
   return (
     <>
@@ -166,6 +170,34 @@ export function Leaderboard() {
                   {metric === "solved" ? `${row.points} очк.` : `${row.solved_tasks} ${plural(row.solved_tasks, ["задача", "задачи", "задач"])}`}
                 </p>
               </div>
+            </Link>
+          ))}
+        </Card>
+      )}
+
+      {data?.tab === "olympiads" && data.rows.length > 0 && (
+        <Card className="divide-y divide-border overflow-hidden">
+          {data.rows.map((row) => (
+            <Link
+              key={row.user_id}
+              to={`/users/${row.user_id}`}
+              className={cx("flex items-center gap-4 px-5 py-3.5 transition hover:bg-surface-2", row.user_id === user?.id && "bg-primary-soft/60")}
+            >
+              <Rank rank={row.rank} />
+              <Avatar src={row.avatar_url} name={row.name || row.username} size={40} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-fg">{row.name || row.username}</p>
+                <p className="truncate text-xs text-muted">
+                  {row.olympiads} {plural(row.olympiads, ["олимпиада", "олимпиады", "олимпиад"])}
+                  {(row.school || row.city) && ` · ${[row.school, row.city].filter(Boolean).join(", ")}`}
+                </p>
+              </div>
+              <div className="hidden gap-2 text-sm sm:flex" aria-label="Медали">
+                {row.gold > 0 && <span>🥇{row.gold}</span>}
+                {row.silver > 0 && <span>🥈{row.silver}</span>}
+                {row.bronze > 0 && <span>🥉{row.bronze}</span>}
+              </div>
+              <p className="w-14 text-right text-lg font-bold text-primary">{row.points}</p>
             </Link>
           ))}
         </Card>

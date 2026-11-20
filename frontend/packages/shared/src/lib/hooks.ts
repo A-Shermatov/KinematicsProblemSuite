@@ -72,3 +72,13 @@ export function useClickOutside(ref: RefObject<HTMLElement | null>, handler: () 
     return () => document.removeEventListener("mousedown", listener);
   }, [ref, handler]);
 }
+
+/** Текущее время, обновляемое раз в interval мс — для таймеров обратного отсчёта. */
+export function useNow(interval = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), interval);
+    return () => clearInterval(timer);
+  }, [interval]);
+  return now;
+}

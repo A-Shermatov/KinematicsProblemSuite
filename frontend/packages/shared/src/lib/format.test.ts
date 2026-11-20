@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSource, plural } from "./format";
+import { formatCountdown, formatSource, fromLocalInput, plural, toLocalInput } from "./format";
 
 describe("plural", () => {
   it.each([
@@ -32,5 +32,18 @@ describe("formatSource", () => {
 
   it("describes own tasks without a title", () => {
     expect(formatSource({ ...empty, source_type: "own" })).toBe("Авторская задача");
+  });
+});
+
+describe("olympiad time helpers", () => {
+  it("formats countdown", () => {
+    expect(formatCountdown(0)).toBe("00:00:00");
+    expect(formatCountdown(3_723_000)).toBe("01:02:03");
+    expect(formatCountdown(90_061_000)).toBe("1 д 01:01:01");
+  });
+
+  it("round-trips datetime-local values", () => {
+    const iso = fromLocalInput("2030-05-01T10:30");
+    expect(toLocalInput(iso)).toBe("2030-05-01T10:30");
   });
 });
