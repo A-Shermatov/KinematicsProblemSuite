@@ -96,3 +96,45 @@ def test_theme_with_tasks_cannot_be_deleted(client: ApiClient) -> None:
     theme = client.theme()
     client.task(client.teacher(), theme["id"])
     assert client.delete(f"/api/themes/{theme['id']}", client.admin_token()).status_code == 409
+
+
+def test_task_source(client: ApiClient) -> None:
+    theme = client.theme()
+    teacher = client.teacher()
+    task = client.task(
+        teacher,
+        theme["id"],
+        source_type="book",
+        source_title="Рымкевич. Задачник по физике",
+        source_year=2019,
+        source_number=" 123 ",
+    )
+    assert task["source_title"] == "Рымкевич. Задачник по физике"
+    assert task["source_number"] == "123"
+
+    public = client.get(f"/api/tasks/{task['id']}").json()
+    assert public["source_type"] == "book"
+    assert public["source_year"] == 2019
+
+    own = client.task(teacher, theme["id"], title="Авторская", source_type="own")
+    assert own["source_title"] is None
+
+    books = client.get("/api/tasks", params={"source_type": "book"}).json()
+    assert [t["id"] for t in books] == [task["id"]]
+    found = client.get("/api/tasks", params={"search": "рымкевич"}).json()
+    assert [t["id"] for t in found] == [task["id"]]
+
+
+def test_task_source_validation(client: ApiClient) -> None:
+    theme = client.theme()
+    teacher = client.teacher()
+    base = {"theme_id": theme["id"], "title": "Задача", "answer": "5"}
+    # Для книги/олимпиады/экзамена нужно название источника.
+    assert client.post("/api/tasks", teacher, json={**base, "source_type": "book"}).status_code == 422
+    assert client.post("/api/tasks", teacher, json={**base, "source_type": "magazine"}).status_code == 422
+    bad_year = {**base, "source_type": "exam", "source_title": "ЕНТ", "source_year": 1500}
+    assert client.post("/api/tasks", teacher, json=bad_year).status_code == 422
+    # Без типа источника остальные поля отбрасываются.
+    response = client.post("/api/tasks", teacher, json={**base, "source_title": "Что-то"})
+    assert response.status_code == 201
+    assert response.json()["source_title"] is None

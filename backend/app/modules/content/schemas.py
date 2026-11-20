@@ -9,6 +9,7 @@ from app.modules.solutions.checker import validate_expected_answer
 
 CheckMode = Literal["auto", "manual"]
 AnswerType = Literal["number", "text"]
+SourceType = Literal["book", "olympiad", "exam", "own"]
 
 
 class _Titled(BaseModel):
@@ -58,21 +59,30 @@ class TaskIn(BaseModel):
     answer: str = Field(min_length=1, max_length=500)
     unit: str | None = Field(default=None, max_length=30)
     tolerance: float = Field(default=0.01, ge=0, lt=1, description="Относительная погрешность, 0.01 = 1%")
+    source_type: SourceType | None = None
+    source_title: str | None = Field(default=None, max_length=200, description="Например: «Рымкевич. Задачник»")
+    source_year: int | None = Field(default=None, ge=1800, le=2100)
+    source_number: str | None = Field(default=None, max_length=30, description="Номер задачи в источнике")
 
     @field_validator("title", "answer")
     @classmethod
     def strip(cls, value: str) -> str:
         return value.strip()
 
-    @field_validator("unit")
+    @field_validator("unit", "source_title", "source_number")
     @classmethod
-    def empty_unit_is_none(cls, value: str | None) -> str | None:
+    def empty_is_none(cls, value: str | None) -> str | None:
         return value.strip() or None if value is not None else None
 
     @model_validator(mode="after")
     def check_answer_format(self) -> TaskIn:
         if self.check_mode == "auto":
             validate_expected_answer(self.answer, self.answer_type, self.unit)
+        if self.source_type is None:
+            # Без типа источника остальные поля источника не имеют смысла.
+            self.source_title = self.source_year = self.source_number = None
+        elif self.source_type != "own" and not self.source_title:
+            raise ValueError("Укажите название источника")
         return self
 
 
@@ -90,6 +100,10 @@ class TaskOut(BaseModel):
     check_mode: CheckMode
     answer_type: AnswerType
     unit: str | None
+    source_type: SourceType | None
+    source_title: str | None
+    source_year: int | None
+    source_number: str | None
     solved: bool = False
     created_at: datetime
     updated_at: datetime

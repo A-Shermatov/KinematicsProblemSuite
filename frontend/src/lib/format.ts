@@ -1,4 +1,4 @@
-import type { AttemptStatus } from "../api";
+import type { AttemptStatus, SourceType, TaskSource } from "../api";
 
 const dateTime = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const dateOnly = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
@@ -12,6 +12,23 @@ export const statusMeta: Record<AttemptStatus, { label: string; tone: "success" 
   pending: { label: "На проверке", tone: "warning" },
   graded: { label: "Проверено", tone: "primary" },
 };
+
+export const sourceTypeLabel: Record<SourceType, string> = {
+  book: "Учебник / сборник",
+  olympiad: "Олимпиада",
+  exam: "Экзамен",
+  own: "Авторская",
+};
+
+/** «Рымкевич. Задачник, 2019, №123» или null, если источник не указан. */
+export function formatSource(source: TaskSource): string | null {
+  if (!source.source_type) return null;
+  if (source.source_type === "own" && !source.source_title) return "Авторская задача";
+  const parts = [source.source_title ?? sourceTypeLabel[source.source_type]];
+  if (source.source_year) parts.push(String(source.source_year));
+  if (source.source_number) parts.push(`№${source.source_number}`);
+  return parts.join(", ");
+}
 
 export const difficultyLabel = ["", "Лёгкая", "Простая", "Средняя", "Сложная", "Олимпиадная"];
 

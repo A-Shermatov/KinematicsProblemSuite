@@ -4,7 +4,7 @@ import { api, type Attempt } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import { Markdown } from "../components/Markdown";
 import { Badge, Button, ButtonLink, Card, Difficulty, ErrorMessage, Input, Loading, Modal, PageHeader, cx } from "../components/ui";
-import { difficultyLabel, formatDateTime, statusMeta } from "../lib/format";
+import { difficultyLabel, formatDateTime, formatSource, statusMeta } from "../lib/format";
 import { errorText, useAsync, useDocumentTitle } from "../lib/hooks";
 
 function AttemptResult({ attempt }: { attempt: Attempt }) {
@@ -116,7 +116,14 @@ export function TaskPage() {
 
         <Card className="p-6 sm:p-8">
           <Markdown source={task.condition} empty="Условие не указано" className="text-[15px] text-fg" />
-          <p className="mt-6 border-t border-border pt-4 text-xs text-muted">Автор: {task.author_name}</p>
+          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-4 text-xs text-muted">
+            <span>Автор: {task.author_name}</span>
+            {formatSource(task) && (
+              <span>
+                Источник: <span className="text-fg">{formatSource(task)}</span>
+              </span>
+            )}
+          </div>
         </Card>
 
         <Card className="p-6">

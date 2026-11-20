@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, not_found
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
+    SourceType,
     SubjectIn,
     SubjectOut,
     TaskFull,
@@ -134,6 +135,7 @@ async def list_tasks(
     author_id: int | None = None,
     difficulty: Annotated[int | None, Query(ge=1, le=5)] = None,
     search: Annotated[str | None, Query(max_length=100)] = None,
+    source_type: SourceType | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[TaskOut]:
@@ -147,6 +149,7 @@ async def list_tasks(
         user.id if user else None,
         limit,
         offset,
+        source_type,
     )
     return [TaskOut(**dict(row)) for row in rows]
 
@@ -181,6 +184,10 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
         data.answer,
         data.unit,
         data.tolerance,
+        data.source_type,
+        data.source_title,
+        data.source_year,
+        data.source_number,
     )
     return await _task_full(conn, task_id)
 
@@ -202,6 +209,10 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
         data.answer,
         data.unit,
         data.tolerance,
+        data.source_type,
+        data.source_title,
+        data.source_year,
+        data.source_number,
     )
     return await _task_full(conn, task_id)
 
