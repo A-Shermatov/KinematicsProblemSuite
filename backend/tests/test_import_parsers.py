@@ -3,7 +3,7 @@ import zipfile
 
 import pytest
 
-from app.modules.imports.ai import extract_json
+from app.modules.imports.ai import extract_json, response_text
 from app.modules.imports.parsers import ImportFormatError, parse_csv, parse_docx, parse_json, parse_text
 
 TEXT = """## Скорость поезда
@@ -82,3 +82,10 @@ def test_extract_json_from_model_answer() -> None:
     assert extract_json('{"tasks": [], "notes": ""}')["tasks"] == []
     with pytest.raises(ImportFormatError):
         extract_json("не могу прочитать")
+
+
+def test_gemini_response_text() -> None:
+    response = {"candidates": [{"content": {"parts": [{"text": '{"tasks": '}, {"text": "[]}"}]}}]}
+    assert response_text(response) == '{"tasks": []}'
+    with pytest.raises(ImportFormatError):
+        response_text({"promptFeedback": {"blockReason": "OTHER"}})

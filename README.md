@@ -39,7 +39,7 @@ docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d 
 ### Импорт задач
 
 Учитель: «Мои задачи» → «Импорт». Поддерживаются TXT/Markdown, Word (.docx), CSV (Excel), JSON — без внешних сервисов,
-а также фото и PDF страниц задачника — через Claude API (задайте `ANTHROPIC_API_KEY` в `.env`).
+а также фото и PDF страниц задачника — через Google Gemini (бесплатный ключ из https://aistudio.google.com/apikey → `GEMINI_API_KEY` в `.env`).
 Распознанные задачи сначала показываются для проверки и правки, дубли отмечаются; сохраняются только подтверждённые.
 
 ## Разработка без Docker

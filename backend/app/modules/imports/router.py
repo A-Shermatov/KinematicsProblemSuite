@@ -32,7 +32,7 @@ def _answer_type(answer: str) -> str:
 
 @router.get("/capabilities")
 async def capabilities(_: Staff) -> dict[str, object]:
-    """Какие форматы доступны: фото и PDF — только если настроен ключ Claude API."""
+    """Какие форматы доступны: фото и PDF — только если настроен ключ Gemini API."""
     return {"file_formats": sorted(TEXT_FORMATS), "ai_formats": sorted(AI_FORMATS), "ai_enabled": ai.ai_enabled()}
 
 

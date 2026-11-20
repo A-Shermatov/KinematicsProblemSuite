@@ -1,7 +1,8 @@
-"""Распознавание задач с фото и из PDF через Claude API (Anthropic).
+"""Распознавание задач с фото и из PDF через Google Gemini API (есть бесплатный уровень).
 
-Включается переменной окружения ANTHROPIC_API_KEY. Без ключа импорт из файлов работает, а фото/PDF — нет.
-Модель можно сменить через ANTHROPIC_MODEL. Запрос идёт через стандартную библиотеку (urllib),
+Включается переменной окружения GEMINI_API_KEY — ключ бесплатно выдаётся в Google AI Studio
+(https://aistudio.google.com/apikey). Без ключа импорт из файлов работает, а фото/PDF — нет.
+Модель можно сменить через GEMINI_MODEL. Запрос идёт через стандартную библиотеку (urllib),
 чтобы не тянуть лишние зависимости.
 """
 
@@ -13,13 +14,15 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
 from app.modules.imports.parsers import ImportFormatError, normalize_draft
 
-API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-5-5"
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# Алиас Google на актуальную Flash-модель: она есть в бесплатном уровне и хорошо читает фото и PDF.
+DEFAULT_MODEL = "gemini-flash-latest"
 TIMEOUT_SECONDS = 180
 
 PROMPT = """На изображении (или в документе) — задачи по физике, математике или химии для школьников.
@@ -47,39 +50,37 @@ class AIUnavailableError(RuntimeError):
 
 
 def ai_enabled() -> bool:
-    return bool(os.getenv("ANTHROPIC_API_KEY"))
+    return bool(os.getenv("GEMINI_API_KEY"))
 
 
 def _request(content: bytes, media_type: str) -> dict[str, Any]:
-    data = base64.standard_b64encode(content).decode("ascii")
-    block_type = "document" if media_type == "application/pdf" else "image"
+    model = os.getenv("GEMINI_MODEL") or DEFAULT_MODEL
     body = {
-        "model": os.getenv("ANTHROPIC_MODEL") or DEFAULT_MODEL,
-        "max_tokens": 16000,
-        "messages": [
+        "contents": [
             {
                 "role": "user",
-                "content": [
-                    {"type": block_type, "source": {"type": "base64", "media_type": media_type, "data": data}},
-                    {"type": "text", "text": PROMPT},
+                "parts": [
+                    {"inline_data": {"mime_type": media_type, "data": base64.b64encode(content).decode("ascii")}},
+                    {"text": PROMPT},
                 ],
             }
         ],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
     }
     request = urllib.request.Request(
-        API_URL,
+        API_URL.format(model=urllib.parse.quote(model, safe="-._")),
         data=json.dumps(body).encode("utf-8"),
-        headers={
-            "content-type": "application/json",
-            "x-api-key": os.environ["ANTHROPIC_API_KEY"],
-            "anthropic-version": "2023-06-01",
-        },
+        headers={"content-type": "application/json", "x-goog-api-key": os.environ["GEMINI_API_KEY"]},
         method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310 — фиксированный https URL
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            raise AIUnavailableError(
+                "Лимит бесплатного распознавания временно исчерпан — попробуйте через минуту"
+            ) from exc
         detail = exc.read().decode("utf-8", "replace")[:300]
         raise AIUnavailableError(f"Сервис распознавания вернул ошибку {exc.code}: {detail}") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
@@ -99,13 +100,21 @@ def extract_json(text: str) -> dict[str, Any]:
     return data
 
 
+def response_text(response: dict[str, Any]) -> str:
+    """Текст ответа Gemini; если ответа нет (например, заблокирован фильтром) — понятная ошибка."""
+    candidates = response.get("candidates") or []
+    if not candidates:
+        raise ImportFormatError("Сервис распознавания не вернул ответа — попробуйте другое фото")
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    return "".join(part.get("text", "") for part in parts)
+
+
 async def recognize(content: bytes, media_type: str) -> tuple[list[dict[str, Any]], str]:
     """Черновики задач и заметки модели. Черновик дополнительно содержит answer_is_guess."""
     if not ai_enabled():
-        raise AIUnavailableError("Распознавание фото и PDF не настроено: администратор должен задать ANTHROPIC_API_KEY")
+        raise AIUnavailableError("Распознавание фото и PDF не настроено: администратор должен задать GEMINI_API_KEY")
     response = await asyncio.to_thread(_request, content, media_type)
-    text = "".join(block.get("text", "") for block in response.get("content", []) if block.get("type") == "text")
-    data = extract_json(text)
+    data = extract_json(response_text(response))
     drafts = []
     for item in data["tasks"]:
         if not isinstance(item, dict):

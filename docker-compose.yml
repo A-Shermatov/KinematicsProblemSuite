@@ -25,8 +25,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Задайте ADMIN_PASSWORD в .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:8081}
       # Распознавание задач с фото и PDF (импорт). Без ключа работает только импорт из файлов.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
     volumes:
       - uploads:/data/uploads
     depends_on:
