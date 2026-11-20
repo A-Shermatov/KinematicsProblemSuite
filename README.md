@@ -1,6 +1,6 @@
-# Kinematics Problem Suite
+# Donish
 
-Платформа для решения задач по физике и математике: каталог «предмет → тема → задача», условия с формулами LaTeX, автопроверка числовых ответов с единицами измерения, ручная проверка учителем, статистика и рейтинг.
+**Donish** («дониш» — «знание» по-таджикски) — платформа для решения задач и олимпиад по физике, математике и другим предметам: каталог «предмет → тема → задача», условия с формулами LaTeX, автопроверка числовых ответов с единицами измерения, ручная проверка учителем, статистика и рейтинг.
 
 **Возможности:**
 - каталог «предмет → тема → задача» с источником задачи (учебник, олимпиада, экзамен);
@@ -36,7 +36,7 @@ docker compose -f docker-compose.dev.yml up -d
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-export DATABASE_URL=postgresql://kinematics:kinematics@localhost:5432/kinematics
+export DATABASE_URL=postgresql://donish:donish@localhost:5432/donish
 export SECRET_KEY=dev-secret-key-dev-secret-key-dev-secret
 export ADMIN_USERNAME=admin ADMIN_PASSWORD=admin12345
 uvicorn app.main:app_factory --factory --reload      # http://localhost:8000/docs
@@ -55,8 +55,8 @@ npm run dev:admin                                     # админка: http://l
 ```bash
 # бэкенд: интеграционные тесты нужна отдельная база (её схема очищается!)
 cd backend
-createdb kinematics_test   # или через docker
-TEST_DATABASE_URL=postgresql://kinematics:kinematics@localhost:5432/kinematics_test pytest
+createdb donish_test   # или через docker
+TEST_DATABASE_URL=postgresql://donish:donish@localhost:5432/donish_test pytest
 ruff check . && ruff format --check .
 
 # фронтенд

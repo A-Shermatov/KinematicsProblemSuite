@@ -1,4 +1,5 @@
 /** Общий код публичного сайта и админ-панели. */
+export * from "./brand";
 export * from "./api";
 export * from "./auth/AuthContext";
 export * from "./theme/ThemeContext";

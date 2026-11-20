@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  APP_NAME,
   Avatar,
   Badge,
   Button,
@@ -463,7 +464,7 @@ export function DiplomaPage() {
       <div className="mx-auto aspect-[1.414] max-w-4xl rounded-2xl border-[10px] border-double border-amber-500/70 bg-white p-10 text-center text-slate-900 shadow-card print:shadow-none">
         <div className="flex h-full flex-col items-center justify-between">
           <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-600">Kinematics</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-600">{APP_NAME}</p>
             <h1 className="font-serif text-5xl font-bold tracking-wide">{row.diploma ? "ДИПЛОМ" : "СЕРТИФИКАТ"}</h1>
             <p className="text-xl font-semibold text-amber-600">{row.diploma ? `${["I", "II", "III"][row.diploma - 1]} степени` : "участника"}</p>
           </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  APP_NAME,
+  APP_TAGLINE,
   Avatar,
   ButtonLink,
   Loading,
@@ -34,10 +36,11 @@ function Logo() {
     <Link to="/" className="flex items-center gap-2.5 font-bold tracking-tight text-fg">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-sm">
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M4 18 L12 5 L20 18" />
+          <path d="M7 4h4a8 8 0 0 1 0 16H7z" />
+          <circle cx="11" cy="12" r="1.6" fill="currentColor" stroke="none" />
         </svg>
       </span>
-      <span className="text-lg">Kinematics</span>
+      <span className="text-lg">{APP_NAME}</span>
     </Link>
   );
 }
@@ -175,7 +178,7 @@ export function Layout() {
         <Outlet />
       </main>
       <footer className="border-t border-border py-6 text-center text-sm text-muted print:hidden">
-        Kinematics — задачи по физике и математике · {new Date().getFullYear()}
+        {APP_NAME} — {APP_TAGLINE} · {new Date().getFullYear()}
       </footer>
     </div>
   );
