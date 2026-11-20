@@ -7,8 +7,10 @@ import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, User, not_found
-from app.i18n import DEFAULT_LANG, RequestLang, clean_translations, localize
+from app.i18n import DEFAULT_LANG, Lang, RequestLang, clean_translations, localize
 from app.modules.content import queries as q
+from app.modules.content.params import render as render_params
+from app.modules.content.params import values_for as param_values
 from app.modules.content.schemas import (
     DuplicateCheckIn,
     DuplicateCheckOut,
@@ -112,7 +114,20 @@ async def list_tasks(
         source_type,
         source_id,
     )
-    return [TaskOut(**localize(row, lang)) for row in rows]
+    return [_public_task(row, lang, user) for row in rows]
+
+
+def _public_task(row: asyncpg.Record, lang: Lang, user: CurrentUser | None) -> TaskOut:
+    """Задача для ученика: перевод и, если есть параметры, его личные числа в условии."""
+    data = localize(row, lang)
+    raw = row["params"]
+    specs = json.loads(raw) if isinstance(raw, str) else raw
+    if specs:
+        values = param_values(row["id"], user.id if user else None, specs)
+        data["title"] = render_params(data["title"], values)
+        data["condition"] = render_params(data["condition"], values)
+        data["is_parametric"] = True
+    return TaskOut(**data)
 
 
 @router.get("/tasks/{task_id}", response_model=TaskOut)
@@ -120,7 +135,7 @@ async def get_task(task_id: int, conn: Conn, user: OptionalUser, lang: RequestLa
     row = await conn.fetchrow(q.GET_TASK_PUBLIC, task_id, user.id if user else None)
     if row is None:
         raise not_found("Задача")
-    return TaskOut(**localize(row, lang))
+    return _public_task(row, lang, user)
 
 
 @router.get("/tasks/{task_id}/full", response_model=TaskFull)
@@ -210,6 +225,8 @@ async def insert_task(conn: asyncpg.Connection, data: TaskIn, user: CurrentUser)
             json.dumps(data.hints, ensure_ascii=False),
             data.explanation.strip(),
             json.dumps([m.model_dump() for m in data.mistakes], ensure_ascii=False),
+            json.dumps({name: spec.model_dump() for name, spec in data.params.items()}),
+            data.answer_formula.strip() if data.params else "",
         )
     except asyncpg.UniqueViolationError:
         raise await _duplicate_error(conn, data, user, None) from None
@@ -243,6 +260,8 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
             json.dumps(data.hints, ensure_ascii=False),
             data.explanation.strip(),
             json.dumps([m.model_dump() for m in data.mistakes], ensure_ascii=False),
+            json.dumps({name: spec.model_dump() for name, spec in data.params.items()}),
+            data.answer_formula.strip() if data.params else "",
         )
     except asyncpg.UniqueViolationError:
         raise await _duplicate_error(conn, data, user, task_id) from None

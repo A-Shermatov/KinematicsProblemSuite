@@ -7,6 +7,9 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.i18n import TranslationIn, TranslationLang
+from app.modules.content.params import ParamError, expected_answer
+from app.modules.content.params import choices as param_choices
+from app.modules.content.params import validate as validate_params
 from app.modules.solutions.checker import validate_expected_answer
 
 CheckMode = Literal["auto", "manual"]
@@ -61,6 +64,12 @@ class MistakeIn(BaseModel):
         return value.strip()
 
 
+class ParamSpec(BaseModel):
+    min: float
+    max: float
+    step: float = Field(gt=0)
+
+
 class TaskIn(BaseModel):
     theme_id: int
     title: str = Field(min_length=1, max_length=150)
@@ -82,6 +91,27 @@ class TaskIn(BaseModel):
     mistakes: list[MistakeIn] = Field(
         default_factory=list, max_length=10, description="Частые неверные ответы и пояснения к ним"
     )
+    params: dict[str, ParamSpec] = Field(
+        default_factory=dict, description="Параметры {v}: у каждого ученика свои значения из диапазона"
+    )
+    answer_formula: str = Field(default="", max_length=500, description="Формула ответа для задачи с параметрами")
+
+    @model_validator(mode="before")
+    @classmethod
+    def parametric_answer(cls, data: object) -> object:
+        # У задачи с параметрами ответ считается по формуле; в поле answer кладём пример (для проверки формата).
+        if isinstance(data, dict) and data.get("params"):
+            data = {**data, "answer_type": "number"}
+            try:
+                specs = {name: dict(spec) for name, spec in data["params"].items()}
+                validate_params(specs, str(data.get("answer_formula") or ""))
+                sample = {name: param_choices(spec)[0] for name, spec in specs.items()}
+                data["answer"] = expected_answer(str(data["answer_formula"]), sample)
+            except ParamError as exc:
+                raise ValueError(str(exc)) from exc
+            except (TypeError, AttributeError) as exc:
+                raise ValueError("Некорректные параметры задачи") from exc
+        return data
 
     @field_validator("hints")
     @classmethod
@@ -140,6 +170,7 @@ class TaskOut(BaseModel):
     updated_at: datetime
     lang: str = "ru"
     available_langs: list[str] = ["ru"]
+    is_parametric: bool = False
 
 
 class TaskFull(TaskOut):
@@ -151,8 +182,10 @@ class TaskFull(TaskOut):
     hints: list[str] = []
     explanation: str = ""
     mistakes: list[MistakeIn] = []
+    params: dict[str, ParamSpec] = {}
+    answer_formula: str = ""
 
-    @field_validator("hints", "mistakes", mode="before")
+    @field_validator("hints", "mistakes", "params", mode="before")
     @classmethod
     def parse_json(cls, value: object) -> object:
         return json.loads(value) if isinstance(value, str) else value

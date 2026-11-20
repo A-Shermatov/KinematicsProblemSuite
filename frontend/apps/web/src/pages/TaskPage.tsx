@@ -130,6 +130,11 @@ export function TaskPage() {
           actions={
             <div className="flex items-center gap-2">
               {solved && <Badge tone="success">{t("✓ Решено")}</Badge>}
+              {task.is_parametric && (
+                <span title={t("У каждого ученика свои числа в условии")}>
+                  <Badge tone="primary">🎲 {t("Ваш вариант")}</Badge>
+                </span>
+              )}
               <Difficulty value={task.difficulty} />
             </div>
           }

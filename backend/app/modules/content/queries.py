@@ -100,7 +100,7 @@ k.author_id, trim(u.first_name || ' ' || u.last_name) AS author_name,
 k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.unit,
 k.source_id, COALESCE(src.type, CASE WHEN k.is_original THEN 'own' END) AS source_type,
 src.title AS source_title, src.year AS source_year, COALESCE(src.author, '') AS source_author, k.source_number,
-k.is_original, k.duplicate_of, k.created_at, k.updated_at, k.translations
+k.is_original, k.duplicate_of, k.created_at, k.updated_at, k.translations, k.params
 """
 
 TASK_FROM = """
@@ -142,15 +142,18 @@ WHERE k.id = $1 AND k.is_active
 """
 
 GET_TASK_FULL = f"""
-SELECT {TASK_PUBLIC_COLUMNS}, k.answer, k.tolerance, FALSE AS solved, k.hints, k.explanation, k.mistakes
+SELECT {TASK_PUBLIC_COLUMNS}, k.answer, k.tolerance, FALSE AS solved, k.hints, k.explanation, k.mistakes,
+       k.answer_formula
 {TASK_FROM}
 WHERE k.id = $1 AND k.is_active
 """
 
 INSERT_TASK = """
 INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit, tolerance,
-                   source_id, source_number, is_original, translations, hints, explanation, mistakes)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb)
+                   source_id, source_number, is_original, translations, hints, explanation, mistakes,
+                   params, answer_formula)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb,
+        $18::jsonb, $19)
 RETURNING id
 """
 
@@ -159,7 +162,8 @@ UPDATE tasks
 SET theme_id = $2, title = $3, condition = $4, difficulty = $5, check_mode = $6,
     answer_type = $7, answer = $8, unit = $9, tolerance = $10,
     source_id = $11, source_number = $12, is_original = $13,
-    translations = $14::jsonb, hints = $15::jsonb, explanation = $16, mistakes = $17::jsonb, updated_at = now()
+    translations = $14::jsonb, hints = $15::jsonb, explanation = $16, mistakes = $17::jsonb,
+    params = $18::jsonb, answer_formula = $19, updated_at = now()
 WHERE id = $1 AND is_active
 RETURNING id
 """

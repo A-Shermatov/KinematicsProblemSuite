@@ -7,6 +7,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, sta
 
 from app.deps import Conn, SettingsDep, User, not_found
 from app.modules.content import queries as content_q
+from app.modules.content.params import expected_answer
+from app.modules.content.params import values_for as param_values
 from app.modules.solutions import queries as q
 from app.modules.solutions.checker import check_answer, mistake_hint
 from app.modules.solutions.schemas import AttemptOut, AttemptStatus, GradeIn, Scope
@@ -45,10 +47,16 @@ async def create_attempt(
             image, upload_dir=settings.upload_dir, subdir="attempts", max_bytes=settings.max_upload_bytes
         )
 
+    # Задача с параметрами: правильный ответ считается по формуле с числами этого ученика.
+    specs = json.loads(task["params"]) if isinstance(task["params"], str) else task["params"]
+    expected = (
+        expected_answer(task["answer_formula"], param_values(task_id, user.id, specs)) if specs else task["answer"]
+    )
+
     if task["check_mode"] == "auto":
         result = check_answer(
             answer,
-            expected=task["answer"],
+            expected=expected,
             answer_type=task["answer_type"],
             unit=task["unit"],
             tolerance=task["tolerance"],
@@ -60,7 +68,7 @@ async def create_attempt(
             mistakes = json.loads(task["mistakes"]) if isinstance(task["mistakes"], str) else task["mistakes"]
             hint = mistake_hint(
                 answer,
-                expected=task["answer"],
+                expected=expected,
                 answer_type=task["answer_type"],
                 unit=task["unit"],
                 tolerance=task["tolerance"],
@@ -73,7 +81,15 @@ async def create_attempt(
 
     try:
         attempt_id = await conn.fetchval(
-            q.INSERT_ATTEMPT, task_id, user.id, answer, image_path, attempt_status, system_grade, feedback
+            q.INSERT_ATTEMPT,
+            task_id,
+            user.id,
+            answer,
+            image_path,
+            attempt_status,
+            system_grade,
+            feedback,
+            expected if specs else None,
         )
     except Exception:
         delete_file(settings.upload_dir, image_path)
