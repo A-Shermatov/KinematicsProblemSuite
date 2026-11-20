@@ -2,14 +2,15 @@ import { useState, type FormEvent } from "react";
 import { api, type AnswerType, type CheckMode, type SourceType, type TaskFull, type TaskInput } from "../api";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
-import { difficultyLabel, formatSource, sourceTypeLabel } from "../lib/format";
+import { formatSource, sourceTypeLabel } from "../lib/format";
+import { usePlatformSettings } from "../settings/SettingsContext";
 import { errorText, useAsync, useDocumentTitle } from "../lib/hooks";
 
 const EMPTY: TaskInput = {
   theme_id: 0,
   title: "",
   condition: "",
-  difficulty: 2,
+  difficulty: 100,
   check_mode: "auto",
   answer_type: "number",
   answer: "",
@@ -33,6 +34,7 @@ interface TaskEditorProps {
 /** Форма создания и редактирования задачи — общая для кабинета учителя и админ-панели. */
 export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorProps) {
   useDocumentTitle(taskId ? "Редактирование задачи" : "Новая задача");
+  const { settings } = usePlatformSettings();
 
   const [form, setForm] = useState<TaskInput | null>(taskId ? null : EMPTY);
   const [saving, setSaving] = useState(false);
@@ -65,6 +67,8 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
   if (loading || !form) return error ? <ErrorMessage>{error}</ErrorMessage> : <Loading />;
   if (error) return <ErrorMessage>{error}</ErrorMessage>;
 
+  // Уровень задачи может быть выше текущего предела (админ понизил его позже) — оставляем его в списке.
+  const levels = form.difficulty > settings.difficulty_max ? [...settings.difficulty_levels, form.difficulty] : settings.difficulty_levels;
   const set = <K extends keyof TaskInput>(key: K, value: TaskInput[K]) => setForm({ ...form, [key]: value });
 
   const submit = async (event: FormEvent) => {
@@ -116,23 +120,19 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved }: TaskEditorP
             onChange={(value) => set("condition", value)}
             placeholder={"Камень падает с высоты $h = 20$ м. Найдите время падения.\n\n$$h = \\frac{g t^2}{2}$$"}
           />
-          <div>
-            <p className="mb-2 text-sm font-medium text-fg">Сложность</p>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4, 5].map((level) => (
-                <button
-                  type="button"
-                  key={level}
-                  onClick={() => set("difficulty", level)}
-                  className={cx(
-                    "rounded-xl border px-3 py-2 text-sm font-medium transition",
-                    form.difficulty === level ? "border-primary bg-primary-soft text-primary" : "border-border text-muted hover:text-fg",
-                  )}
-                >
-                  {level} · {difficultyLabel[level]}
-                </button>
+          <div className="max-w-xs">
+            <Select
+              label="Сложность"
+              value={form.difficulty}
+              onChange={(e) => set("difficulty", Number(e.target.value))}
+              hint={`Шкала 100–${settings.difficulty_max}, задаёт администратор`}
+            >
+              {levels.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
               ))}
-            </div>
+            </Select>
           </div>
         </Card>
 

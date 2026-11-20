@@ -11,7 +11,6 @@ import {
   PageHeader,
   api,
   cx,
-  difficultyLabel,
   formatSource,
   plural,
   sourceTypeLabel,
@@ -100,9 +99,8 @@ export function TaskRow({ task, to }: { task: Task; to: string }) {
         </p>
       </div>
       {task.check_mode === "manual" && <Badge tone="warning">Проверка учителем</Badge>}
-      <div className="hidden w-28 flex-col items-end gap-1 sm:flex">
+      <div className="hidden w-16 flex-col items-end sm:flex">
         <Difficulty value={task.difficulty} />
-        <span className="text-xs text-muted">{difficultyLabel[task.difficulty]}</span>
       </div>
     </Link>
   );
@@ -133,6 +131,7 @@ export function ThemeTasks() {
   if (error || !data) return <ErrorMessage>{error ?? "Тема не найдена"}</ErrorMessage>;
 
   const solved = data.tasks.filter((task) => task.solved).length;
+  const levels = [...new Set(data.tasks.map((task) => task.difficulty))].sort((a, b) => a - b);
   return (
     <>
       <PageHeader
@@ -164,20 +163,19 @@ export function ThemeTasks() {
             </option>
           ))}
         </select>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Фильтр по сложности">
-          {[null, 1, 2, 3, 4, 5].map((level) => (
-            <button
-              key={level ?? "all"}
-              onClick={() => setDifficulty(level)}
-              className={cx(
-                "rounded-full border px-3 py-1.5 text-xs font-medium transition",
-                difficulty === level ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface text-muted hover:text-fg",
-              )}
-            >
-              {level === null ? "Все" : difficultyLabel[level]}
-            </button>
+        <select
+          value={difficulty ?? ""}
+          onChange={(e) => setDifficulty(e.target.value ? Number(e.target.value) : null)}
+          className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
+          aria-label="Сложность"
+        >
+          <option value="">Любая сложность</option>
+          {levels.map((level) => (
+            <option key={level} value={level}>
+              Сложность {level}
+            </option>
           ))}
-        </div>
+        </select>
       </div>
       {tasks.length === 0 ? (
         <EmptyState title={data.tasks.length === 0 ? "В этой теме пока нет задач" : "Ничего не найдено"} />

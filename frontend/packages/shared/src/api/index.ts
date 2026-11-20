@@ -1,6 +1,7 @@
 import { request } from "./client";
 import type {
   Achievements,
+  PlatformSettings,
   Olympiad,
   OlympiadDetail,
   OlympiadInput,
@@ -199,8 +200,15 @@ export const api = {
       request<OlympiadDetail>(`/api/olympiads/${id}/publish-results`, { method: "POST", query: { force: force || undefined } }),
   },
 
+  settings: {
+    get: () => request<PlatformSettings>("/api/settings", { auth: false }),
+  },
+
   /** Только для админ-панели: всё под /api/admin. */
   admin: {
+    settings: () => request<{ difficulty_max: number }>("/api/admin/settings"),
+    updateSettings: (data: { difficulty_max: number }) =>
+      request<{ difficulty_max: number }>("/api/admin/settings", { method: "PUT", json: data }),
     stats: () => request<AdminStats>("/api/admin/stats"),
     users: (query: { role?: Role; search?: string } = {}) =>
       request<User[]>("/api/admin/users", { query: { ...query, limit: 200 } }),

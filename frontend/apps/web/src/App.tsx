@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { APP_NAME, AuthProvider, ButtonLink, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
+import { APP_NAME, AuthProvider, SettingsProvider, ButtonLink, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
 import { Layout, RequireAuth } from "./components/Layout";
 import { Attempts } from "./pages/Attempts";
 import { Login, Register } from "./pages/Auth";
@@ -65,7 +65,9 @@ export function App() {
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
+          <SettingsProvider>
           <AppRoutes />
+          </SettingsProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

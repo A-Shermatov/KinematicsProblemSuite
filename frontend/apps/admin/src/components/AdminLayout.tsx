@@ -26,6 +26,7 @@ const NAV = [
   { to: "/olympiads", label: "Олимпиады", icon: "🏁" },
   { to: "/certificates", label: "Сертификаты", icon: "🎓" },
   { to: "/reviews", label: "Отзывы", icon: "💬" },
+  { to: "/settings", label: "Настройки", icon: "⚙" },
 ];
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

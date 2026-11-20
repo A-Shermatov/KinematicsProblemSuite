@@ -3,6 +3,7 @@ export * from "./brand";
 export * from "./api";
 export * from "./auth/AuthContext";
 export * from "./theme/ThemeContext";
+export * from "./settings/SettingsContext";
 export * from "./components/ui";
 export { Markdown } from "./components/Markdown";
 export { MarkdownEditor } from "./components/MarkdownEditor";

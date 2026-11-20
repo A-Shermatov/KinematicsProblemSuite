@@ -14,7 +14,6 @@ import {
   PageHeader,
   api,
   cx,
-  difficultyLabel,
   errorText,
   formatDateTime,
   formatSource,
@@ -125,9 +124,7 @@ export function TaskPage() {
           actions={
             <div className="flex items-center gap-2">
               {solved && <Badge tone="success">✓ Решено</Badge>}
-              <Badge>
-                <Difficulty value={task.difficulty} /> {difficultyLabel[task.difficulty]}
-              </Badge>
+              <Difficulty value={task.difficulty} />
             </div>
           }
         />
