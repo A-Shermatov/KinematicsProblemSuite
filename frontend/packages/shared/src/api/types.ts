@@ -5,11 +5,34 @@ export type AttemptStatus = "correct" | "incorrect" | "pending" | "graded";
 export type AttemptScope = "mine" | "authored";
 export type SourceType = "book" | "olympiad" | "exam" | "own";
 
+/** Источник задачи в том виде, в каком его отдаёт API задачи (поля из каталога источников). */
 export interface TaskSource {
+  source_id?: number | null;
   source_type: SourceType | null;
   source_title: string | null;
   source_year: number | null;
+  source_author?: string;
   source_number: string | null;
+  is_original?: boolean;
+}
+
+/** Книга, сборник, олимпиада или экзамен из общего каталога. */
+export interface Source {
+  id: number;
+  type: SourceType;
+  title: string;
+  author: string;
+  year: number | null;
+  created_by: number | null;
+  created_at: string;
+  tasks_count: number;
+}
+
+export interface SourceInput {
+  type: SourceType;
+  title: string;
+  author: string;
+  year: number | null;
 }
 
 export interface User {
@@ -73,6 +96,8 @@ export interface Task extends TaskSource {
   /** На каком языке фактически показано условие (нет перевода — ru). */
   lang: string;
   available_langs: string[];
+  /** Дубликат, оставшийся с тех пор, когда проверки уникальности не было. */
+  duplicate_of?: number | null;
 }
 
 export interface TaskFull extends Task {
@@ -82,7 +107,26 @@ export interface TaskFull extends Task {
   translations: TaskTranslations;
 }
 
-export interface TaskInput extends TaskSource {
+/** Задача, совпадающая или похожая на ту, что сейчас редактируют. */
+export interface DuplicateHit {
+  id: number;
+  title: string;
+  author_id: number;
+  author_name: string;
+  theme_title: string;
+  exact: boolean;
+  similarity: number;
+}
+
+export interface DuplicateCheck {
+  exact: DuplicateHit | null;
+  similar: DuplicateHit[];
+}
+
+export interface TaskInput {
+  source_id: number | null;
+  source_number: string | null;
+  is_original: boolean;
   theme_id: number;
   title: string;
   condition: string;
@@ -451,4 +495,55 @@ export interface Activity {
 export interface DifficultyBreakdown {
   levels: { difficulty: number; solved: number; unsolved: number }[];
   subjects: { subject_id: number; subject_title: string; solved: number }[];
+}
+
+// ---------- Импорт задач ----------
+
+export interface TaskDraft {
+  title: string;
+  condition: string;
+  answer: string;
+  unit: string | null;
+  answer_type: AnswerType;
+  difficulty: number | null;
+  source_number: string | null;
+  /** Ответа в источнике не было — его предложил ИИ, учителю нужно проверить. */
+  answer_is_guess: boolean;
+  duplicate: DuplicateHit | null;
+  similar: DuplicateHit[];
+}
+
+export interface ImportParseResult {
+  method: "file" | "ai";
+  drafts: TaskDraft[];
+  notes: string;
+}
+
+export interface ImportCapabilities {
+  file_formats: string[];
+  ai_formats: string[];
+  ai_enabled: boolean;
+}
+
+export interface ImportItem {
+  title: string;
+  condition: string;
+  answer: string;
+  unit: string | null;
+  answer_type: AnswerType;
+  difficulty: number;
+  source_number: string | null;
+}
+
+export interface ImportInput {
+  theme_id: number;
+  check_mode: CheckMode;
+  source_id: number | null;
+  is_original: boolean;
+  tasks: ImportItem[];
+}
+
+export interface ImportResult {
+  created: number[];
+  failed: { index: number; title: string; error: string }[];
 }

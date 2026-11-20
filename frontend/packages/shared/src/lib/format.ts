@@ -26,6 +26,7 @@ export function formatSource(source: TaskSource): string | null {
   if (!source.source_type) return null;
   if (source.source_type === "own" && !source.source_title) return t("Авторская задача");
   const parts = [source.source_title ?? sourceTypeLabel[source.source_type]];
+  if (source.source_author) parts.push(source.source_author);
   if (source.source_year) parts.push(String(source.source_year));
   if (source.source_number) parts.push(`№${source.source_number}`);
   return parts.join(", ");

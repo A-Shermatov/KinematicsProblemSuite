@@ -143,7 +143,14 @@ export function TaskPage() {
             </span>
             {formatSource(task) && (
               <span>
-                {t("Источник:")} <span className="text-fg">{formatSource(task)}</span>
+                {t("Источник:")}{" "}
+                {task.source_id ? (
+                  <Link to={`/sources/${task.source_id}`} className="text-fg hover:text-primary hover:underline">
+                    {formatSource(task)}
+                  </Link>
+                ) : (
+                  <span className="text-fg">{formatSource(task)}</span>
+                )}
               </span>
             )}
           </div>

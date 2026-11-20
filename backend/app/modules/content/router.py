@@ -5,10 +5,16 @@ from typing import Annotated
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.deps import Conn, CurrentUser, OptionalUser, Staff, not_found
+from app.deps import Admin, Conn, CurrentUser, OptionalUser, Staff, not_found
 from app.i18n import DEFAULT_LANG, RequestLang, clean_translations, localize
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
+    DuplicateCheckIn,
+    DuplicateCheckOut,
+    DuplicateOut,
+    SourceIn,
+    SourceMergeIn,
+    SourceOut,
     SourceType,
     SubjectOut,
     TaskFull,
@@ -87,6 +93,7 @@ async def list_tasks(
     difficulty: Annotated[int | None, Query(ge=100, le=10_000, multiple_of=100)] = None,
     search: Annotated[str | None, Query(max_length=100)] = None,
     source_type: SourceType | None = None,
+    source_id: int | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[TaskOut]:
@@ -101,6 +108,7 @@ async def list_tasks(
         limit,
         offset,
         source_type,
+        source_id,
     )
     return [TaskOut(**localize(row, lang)) for row in rows]
 
@@ -119,6 +127,50 @@ async def get_task_full(task_id: int, user: Staff, conn: Conn) -> TaskFull:
     return await _task_full(conn, task_id)
 
 
+SIMILARITY_THRESHOLD = 0.6
+
+
+async def find_duplicates(
+    conn: asyncpg.Connection, title: str, condition: str, exclude_id: int | None, limit: int = 6
+) -> DuplicateCheckOut:
+    rows = [
+        DuplicateOut(**dict(row))
+        for row in await conn.fetch(q.FIND_DUPLICATES, title, condition, exclude_id, SIMILARITY_THRESHOLD, limit)
+    ]
+    exact = next((row for row in rows if row.exact), None)
+    return DuplicateCheckOut(exact=exact, similar=[row for row in rows if not row.exact])
+
+
+async def _duplicate_error(
+    conn: asyncpg.Connection, data: TaskIn, user: CurrentUser, exclude_id: int | None
+) -> HTTPException:
+    found = (await find_duplicates(conn, data.title, data.condition, exclude_id, limit=1)).exact
+    if found is None:  # гонка: дубль успели удалить
+        return HTTPException(status.HTTP_409_CONFLICT, detail="Такая задача уже есть на платформе")
+    whose = (
+        "Вы уже добавляли эту задачу"
+        if found.author_id == user.id
+        else f"Такая задача уже есть у автора {found.author_name}"
+    )
+    return HTTPException(
+        status.HTTP_409_CONFLICT,
+        detail=(
+            f"{whose}: «{found.title}» (№{found.id}, тема «{found.theme_title}»). Одну задачу нельзя добавить дважды."
+        ),
+    )
+
+
+@router.post("/tasks/check-duplicates", response_model=DuplicateCheckOut)
+async def check_duplicates(data: DuplicateCheckIn, _: Staff, conn: Conn) -> DuplicateCheckOut:
+    """Есть ли уже такая задача (точный дубль) или очень похожие: для предупреждения в редакторе."""
+    return await find_duplicates(conn, data.title, data.condition, data.exclude_id)
+
+
+async def _check_source(conn: asyncpg.Connection, data: TaskIn) -> None:
+    if data.source_id is not None and not await conn.fetchval(q.SOURCE_EXISTS, data.source_id):
+        raise not_found("Источник")
+
+
 async def _check_difficulty(conn: asyncpg.Connection, difficulty: int) -> None:
     settings = await settings_service.load(conn)
     if difficulty > settings.difficulty_max:
@@ -127,54 +179,65 @@ async def _check_difficulty(conn: asyncpg.Connection, difficulty: int) -> None:
 
 @router.post("/tasks", response_model=TaskFull, status_code=status.HTTP_201_CREATED)
 async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
+    return await _task_full(conn, await insert_task(conn, data, user))
+
+
+async def insert_task(conn: asyncpg.Connection, data: TaskIn, user: CurrentUser) -> int:
+    """Проверки и вставка задачи; используется и редактором, и импортом. Ошибки — HTTPException."""
     await _check_difficulty(conn, data.difficulty)
+    await _check_source(conn, data)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
-    task_id = await conn.fetchval(
-        q.INSERT_TASK,
-        data.theme_id,
-        user.id,
-        data.title,
-        data.condition,
-        data.difficulty,
-        data.check_mode,
-        data.answer_type,
-        data.answer,
-        data.unit,
-        data.tolerance,
-        data.source_type,
-        data.source_title,
-        data.source_year,
-        data.source_number,
-        clean_translations(data.translations),
-    )
-    return await _task_full(conn, task_id)
+    try:
+        task_id = await conn.fetchval(
+            q.INSERT_TASK,
+            data.theme_id,
+            user.id,
+            data.title,
+            data.condition,
+            data.difficulty,
+            data.check_mode,
+            data.answer_type,
+            data.answer,
+            data.unit,
+            data.tolerance,
+            data.source_id,
+            data.source_number,
+            data.is_original,
+            clean_translations(data.translations),
+        )
+    except asyncpg.UniqueViolationError:
+        raise await _duplicate_error(conn, data, user, None) from None
+    return task_id
 
 
 @router.put("/tasks/{task_id}", response_model=TaskFull)
 async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
     await _check_can_edit(conn, task_id, user)
     await _check_difficulty(conn, data.difficulty)
+    await _check_source(conn, data)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
-    await conn.execute(
-        q.UPDATE_TASK,
-        task_id,
-        data.theme_id,
-        data.title,
-        data.condition,
-        data.difficulty,
-        data.check_mode,
-        data.answer_type,
-        data.answer,
-        data.unit,
-        data.tolerance,
-        data.source_type,
-        data.source_title,
-        data.source_year,
-        data.source_number,
-        clean_translations(data.translations),
-    )
+    try:
+        await conn.execute(
+            q.UPDATE_TASK,
+            task_id,
+            data.theme_id,
+            data.title,
+            data.condition,
+            data.difficulty,
+            data.check_mode,
+            data.answer_type,
+            data.answer,
+            data.unit,
+            data.tolerance,
+            data.source_id,
+            data.source_number,
+            data.is_original,
+            clean_translations(data.translations),
+        )
+    except asyncpg.UniqueViolationError:
+        raise await _duplicate_error(conn, data, user, task_id) from None
     return await _task_full(conn, task_id)
 
 
@@ -182,3 +245,77 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
 async def delete_task(task_id: int, user: Staff, conn: Conn) -> None:
     await _check_can_edit(conn, task_id, user)
     await conn.execute(q.DEACTIVATE_TASK, task_id)
+
+
+# ---------- Источники ----------
+
+
+async def _source_or_404(conn: asyncpg.Connection, source_id: int) -> SourceOut:
+    row = await conn.fetchrow(q.GET_SOURCE, source_id)
+    if row is None:
+        raise not_found("Источник")
+    return SourceOut(**dict(row))
+
+
+def _duplicate_source() -> HTTPException:
+    return HTTPException(status.HTTP_409_CONFLICT, detail="Источник с таким названием и годом уже есть в каталоге")
+
+
+@router.get("/sources", response_model=list[SourceOut])
+async def list_sources(
+    conn: Conn,
+    search: Annotated[str | None, Query(max_length=100)] = None,
+    type: SourceType | None = None,  # noqa: A002 — имя параметра в API
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+) -> list[SourceOut]:
+    rows = await conn.fetch(q.LIST_SOURCES, search or None, type, limit)
+    return [SourceOut(**dict(row)) for row in rows]
+
+
+@router.get("/sources/{source_id}", response_model=SourceOut)
+async def get_source(source_id: int, conn: Conn) -> SourceOut:
+    return await _source_or_404(conn, source_id)
+
+
+@router.post("/sources", response_model=SourceOut, status_code=status.HTTP_201_CREATED)
+async def create_source(data: SourceIn, user: Staff, conn: Conn) -> SourceOut:
+    """Учитель добавляет книгу или олимпиаду в общий каталог. Дубликат (название + год) не создаётся."""
+    source_id = await conn.fetchval(q.INSERT_SOURCE, data.type, data.title, data.author, data.year, user.id)
+    if source_id is None:
+        raise _duplicate_source()
+    return await _source_or_404(conn, source_id)
+
+
+@router.put("/sources/{source_id}", response_model=SourceOut)
+async def update_source(source_id: int, data: SourceIn, user: Staff, conn: Conn) -> SourceOut:
+    """Админ правит любой источник; учитель — свой, пока на него не ссылаются задачи других учителей."""
+    source = await _source_or_404(conn, source_id)
+    if not user.is_admin and (
+        source.created_by != user.id or await conn.fetchval(q.SOURCE_FOREIGN_TASKS, source_id, user.id)
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Этот источник может изменить только администратор")
+    try:
+        await conn.execute(q.UPDATE_SOURCE, source_id, data.type, data.title, data.author, data.year)
+    except asyncpg.UniqueViolationError:
+        raise _duplicate_source() from None
+    return await _source_or_404(conn, source_id)
+
+
+@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_source(source_id: int, _: Admin, conn: Conn) -> None:
+    """Удаление источника. Задачи остаются, но теряют ссылку на источник."""
+    if await conn.fetchval(q.DELETE_SOURCE, source_id) is None:
+        raise not_found("Источник")
+
+
+@router.post("/sources/{source_id}/merge", response_model=SourceOut)
+async def merge_source(source_id: int, data: SourceMergeIn, _: Admin, conn: Conn) -> SourceOut:
+    """Слить дубликат в другой источник: задачи переходят к нему, дубликат удаляется."""
+    if source_id == data.into_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Нельзя слить источник сам с собой")
+    await _source_or_404(conn, source_id)
+    target = await _source_or_404(conn, data.into_id)
+    async with conn.transaction():
+        await conn.execute(q.MERGE_SOURCE, source_id, data.into_id)
+        await conn.execute(q.DELETE_SOURCE, source_id)
+    return await _source_or_404(conn, target.id)

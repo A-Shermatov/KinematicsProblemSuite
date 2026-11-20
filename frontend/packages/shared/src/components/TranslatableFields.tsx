@@ -15,6 +15,7 @@ interface Props {
   aside?: ReactNode;
   asideClassName?: string;
   rows?: number;
+  onUploadImage?: (file: File) => Promise<string>;
 }
 
 const filled = (value?: { title: string; condition: string }) => !!value && (!!value.title.trim() || !!value.condition.trim());
@@ -23,7 +24,7 @@ const filled = (value?: { title: string; condition: string }) => !!value && (!!v
  * Название и условие задачи на нескольких языках. Русский — основной и обязательный;
  * пустой перевод — ученики с этим языком увидят русский вариант.
  */
-export function TranslatableFields({ title, condition, translations, onChange, conditionPlaceholder, titlePlaceholder, aside, asideClassName, rows }: Props) {
+export function TranslatableFields({ title, condition, translations, onChange, conditionPlaceholder, titlePlaceholder, aside, asideClassName, rows, onUploadImage }: Props) {
   const [lang, setLang] = useState<Lang>("ru");
   const current = lang === "ru" ? null : (translations[lang] ?? { title: "", condition: "" });
   const setTranslation = (patch: Partial<{ title: string; condition: string }>) =>
@@ -67,9 +68,9 @@ export function TranslatableFields({ title, condition, translations, onChange, c
         {aside}
       </div>
       {current ? (
-        <MarkdownEditor key={lang} label={t("Условие")} value={current.condition} onChange={(value) => setTranslation({ condition: value })} placeholder={condition} rows={rows} />
+        <MarkdownEditor key={lang} label={t("Условие")} value={current.condition} onChange={(value) => setTranslation({ condition: value })} placeholder={condition} rows={rows} onUploadImage={onUploadImage} />
       ) : (
-        <MarkdownEditor label={t("Условие")} value={condition} onChange={(value) => onChange({ condition: value })} placeholder={conditionPlaceholder} rows={rows} />
+        <MarkdownEditor label={t("Условие")} value={condition} onChange={(value) => onChange({ condition: value })} placeholder={conditionPlaceholder} rows={rows} onUploadImage={onUploadImage} />
       )}
     </div>
   );

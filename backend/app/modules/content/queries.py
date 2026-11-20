@@ -98,7 +98,9 @@ TASK_PUBLIC_COLUMNS = """
 k.id, k.theme_id, t.title AS theme_title, t.subject_id, s.title AS subject_title,
 k.author_id, trim(u.first_name || ' ' || u.last_name) AS author_name,
 k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.unit,
-k.source_type, k.source_title, k.source_year, k.source_number, k.created_at, k.updated_at, k.translations
+k.source_id, COALESCE(src.type, CASE WHEN k.is_original THEN 'own' END) AS source_type,
+src.title AS source_title, src.year AS source_year, COALESCE(src.author, '') AS source_author, k.source_number,
+k.is_original, k.duplicate_of, k.created_at, k.updated_at, k.translations
 """
 
 TASK_FROM = """
@@ -106,10 +108,11 @@ FROM tasks k
 JOIN themes t ON t.id = k.theme_id
 JOIN subjects s ON s.id = t.subject_id
 JOIN users u ON u.id = k.author_id
+LEFT JOIN sources src ON src.id = k.source_id
 """
 
 # $1 theme_id, $2 subject_id, $3 author_id, $4 difficulty, $5 поиск, $6 id текущего пользователя (для отметки «решено»),
-# $7 limit, $8 offset, $9 тип источника. NULL — без фильтра.
+# $7 limit, $8 offset, $9 тип источника, $10 id источника. NULL — без фильтра.
 LIST_TASKS = f"""
 SELECT {TASK_PUBLIC_COLUMNS},
        EXISTS (SELECT 1 FROM attempts a
@@ -122,8 +125,9 @@ WHERE k.is_active
   AND ($3::bigint IS NULL OR k.author_id = $3)
   AND ($4::smallint IS NULL OR k.difficulty = $4)
   AND ($5::text IS NULL OR k.title ILIKE '%' || $5 || '%' OR k.condition ILIKE '%' || $5 || '%'
-       OR k.source_title ILIKE '%' || $5 || '%' OR k.translations::text ILIKE '%' || $5 || '%')
-  AND ($9::text IS NULL OR k.source_type = $9)
+       OR src.title ILIKE '%' || $5 || '%' OR k.translations::text ILIKE '%' || $5 || '%')
+  AND ($9::text IS NULL OR COALESCE(src.type, CASE WHEN k.is_original THEN 'own' END) = $9)
+  AND ($10::bigint IS NULL OR k.source_id = $10)
 ORDER BY t.position, k.difficulty, k.id
 LIMIT $7 OFFSET $8
 """
@@ -145,8 +149,8 @@ WHERE k.id = $1 AND k.is_active
 
 INSERT_TASK = """
 INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit, tolerance,
-                   source_type, source_title, source_year, source_number, translations)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)
+                   source_id, source_number, is_original, translations)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)
 RETURNING id
 """
 
@@ -154,8 +158,8 @@ UPDATE_TASK = """
 UPDATE tasks
 SET theme_id = $2, title = $3, condition = $4, difficulty = $5, check_mode = $6,
     answer_type = $7, answer = $8, unit = $9, tolerance = $10,
-    source_type = $11, source_title = $12, source_year = $13, source_number = $14,
-    translations = $15::jsonb, updated_at = now()
+    source_id = $11, source_number = $12, is_original = $13,
+    translations = $14::jsonb, updated_at = now()
 WHERE id = $1 AND is_active
 RETURNING id
 """
@@ -163,3 +167,63 @@ RETURNING id
 DEACTIVATE_TASK = "UPDATE tasks SET is_active = FALSE, updated_at = now() WHERE id = $1 AND is_active RETURNING id"
 
 GET_TASK_AUTHOR = "SELECT author_id FROM tasks WHERE id = $1 AND is_active"
+
+# ---------- Дубликаты ----------
+
+# Точные дубли (тот же нормализованный ключ, см. миграцию 011) и похожие по триграммам.
+# $1 название, $2 условие, $3 id задачи, которую редактируют (её не считаем), $4 порог похожести, $5 limit
+FIND_DUPLICATES = """
+WITH probe AS (SELECT task_text_key($1, $2) AS key)
+SELECT k.id, k.title, k.author_id, trim(u.first_name || ' ' || u.last_name) AS author_name, t.title AS theme_title,
+       (k.condition_key = probe.key) AS exact, similarity(k.condition_key, probe.key)::float AS similarity
+FROM tasks k
+CROSS JOIN probe
+JOIN users u ON u.id = k.author_id
+JOIN themes t ON t.id = k.theme_id
+WHERE k.is_active
+  AND ($3::bigint IS NULL OR k.id <> $3)
+  AND (k.condition_key = probe.key OR (k.condition_key % probe.key AND similarity(k.condition_key, probe.key) >= $4))
+ORDER BY exact DESC, similarity DESC, k.id
+LIMIT $5
+"""
+
+
+# ---------- Источники ----------
+
+SOURCE_COLUMNS = """
+src.id, src.type, src.title, src.author, src.year, src.created_by, src.created_at,
+(SELECT count(*) FROM tasks k WHERE k.source_id = src.id AND k.is_active)::int AS tasks_count
+"""
+
+# $1 поиск, $2 тип, $3 limit
+LIST_SOURCES = f"""
+SELECT {SOURCE_COLUMNS}
+FROM sources src
+WHERE ($1::text IS NULL OR src.title ILIKE '%' || $1 || '%' OR src.author ILIKE '%' || $1 || '%')
+  AND ($2::text IS NULL OR src.type = $2)
+ORDER BY tasks_count DESC, lower(src.title), src.year NULLS LAST
+LIMIT $3
+"""
+
+GET_SOURCE = f"SELECT {SOURCE_COLUMNS} FROM sources src WHERE src.id = $1"
+
+FIND_SOURCE = "SELECT id FROM sources WHERE lower(title) = lower($1) AND COALESCE(year, 0) = COALESCE($2::smallint, 0)"
+
+INSERT_SOURCE = """
+INSERT INTO sources (type, title, author, year, created_by) VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT DO NOTHING
+RETURNING id
+"""
+
+UPDATE_SOURCE = """
+UPDATE sources SET type = $2, title = $3, author = $4, year = $5, updated_at = now() WHERE id = $1 RETURNING id
+"""
+
+SOURCE_EXISTS = "SELECT EXISTS (SELECT 1 FROM sources WHERE id = $1)"
+
+# Задачи других авторов в источнике: создатель источника может править его, только пока он «свой».
+SOURCE_FOREIGN_TASKS = "SELECT EXISTS (SELECT 1 FROM tasks WHERE source_id = $1 AND author_id <> $2 AND is_active)"
+
+MERGE_SOURCE = "UPDATE tasks SET source_id = $2, updated_at = now() WHERE source_id = $1"
+
+DELETE_SOURCE = "DELETE FROM sources WHERE id = $1 RETURNING id"

@@ -29,15 +29,35 @@ interface Props {
   label?: string;
   placeholder?: string;
   rows?: number;
+  /** Загрузка рисунка к условию; возвращает URL. Без неё кнопки «Рисунок» нет. */
+  onUploadImage?: (file: File) => Promise<string>;
 }
 
 /** Редактор условия задачи: Markdown + LaTeX с живым предпросмотром. */
-export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12 }: Props) {
+export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12, onUploadImage }: Props) {
   const [mode, setMode] = useState<Mode>("split");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const id = useId();
   // Предпросмотр отстаёт на кадр при быстром наборе — так ввод не тормозит на больших формулах.
   const deferred = useDeferredValue(value);
+  const imageRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const uploadImage = async (file: File) => {
+    if (!onUploadImage) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const url = await onUploadImage(file);
+      insert({ label: "", title: "", before: `\n![${t("рисунок")}](${url})\n`, placeholder: "" });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploading(false);
+      if (imageRef.current) imageRef.current.value = "";
+    }
+  };
 
   const insert = (snippet: Snippet) => {
     const textarea = textareaRef.current;
@@ -83,6 +103,20 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12 
                 {snippet.label}
               </button>
             ))}
+            {onUploadImage && (
+              <>
+                <input ref={imageRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+                <button
+                  type="button"
+                  title={t("Вставить рисунок (схему, график)")}
+                  onClick={() => imageRef.current?.click()}
+                  disabled={mode === "preview" || uploading}
+                  className="h-8 rounded-lg px-2 text-sm font-semibold text-muted hover:bg-surface hover:text-fg disabled:opacity-40"
+                >
+                  {uploading ? "…" : `🖼 ${t("Рисунок")}`}
+                </button>
+              </>
+            )}
           </div>
           <div className="flex rounded-lg bg-surface p-0.5 text-xs font-medium" role="tablist">
             {tabs.map((tab) => (
@@ -131,6 +165,7 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12 
           </div>
         </div>
       </div>
+      {uploadError && <p className="text-xs text-danger">{uploadError}</p>}
       <p className="text-xs text-muted">
         {t("Markdown и формулы LaTeX:")} <code className="rounded bg-surface-2 px-1">$v = s/t$</code>  {t("в строке,")}{" "}
         <code className="rounded bg-surface-2 px-1">$$…$$</code>  {t("отдельным блоком.")}

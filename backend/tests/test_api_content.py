@@ -101,40 +101,85 @@ def test_theme_with_tasks_cannot_be_deleted(client: ApiClient) -> None:
 def test_task_source(client: ApiClient) -> None:
     theme = client.theme()
     teacher = client.teacher()
-    task = client.task(
+    book = client.post(
+        "/api/sources",
         teacher,
-        theme["id"],
-        source_type="book",
-        source_title="Рымкевич. Задачник по физике",
-        source_year=2019,
-        source_number=" 123 ",
+        json={"type": "book", "title": "  Рымкевич.   Задачник по физике ", "author": "А. П. Рымкевич", "year": 2019},
     )
+    assert book.status_code == 201, book.text
+    book = book.json()
+    assert book["title"] == "Рымкевич. Задачник по физике" and book["tasks_count"] == 0
+
+    task = client.task(teacher, theme["id"], source_id=book["id"], source_number=" 123 ")
+    second = client.task(teacher, theme["id"], title="Вторая из книги", source_id=book["id"], source_number="124")
     assert task["source_title"] == "Рымкевич. Задачник по физике"
     assert task["source_number"] == "123"
 
     public = client.get(f"/api/tasks/{task['id']}").json()
-    assert public["source_type"] == "book"
-    assert public["source_year"] == 2019
+    assert (public["source_type"], public["source_year"], public["source_author"]) == ("book", 2019, "А. П. Рымкевич")
 
-    own = client.task(teacher, theme["id"], title="Авторская", source_type="own")
-    assert own["source_title"] is None
+    own = client.task(teacher, theme["id"], title="Авторская", is_original=True)
+    assert (own["source_type"], own["source_title"]) == ("own", None)
 
-    books = client.get("/api/tasks", params={"source_type": "book"}).json()
-    assert [t["id"] for t in books] == [task["id"]]
+    assert {t["id"] for t in client.get("/api/tasks", params={"source_type": "book"}).json()} == {
+        task["id"],
+        second["id"],
+    }
+    assert [t["id"] for t in client.get("/api/tasks", params={"source_type": "own"}).json()] == [own["id"]]
+    by_source = client.get("/api/tasks", params={"source_id": book["id"]}).json()
+    assert {t["id"] for t in by_source} == {task["id"], second["id"]}
     found = client.get("/api/tasks", params={"search": "рымкевич"}).json()
-    assert [t["id"] for t in found] == [task["id"]]
+    assert {t["id"] for t in found} == {task["id"], second["id"]}
+
+    listed = client.get("/api/sources", params={"search": "задачник"}).json()
+    assert [(s["id"], s["tasks_count"]) for s in listed] == [(book["id"], 2)]
+
+
+def test_sources_catalog(client: ApiClient) -> None:
+    teacher = client.teacher()
+    other = client.teacher("other")
+    admin = client.admin_token()
+    theme = client.theme()
+    payload = {"type": "olympiad", "title": "Республиканская олимпиада", "year": 2021}
+    source = client.post("/api/sources", teacher, json=payload).json()
+    # Тот же источник (регистр не важен) второй раз не заводится; другой год — другой источник.
+    assert client.post("/api/sources", other, json={**payload, "title": "республиканская ОЛИМПИАДА"}).status_code == 409
+    assert client.post("/api/sources", other, json={**payload, "year": 2022}).status_code == 201
+    assert client.post("/api/sources", client.student(), json=payload).status_code == 403
+    assert client.post("/api/sources", teacher, json={**payload, "type": "magazine"}).status_code == 422
+    assert client.post("/api/sources", teacher, json={**payload, "year": 1500}).status_code == 422
+
+    # Автор правит свой источник, пока им не пользуются другие учителя; админ — всегда.
+    renamed = {**payload, "title": "Республиканская олимпиада, финал"}
+    assert client.put(f"/api/sources/{source['id']}", teacher, json=renamed).status_code == 200
+    assert client.put(f"/api/sources/{source['id']}", other, json=payload).status_code == 403
+    client.task(other, theme["id"], source_id=source["id"])
+    assert client.put(f"/api/sources/{source['id']}", teacher, json=payload).status_code == 403
+    assert client.put(f"/api/sources/{source['id']}", admin, json=payload).status_code == 200
+
+    # Несуществующий источник в задаче — 404.
+    missing = {"theme_id": theme["id"], "title": "X", "answer": "1", "source_id": 999999}
+    assert client.post("/api/tasks", teacher, json=missing).status_code == 404
+
+    # Слияние дубликатов и удаление — только админ.
+    duplicate = client.post("/api/sources", teacher, json={**payload, "title": "Респ. олимпиада"}).json()
+    moved = client.task(teacher, theme["id"], title="Из дубликата", source_id=duplicate["id"])
+    url = f"/api/sources/{duplicate['id']}/merge"
+    assert client.post(url, teacher, json={"into_id": source["id"]}).status_code == 403
+    merged = client.post(url, admin, json={"into_id": source["id"]}).json()
+    assert merged["tasks_count"] == 2
+    assert client.get(f"/api/tasks/{moved['id']}").json()["source_id"] == source["id"]
+    assert client.get(f"/api/sources/{duplicate['id']}").status_code == 404
+    assert client.delete(f"/api/sources/{source['id']}", teacher).status_code == 403
+    assert client.delete(f"/api/sources/{source['id']}", admin).status_code == 204
+    assert client.get(f"/api/tasks/{moved['id']}").json()["source_id"] is None
 
 
 def test_task_source_validation(client: ApiClient) -> None:
     theme = client.theme()
     teacher = client.teacher()
     base = {"theme_id": theme["id"], "title": "Задача", "answer": "5"}
-    # Для книги/олимпиады/экзамена нужно название источника.
-    assert client.post("/api/tasks", teacher, json={**base, "source_type": "book"}).status_code == 422
-    assert client.post("/api/tasks", teacher, json={**base, "source_type": "magazine"}).status_code == 422
-    bad_year = {**base, "source_type": "exam", "source_title": "ЕНТ", "source_year": 1500}
-    assert client.post("/api/tasks", teacher, json=bad_year).status_code == 422
-    # Без типа источника остальные поля отбрасываются.
-    response = client.post("/api/tasks", teacher, json={**base, "source_title": "Что-то"})
+    # Номер без источника отбрасывается.
+    response = client.post("/api/tasks", teacher, json={**base, "source_number": "12"})
     assert response.status_code == 201
-    assert response.json()["source_title"] is None
+    assert response.json()["source_number"] is None

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
   Badge,
+  ButtonLink,
   Card,
   Difficulty,
   EmptyState,
@@ -42,7 +43,15 @@ export function Catalog() {
 
   return (
     <>
-      <PageHeader title={t("Каталог задач")} subtitle={t("Выберите предмет и тему, чтобы начать решать")} />
+      <PageHeader
+        title={t("Каталог задач")}
+        subtitle={t("Выберите предмет и тему, чтобы начать решать")}
+        actions={
+          <ButtonLink to="/sources" variant="secondary">
+            📚 {t("Задачники и олимпиады")}
+          </ButtonLink>
+        }
+      />
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.subjects.length === 0 && <EmptyState title={t("Пока нет ни одного предмета")} />}
@@ -111,7 +120,8 @@ export function ThemeTasks() {
   const themeId = Number(useParams().themeId);
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const [search, setSearch] = useState("");
-  const [source, setSource] = useState<SourceType | "">("");
+  /** "" — любой, "own" — авторские, иначе id источника. */
+  const [source, setSource] = useState("");
   const { data, error, loading } = useAsync(async () => {
     const [theme, tasks] = await Promise.all([api.themes.get(themeId), api.tasks.list({ theme_id: themeId })]);
     return { theme, tasks };
@@ -123,7 +133,7 @@ export function ThemeTasks() {
     return (data?.tasks ?? []).filter(
       (task) =>
         (difficulty === null || task.difficulty === difficulty) &&
-        (!source || task.source_type === source) &&
+        (!source || (source === "own" ? task.is_original : String(task.source_id) === source)) &&
         (!query || `${task.title} ${task.source_title ?? ""}`.toLowerCase().includes(query)),
     );
   }, [data, difficulty, search, source]);
@@ -133,6 +143,10 @@ export function ThemeTasks() {
 
   const solved = data.tasks.filter((task) => task.solved).length;
   const levels = [...new Set(data.tasks.map((task) => task.difficulty))].sort((a, b) => a - b);
+  const sources = [...new Map(data.tasks.filter((task) => task.source_id).map((task) => [task.source_id!, task])).values()].sort((a, b) =>
+    (a.source_title ?? "").localeCompare(b.source_title ?? ""),
+  );
+  const hasOwn = data.tasks.some((task) => task.is_original);
   return (
     <>
       <PageHeader
@@ -153,14 +167,16 @@ export function ThemeTasks() {
         </div>
         <select
           value={source}
-          onChange={(e) => setSource(e.target.value as SourceType | "")}
-          className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
+          onChange={(e) => setSource(e.target.value)}
+          className="h-11 max-w-xs rounded-xl border border-border bg-surface px-3 text-sm text-fg"
           aria-label={t("Источник")}
         >
           <option value="">{t("Любой источник")}</option>
-          {(Object.keys(sourceTypeLabel) as SourceType[]).map((type) => (
-            <option key={type} value={type}>
-              {sourceTypeLabel[type]}
+          {hasOwn && <option value="own">{t("Авторские задачи")}</option>}
+          {sources.map((task) => (
+            <option key={task.source_id} value={String(task.source_id)}>
+              {task.source_title}
+              {task.source_year ? `, ${task.source_year}` : ""}
             </option>
           ))}
         </select>
@@ -180,6 +196,111 @@ export function ThemeTasks() {
       </div>
       {tasks.length === 0 ? (
         <EmptyState title={data.tasks.length === 0 ? t("В этой теме пока нет задач") : t("Ничего не найдено")} />
+      ) : (
+        <Card className="divide-y divide-border overflow-hidden">
+          {tasks.map((task) => (
+            <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
+          ))}
+        </Card>
+      )}
+    </>
+  );
+}
+
+
+const SOURCE_ICON: Record<SourceType, string> = { book: "📘", olympiad: "🏆", exam: "📝", own: "✍️" };
+
+/** Каталог источников: книги, сборники, олимпиады и экзамены, из которых взяты задачи. */
+export function SourcesPage() {
+  useDocumentTitle(t("Задачники и олимпиады"));
+  const [search, setSearch] = useState("");
+  const [type, setType] = useState<SourceType | "">("");
+  const { data, error, loading } = useAsync(() => api.sources.list({ type: type || undefined, limit: 500 }), [type]);
+  const query = search.trim().toLowerCase();
+  const sources = (data ?? []).filter(
+    (source) => source.tasks_count > 0 && (!query || `${source.title} ${source.author}`.toLowerCase().includes(query)),
+  );
+
+  return (
+    <>
+      <PageHeader
+        title={t("Задачники и олимпиады")}
+        subtitle={t("Решайте задачи из конкретной книги, сборника или олимпиады")}
+        breadcrumbs={[{ label: t("Каталог"), to: "/catalog" }, { label: t("Источники") }]}
+      />
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-80">
+          <Input placeholder={t("Название или автор…")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("Поиск источников")} />
+        </div>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as SourceType | "")}
+          className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
+          aria-label={t("Тип")}
+        >
+          <option value="">{t("Все типы")}</option>
+          {(Object.keys(sourceTypeLabel) as SourceType[]).map((key) => (
+            <option key={key} value={key}>
+              {sourceTypeLabel[key]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {loading && <Loading />}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {data && sources.length === 0 && <EmptyState icon="📚" title={t("Ничего не найдено")} />}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {sources.map((source) => (
+          <Link key={source.id} to={`/sources/${source.id}`} className="group">
+            <Card className="flex h-full gap-4 p-5 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40">
+              <span className="text-3xl" aria-hidden>
+                {SOURCE_ICON[source.type]}
+              </span>
+              <div className="min-w-0 space-y-1">
+                <p className="font-semibold text-fg group-hover:text-primary">{source.title}</p>
+                <p className="text-sm text-muted">{[sourceTypeLabel[source.type], source.author, source.year].filter(Boolean).join(" · ")}</p>
+                <p className="text-sm font-medium text-fg">
+                  {source.tasks_count} {plural(source.tasks_count, ["задача", "задачи", "задач"])}
+                </p>
+              </div>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function SourceTasksPage() {
+  const sourceId = Number(useParams().sourceId);
+  const { data, error, loading } = useAsync(async () => {
+    const [source, tasks] = await Promise.all([api.sources.get(sourceId), api.tasks.list({ source_id: sourceId })]);
+    // Порядок как в книге: по номеру задачи, затем без номера.
+    tasks.sort((a, b) => (a.source_number ?? "~").localeCompare(b.source_number ?? "~", undefined, { numeric: true }));
+    return { source, tasks };
+  }, [sourceId]);
+  useDocumentTitle(data?.source.title);
+
+  if (loading) return <Loading />;
+  if (error || !data) return <ErrorMessage>{error ?? t("Источник не найден")}</ErrorMessage>;
+  const { source, tasks } = data;
+  const solved = tasks.filter((task) => task.solved).length;
+  return (
+    <>
+      <PageHeader
+        title={`${SOURCE_ICON[source.type]} ${source.title}`}
+        subtitle={[sourceTypeLabel[source.type], source.author, source.year].filter(Boolean).join(" · ")}
+        breadcrumbs={[{ label: t("Каталог"), to: "/catalog" }, { label: t("Источники"), to: "/sources" }, { label: source.title }]}
+        actions={
+          tasks.length > 0 && (
+            <Badge tone={solved === tasks.length ? "success" : "neutral"} className="px-3 py-1 text-sm">
+              {t("Решено")} {solved} {t("из")} {tasks.length}
+            </Badge>
+          )
+        }
+      />
+      {tasks.length === 0 ? (
+        <EmptyState title={t("Задач из этого источника пока нет")} />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">
           {tasks.map((task) => (

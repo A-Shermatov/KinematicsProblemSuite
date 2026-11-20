@@ -10,6 +10,13 @@ import type {
   OlympiadLeaderRow,
   OlympiadPhase,
   OlympiadResults,
+  Source,
+  SourceInput,
+  DuplicateCheck,
+  ImportCapabilities,
+  ImportInput,
+  ImportParseResult,
+  ImportResult,
   VirtualRun,
   VirtualStandingRow,
   OlympiadStatus,
@@ -109,6 +116,7 @@ export const api = {
         difficulty?: number;
         search?: string;
         source_type?: SourceType;
+        source_id?: number;
       } = {},
     ) =>
       request<Task[]>("/api/tasks", { query: { ...query, limit: 200 } }),
@@ -117,6 +125,32 @@ export const api = {
     create: (data: TaskInput) => request<TaskFull>("/api/tasks", { method: "POST", json: data }),
     update: (id: number, data: TaskInput) => request<TaskFull>(`/api/tasks/${id}`, { method: "PUT", json: data }),
     remove: (id: number) => request<void>(`/api/tasks/${id}`, { method: "DELETE" }),
+    checkDuplicates: (title: string, condition: string, excludeId?: number | null) =>
+      request<DuplicateCheck>("/api/tasks/check-duplicates", { method: "POST", json: { title, condition, exclude_id: excludeId ?? null } }),
+  },
+
+  imports: {
+    capabilities: () => request<ImportCapabilities>("/api/tasks/import/capabilities"),
+    parse: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<ImportParseResult>("/api/tasks/import/parse", { method: "POST", form });
+    },
+    commit: (data: ImportInput) => request<ImportResult>("/api/tasks/import/commit", { method: "POST", json: data }),
+    uploadImage: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return (await request<{ url: string }>("/api/tasks/import/image", { method: "POST", form })).url;
+    },
+  },
+
+  sources: {
+    list: (query: { search?: string; type?: SourceType; limit?: number } = {}) => request<Source[]>("/api/sources", { query }),
+    get: (id: number) => request<Source>(`/api/sources/${id}`),
+    create: (data: SourceInput) => request<Source>("/api/sources", { method: "POST", json: data }),
+    update: (id: number, data: SourceInput) => request<Source>(`/api/sources/${id}`, { method: "PUT", json: data }),
+    remove: (id: number) => request<void>(`/api/sources/${id}`, { method: "DELETE" }),
+    merge: (id: number, intoId: number) => request<Source>(`/api/sources/${id}/merge`, { method: "POST", json: { into_id: intoId } }),
   },
 
   attempts: {

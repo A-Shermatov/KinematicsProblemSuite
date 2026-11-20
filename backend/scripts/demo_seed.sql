@@ -66,11 +66,8 @@ SELECT s.id, t.title, t.description, t.position FROM subjects s JOIN (VALUES
     ('Математика', 'Геометрия', 'Планиметрия и стереометрия',              2)
 ) AS t(subject, title, description, position) ON s.title = t.subject;
 
-INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit,
-                   source_type, source_title, source_year, source_number, translations, created_at)
-SELECT th.id, u.id, k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.answer, k.unit,
-       k.source_type, k.source_title, k.source_year, k.source_number, k.translations::jsonb, now() - interval '200 days'
-FROM (VALUES
+CREATE TEMP TABLE demo_tasks ON COMMIT DROP AS
+SELECT * FROM (VALUES
     ('Кинематика', 'teacher', 'Скорость поезда', 'Поезд едет со скоростью $v = 72$ км/ч. Найдите скорость в м/с.',
      100, 'auto', 'number', '20', 'м/с', 'book', 'Рымкевич. Задачник по физике 10–11', 2019, '12',
      '{"en": {"title": "Train speed", "condition": "A train moves at $v = 72$ km/h. Find its speed in m/s."}, "tg": {"title": "Суръати қатора", "condition": "Қатора бо суръати $v = 72$ км/соат ҳаракат мекунад. Суръатро бо м/с ёбед."}}'),
@@ -109,9 +106,23 @@ FROM (VALUES
     ('Геометрия', 'teacher2', 'Вписанная окружность', 'Найдите радиус окружности, вписанной в треугольник со сторонами 13, 14, 15.',
      500, 'auto', 'number', '4', NULL, NULL, NULL, NULL, NULL, '{}')
 ) AS k(theme, author, title, condition, difficulty, check_mode, answer_type, answer, unit,
-       source_type, source_title, source_year, source_number, translations)
+       source_type, source_title, source_year, source_number, translations);
+
+-- Каталог источников: одна книга — много задач.
+INSERT INTO sources (type, title, author, year, created_by)
+SELECT DISTINCT k.source_type, k.source_title,
+       CASE WHEN k.source_title LIKE 'Рымкевич%' THEN 'А. П. Рымкевич' ELSE '' END, k.source_year::smallint, u.id
+FROM demo_tasks k JOIN users u ON u.username = k.author
+WHERE k.source_title IS NOT NULL;
+
+INSERT INTO tasks (theme_id, author_id, title, condition, difficulty, check_mode, answer_type, answer, unit,
+                   source_id, source_number, is_original, translations, created_at)
+SELECT th.id, u.id, k.title, k.condition, k.difficulty, k.check_mode, k.answer_type, k.answer, k.unit,
+       src.id, k.source_number, k.source_type IS NOT DISTINCT FROM 'own', k.translations::jsonb, now() - interval '200 days'
+FROM demo_tasks k
 JOIN themes th ON th.title = k.theme
-JOIN users u ON u.username = k.author;
+JOIN users u ON u.username = k.author
+LEFT JOIN sources src ON src.title = k.source_title AND src.year IS NOT DISTINCT FROM k.source_year::smallint;
 
 -- ---------- История решений (для тепловой карты, рейтинга и значков) ----------
 -- Каждый ученик в «активные» дни отправляет 1–3 попытки; верность зависит от сложности и «силы» ученика.
