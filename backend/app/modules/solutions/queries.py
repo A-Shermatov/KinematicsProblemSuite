@@ -7,7 +7,7 @@ a.student_id, st.username AS student_username,
 trim(st.first_name || ' ' || st.last_name) AS student_name,
 a.answer, a.image_path, a.status, a.system_grade, a.teacher_grade, a.feedback,
 a.graded_by, a.graded_at, a.created_at,
-k.answer AS correct_answer, k.unit AS task_unit
+COALESCE(a.expected, k.answer) AS correct_answer, k.unit AS task_unit
 """
 
 ATTEMPT_FROM = """
@@ -18,8 +18,8 @@ JOIN users st ON st.id = a.student_id
 """
 
 INSERT_ATTEMPT = """
-INSERT INTO attempts (task_id, student_id, answer, image_path, status, system_grade, feedback, hints_used)
-VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT count(*) FROM task_hint_opens WHERE task_id = $1 AND user_id = $2))
+INSERT INTO attempts (task_id, student_id, answer, image_path, status, system_grade, feedback, hints_used, expected)
+VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT count(*) FROM task_hint_opens WHERE task_id = $1 AND user_id = $2), $8)
 RETURNING id
 """
 

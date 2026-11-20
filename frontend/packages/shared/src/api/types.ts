@@ -98,6 +98,8 @@ export interface Task extends TaskSource {
   available_langs: string[];
   /** Дубликат, оставшийся с тех пор, когда проверки уникальности не было. */
   duplicate_of?: number | null;
+  /** У каждого ученика свои числа в условии. */
+  is_parametric?: boolean;
 }
 
 export interface TaskFull extends Task {
@@ -108,7 +110,12 @@ export interface TaskFull extends Task {
   hints: string[];
   explanation: string;
   mistakes: TaskMistake[];
+  params: TaskParams;
+  answer_formula: string;
 }
+
+/** Параметры задачи: {v} в условии — у каждого ученика своё значение из диапазона. */
+export type TaskParams = Record<string, { min: number; max: number; step: number }>;
 
 /** Частый неверный ответ и пояснение, которое увидит ученик. */
 export interface TaskMistake {
@@ -161,6 +168,8 @@ export interface TaskInput {
   hints: string[];
   explanation: string;
   mistakes: TaskMistake[];
+  params: TaskParams;
+  answer_formula: string;
 }
 
 export interface Attempt {

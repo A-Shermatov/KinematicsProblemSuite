@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, type AnswerType, type CheckMode, type DuplicateHit, type TaskFull, type TaskInput } from "../api";
+import { api, type AnswerType, type CheckMode, type DuplicateHit, type TaskFull, type TaskInput, type TaskParams } from "../api";
 import { TranslatableFields, cleanTranslations } from "../components/TranslatableFields";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, Textarea, cx } from "../components/ui";
@@ -34,6 +34,8 @@ const EMPTY: TaskInput = {
   hints: [],
   explanation: "",
   mistakes: [],
+  params: {},
+  answer_formula: "",
 };
 
 interface TaskEditorProps {
@@ -59,6 +61,7 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
   const [saveError, setSaveError] = useState<string | null>(null);
   /** Похожие задачи, о которых предупредили; после подтверждения сохраняем без повторной проверки. */
   const [similar, setSimilar] = useState<DuplicateHit[] | null>(null);
+  const parametric = !!form && Object.keys(form.params).length > 0;
   // Условие изменили — предупреждение о похожих задачах больше не актуально.
   useEffect(() => setSimilar(null), [form?.title, form?.condition]);
 
@@ -93,6 +96,8 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
         hints: task.hints ?? [],
         explanation: task.explanation ?? "",
         mistakes: task.mistakes ?? [],
+        params: task.params ?? {},
+        answer_formula: task.answer_formula ?? "",
       });
     } else if (themeList.length > 0) {
       setForm((prev) => (prev && prev.theme_id === 0 ? { ...prev, theme_id: themeList[0].id } : prev));
@@ -180,6 +185,7 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
         hints: form.hints.map((hint) => hint.trim()).filter(Boolean),
         explanation: form.explanation.trim(),
         mistakes: form.mistakes.filter((m) => m.answer.trim() && m.message.trim()),
+        ...(parametric ? { answer_type: "number" as AnswerType, answer: form.answer || "0" } : { params: {}, answer_formula: "" }),
       };
       const saved = taskId ? await api.tasks.update(taskId, payload) : await api.tasks.create(payload);
       setSimilar(null);
@@ -321,15 +327,27 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
             </Select>
           </div>
           <div className={cx("grid gap-4", form.answer_type === "number" ? "md:grid-cols-[2fr_1fr_1fr]" : "")}>
-            <Input
-              label={form.check_mode === "manual" ? t("Эталонное решение (для учителя)") : t("Правильный ответ")}
-              value={form.answer}
-              onChange={(e) => set("answer", e.target.value)}
-              required
-              className="font-mono"
-              placeholder={form.answer_type === "number" ? t("20 или 2e1") : t("вверх | up")}
-              hint={form.answer_type === "text" ? t("Несколько допустимых вариантов — через «|»") : t("Можно указать единицы прямо в ответе: «9.8 м/с^2»")}
-            />
+            {parametric ? (
+              <Input
+                label={t("Формула ответа")}
+                value={form.answer_formula}
+                onChange={(e) => set("answer_formula", e.target.value)}
+                required
+                className="font-mono"
+                placeholder="v / 3.6"
+                hint={t("Параметры по имени, + − * / ^, sqrt, sin, cos (в градусах), ln, pi")}
+              />
+            ) : (
+              <Input
+                label={form.check_mode === "manual" ? t("Эталонное решение (для учителя)") : t("Правильный ответ")}
+                value={form.answer}
+                onChange={(e) => set("answer", e.target.value)}
+                required
+                className="font-mono"
+                placeholder={form.answer_type === "number" ? t("20 или 2e1") : t("вверх | up")}
+                hint={form.answer_type === "text" ? t("Несколько допустимых вариантов — через «|»") : t("Можно указать единицы прямо в ответе: «9.8 м/с^2»")}
+              />
+            )}
             {form.answer_type === "number" && (
               <>
                 <Input
@@ -348,6 +366,84 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
                   value={Math.round(form.tolerance * 1000) / 10}
                   onChange={(e) => set("tolerance", Number(e.target.value) / 100)}
                 />
+              </>
+            )}
+          </div>
+          <div className="space-y-3 rounded-xl border border-border p-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-fg">
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[var(--primary)]"
+                checked={parametric}
+                disabled={form.answer_type !== "number" && !parametric}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    answer_type: "number",
+                    params: e.target.checked ? { v: { min: 36, max: 108, step: 18 } } : {},
+                    answer_formula: e.target.checked ? form.answer_formula || "v / 3.6" : "",
+                  })
+                }
+              />
+              🎲 {t("Задача с параметрами — у каждого ученика свои числа")}
+            </label>
+            {parametric && (
+              <>
+                <p className="text-xs text-muted">
+                  {t("Напишите в условии {v} — там, где должно стоять число. Ученик увидит своё значение из диапазона, ответ посчитается по формуле.")}
+                </p>
+                {(Object.entries(form.params) as [string, TaskParams[string]][]).map(([name, spec], index) => (
+                  <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[8rem_1fr_1fr_1fr_auto] sm:items-end">
+                    <Input
+                      label={t("Имя")}
+                      value={name}
+                      className="font-mono"
+                      maxLength={16}
+                      onChange={(e) => {
+                        const entries = Object.entries(form.params).map(([n, s], i) => (i === index ? [e.target.value.replace(/[^A-Za-z0-9_]/g, ""), s] : [n, s]));
+                        setForm({ ...form, params: Object.fromEntries(entries) });
+                      }}
+                    />
+                    {(["min", "max", "step"] as const).map((key) => (
+                      <Input
+                        key={key}
+                        label={{ min: t("от"), max: t("до"), step: t("шаг") }[key]}
+                        type="number"
+                        step="any"
+                        value={spec[key]}
+                        onChange={(e) => setForm({ ...form, params: { ...form.params, [name]: { ...spec, [key]: Number(e.target.value) } } })}
+                      />
+                    ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t("Удалить")}
+                      onClick={() => setForm({ ...form, params: Object.fromEntries(Object.entries(form.params).filter((_, i) => i !== index)) })}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+                {Object.keys(form.params).length < 6 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const name = ["t", "m", "h", "a", "s", "F", "k"].find((n) => !(n in form.params)) ?? `p${Object.keys(form.params).length}`;
+                      setForm({ ...form, params: { ...form.params, [name]: { min: 1, max: 10, step: 1 } } });
+                    }}
+                  >
+                    + {t("Параметр")}
+                  </Button>
+                )}
+                <p className="text-xs text-muted">
+                  {t("Пример условия для ученика:")}{" "}
+                  <span className="text-fg">
+                    {form.condition.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, n: string) => (n in form.params ? String(form.params[n].min) : m)).slice(0, 200)}
+                  </span>
+                </p>
               </>
             )}
           </div>
