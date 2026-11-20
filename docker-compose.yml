@@ -4,8 +4,8 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-kinematics}
-      POSTGRES_USER: ${POSTGRES_USER:-kinematics}
+      POSTGRES_DB: ${POSTGRES_DB:-donish}
+      POSTGRES_USER: ${POSTGRES_USER:-donish}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -19,7 +19,7 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-kinematics}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-kinematics}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-donish}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-donish}
       SECRET_KEY: ${SECRET_KEY:?Задайте SECRET_KEY в .env (минимум 32 символа)}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Задайте ADMIN_PASSWORD в .env}

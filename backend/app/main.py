@@ -67,7 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await pool.close()
 
-    app = FastAPI(title="Kinematics Problem Suite API", version="2.0.0", lifespan=lifespan)
+    app = FastAPI(title="Donish API", version="2.1.0", lifespan=lifespan)
     app.state.settings = settings
 
     app.add_middleware(

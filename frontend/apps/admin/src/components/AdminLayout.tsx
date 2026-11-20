@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  APP_NAME,
   Avatar,
   Button,
   Card,
@@ -33,9 +34,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-fg">A</span>
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-fg">D</span>
         <div className="leading-tight">
-          <p className="font-bold text-fg">Kinematics</p>
+          <p className="font-bold text-fg">{APP_NAME}</p>
           <p className="text-xs text-muted">Админ-панель</p>
         </div>
       </div>
@@ -165,7 +166,7 @@ export function AdminLogin() {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-2 text-center">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-fg">A</span>
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-fg">D</span>
           <h1 className="text-2xl font-bold text-fg">Админ-панель</h1>
           <p className="text-sm text-muted">Вход только для администраторов</p>
         </div>

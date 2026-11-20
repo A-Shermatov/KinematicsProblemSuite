@@ -49,9 +49,9 @@ export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Неизвестная ошибка";
 }
 
-let titleSuffix = "Kinematics";
+let titleSuffix = "Donish";
 
-/** Приложение задаёт свой суффикс заголовка вкладки: «Kinematics» или «Админка». */
+/** Приложение задаёт свой суффикс заголовка вкладки: название платформы или «Админка». */
 export function setDocumentTitleSuffix(suffix: string) {
   titleSuffix = suffix;
 }

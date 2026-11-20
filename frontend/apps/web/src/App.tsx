@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { AuthProvider, ButtonLink, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
+import { APP_NAME, AuthProvider, ButtonLink, EmptyState, ThemeProvider, setDocumentTitleSuffix } from "@kps/shared";
 import { Layout, RequireAuth } from "./components/Layout";
 import { Attempts } from "./pages/Attempts";
 import { Login, Register } from "./pages/Auth";
@@ -14,7 +14,7 @@ import { Profile, UserPage } from "./pages/Profile";
 import { TaskPage } from "./pages/TaskPage";
 import { TeacherPage, TeacherSettings, Teachers } from "./pages/Teachers";
 
-setDocumentTitleSuffix("Kinematics");
+setDocumentTitleSuffix(APP_NAME);
 
 function NotFound() {
   return (
