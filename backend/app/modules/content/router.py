@@ -6,6 +6,7 @@ import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.deps import Conn, CurrentUser, OptionalUser, Staff, not_found
+from app.i18n import DEFAULT_LANG, RequestLang, clean_translations, localize
 from app.modules.content import queries as q
 from app.modules.content.schemas import (
     SourceType,
@@ -71,13 +72,15 @@ async def _task_full(conn: asyncpg.Connection, task_id: int) -> TaskFull:
     row = await conn.fetchrow(q.GET_TASK_FULL, task_id)
     if row is None:
         raise not_found("Задача")
-    return TaskFull(**dict(row))
+    # Редактору — оригинал на русском и все переводы отдельно.
+    return TaskFull(**localize(row, DEFAULT_LANG, keep_translations=True))
 
 
 @router.get("/tasks", response_model=list[TaskOut])
 async def list_tasks(
     conn: Conn,
     user: OptionalUser,
+    lang: RequestLang,
     theme_id: int | None = None,
     subject_id: int | None = None,
     author_id: int | None = None,
@@ -99,15 +102,15 @@ async def list_tasks(
         offset,
         source_type,
     )
-    return [TaskOut(**dict(row)) for row in rows]
+    return [TaskOut(**localize(row, lang)) for row in rows]
 
 
 @router.get("/tasks/{task_id}", response_model=TaskOut)
-async def get_task(task_id: int, conn: Conn, user: OptionalUser) -> TaskOut:
+async def get_task(task_id: int, conn: Conn, user: OptionalUser, lang: RequestLang) -> TaskOut:
     row = await conn.fetchrow(q.GET_TASK_PUBLIC, task_id, user.id if user else None)
     if row is None:
         raise not_found("Задача")
-    return TaskOut(**dict(row))
+    return TaskOut(**localize(row, lang))
 
 
 @router.get("/tasks/{task_id}/full", response_model=TaskFull)
@@ -143,6 +146,7 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
         data.source_title,
         data.source_year,
         data.source_number,
+        clean_translations(data.translations),
     )
     return await _task_full(conn, task_id)
 
@@ -169,6 +173,7 @@ async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> Ta
         data.source_title,
         data.source_year,
         data.source_number,
+        clean_translations(data.translations),
     )
     return await _task_full(conn, task_id)
 

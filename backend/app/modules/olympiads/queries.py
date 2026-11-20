@@ -97,22 +97,25 @@ RETURNING id
 
 # ---------- Задачи ----------
 
-TASK_COLUMNS = "id, olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points"
+TASK_COLUMNS = (
+    "id, olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points, translations"
+)
 
 LIST_TASKS = f"SELECT {TASK_COLUMNS} FROM olympiad_tasks WHERE olympiad_id = $1 ORDER BY position, id"
 
 GET_TASK = f"SELECT {TASK_COLUMNS} FROM olympiad_tasks WHERE id = $1 AND olympiad_id = $2"
 
 INSERT_TASK = f"""
-INSERT INTO olympiad_tasks (olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO olympiad_tasks (olympiad_id, position, title, condition, answer_type, answer, unit, tolerance, max_points,
+                            translations)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
 RETURNING {TASK_COLUMNS}
 """
 
 UPDATE_TASK = f"""
 UPDATE olympiad_tasks
 SET position = $3, title = $4, condition = $5, answer_type = $6, answer = $7, unit = $8, tolerance = $9,
-    max_points = $10
+    max_points = $10, translations = $11::jsonb
 WHERE id = $1 AND olympiad_id = $2
 RETURNING {TASK_COLUMNS}
 """

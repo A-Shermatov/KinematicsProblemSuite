@@ -14,6 +14,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
 from app.deps import Conn, CurrentUser, OptionalUser, SettingsDep, User, not_found, require_roles
+from app.i18n import DEFAULT_LANG, Lang, RequestLang, clean_translations
 from app.modules.olympiads import queries as q
 from app.modules.olympiads.schemas import (
     GradeIn,
@@ -64,7 +65,9 @@ def _require_editable(row: asyncpg.Record) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Олимпиаду на проверке или опубликованную изменить нельзя")
 
 
-async def _detail(conn: asyncpg.Connection, row: asyncpg.Record, viewer: CurrentUser | None) -> OlympiadDetail:
+async def _detail(
+    conn: asyncpg.Connection, row: asyncpg.Record, viewer: CurrentUser | None, lang: Lang = DEFAULT_LANG
+) -> OlympiadDetail:
     manage = _can_manage(row, viewer)
     phase: Phase = row["phase"]
     # Условия видны организатору всегда, участникам — с начала олимпиады, всем — после итогов.
@@ -77,7 +80,7 @@ async def _detail(conn: asyncpg.Connection, row: asyncpg.Record, viewer: Current
         reveal = not (run and run["active"])
     return OlympiadDetail(
         **dict(row),
-        tasks=[OlympiadTaskOut.from_row(t, reveal=reveal) for t in tasks],
+        tasks=[OlympiadTaskOut.from_row(t, reveal=reveal, lang=lang, manage=manage) for t in tasks],
         can_manage=manage,
         ungraded_count=await conn.fetchval(q.UNGRADED_COUNT, row["id"]) if manage else None,
     )
@@ -98,11 +101,11 @@ async def my_olympiads(teacher: Teacher, conn: Conn) -> list[OlympiadOut]:
 
 
 @router.get("/{olympiad_id}", response_model=OlympiadDetail)
-async def get_olympiad(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> OlympiadDetail:
+async def get_olympiad(olympiad_id: int, conn: Conn, viewer: OptionalUser, lang: RequestLang) -> OlympiadDetail:
     row = await _get(conn, olympiad_id, viewer)
     if not _visible(row, viewer):
         raise not_found("Олимпиада")
-    return await _detail(conn, row, viewer)
+    return await _detail(conn, row, viewer, lang)
 
 
 @router.post("/{olympiad_id}/register", response_model=OlympiadDetail)
@@ -263,8 +266,9 @@ async def add_task(olympiad_id: int, data: OlympiadTaskIn, user: User, conn: Con
         data.unit,
         data.tolerance,
         data.max_points,
+        clean_translations(data.translations),
     )
-    return OlympiadTaskOut.from_row(row, reveal=True)
+    return OlympiadTaskOut.from_row(row, reveal=True, manage=True)
 
 
 @router.put("/{olympiad_id}/tasks/{task_id}", response_model=OlympiadTaskOut)
@@ -282,10 +286,11 @@ async def update_task(olympiad_id: int, task_id: int, data: OlympiadTaskIn, user
         data.unit,
         data.tolerance,
         data.max_points,
+        clean_translations(data.translations),
     )
     if row is None:
         raise not_found("Задача")
-    return OlympiadTaskOut.from_row(row, reveal=True)
+    return OlympiadTaskOut.from_row(row, reveal=True, manage=True)
 
 
 @router.delete("/{olympiad_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
