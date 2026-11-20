@@ -19,6 +19,8 @@ from app.modules.olympiads import queries as olympiads_q
 from app.modules.olympiads.schemas import OlympiadOut
 from app.modules.olympiads.schemas import ReviewIn as OlympiadReviewIn
 from app.modules.olympiads.schemas import Status as OlympiadStatus
+from app.modules.settings import service as settings_service
+from app.modules.settings.service import PlatformSettings
 from app.modules.solutions import queries as solutions_q
 from app.modules.solutions.schemas import AttemptOut, AttemptStatus
 from app.modules.stats import queries as stats_q
@@ -36,6 +38,20 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(requir
 @router.get("/stats")
 async def stats(conn: Conn) -> dict[str, Any]:
     return dict(await conn.fetchrow(stats_q.ADMIN_SUMMARY))
+
+
+# ---------- Системные настройки ----------
+
+
+@router.get("/settings", response_model=PlatformSettings)
+async def get_settings(conn: Conn) -> PlatformSettings:
+    return await settings_service.load(conn)
+
+
+@router.put("/settings", response_model=PlatformSettings)
+async def update_settings(data: PlatformSettings, admin: Admin, conn: Conn) -> PlatformSettings:
+    await settings_service.save(conn, data, admin.id)
+    return await settings_service.load(conn)
 
 
 # ---------- Пользователи ----------

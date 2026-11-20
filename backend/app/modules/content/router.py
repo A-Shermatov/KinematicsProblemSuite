@@ -15,6 +15,7 @@ from app.modules.content.schemas import (
     TaskOut,
     ThemeOut,
 )
+from app.modules.settings import service as settings_service
 
 router = APIRouter(tags=["content"])
 
@@ -80,7 +81,7 @@ async def list_tasks(
     theme_id: int | None = None,
     subject_id: int | None = None,
     author_id: int | None = None,
-    difficulty: Annotated[int | None, Query(ge=1, le=5)] = None,
+    difficulty: Annotated[int | None, Query(ge=100, le=10_000, multiple_of=100)] = None,
     search: Annotated[str | None, Query(max_length=100)] = None,
     source_type: SourceType | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
@@ -115,8 +116,15 @@ async def get_task_full(task_id: int, user: Staff, conn: Conn) -> TaskFull:
     return await _task_full(conn, task_id)
 
 
+async def _check_difficulty(conn: asyncpg.Connection, difficulty: int) -> None:
+    settings = await settings_service.load(conn)
+    if difficulty > settings.difficulty_max:
+        raise HTTPException(422, detail=f"Максимальная сложность на платформе — {settings.difficulty_max}")
+
+
 @router.post("/tasks", response_model=TaskFull, status_code=status.HTTP_201_CREATED)
 async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
+    await _check_difficulty(conn, data.difficulty)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
     task_id = await conn.fetchval(
@@ -142,6 +150,7 @@ async def create_task(data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
 @router.put("/tasks/{task_id}", response_model=TaskFull)
 async def update_task(task_id: int, data: TaskIn, user: Staff, conn: Conn) -> TaskFull:
     await _check_can_edit(conn, task_id, user)
+    await _check_difficulty(conn, data.difficulty)
     if not await conn.fetchval(q.THEME_EXISTS, data.theme_id):
         raise not_found("Тема")
     await conn.execute(

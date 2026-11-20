@@ -30,22 +30,22 @@ def test_city_and_school_are_optional_and_cleaned(client: ApiClient) -> None:
 def test_leaderboards(client: ApiClient) -> None:
     theme = client.theme()
     teacher = client.teacher()
-    easy = [client.task(teacher, theme["id"], title=f"Лёгкая {i}", difficulty=1) for i in range(3)]
-    hard = client.task(teacher, theme["id"], title="Сложная", difficulty=5)
+    easy = [client.task(teacher, theme["id"], title=f"Лёгкая {i}", difficulty=100) for i in range(3)]
+    hard = client.task(teacher, theme["id"], title="Сложная", difficulty=500)
 
     ali = student_in(client, "ali", "Худжанд", "Лицей №1")
     vali = student_in(client, "vali", "худжанд", "лицей №1")  # другой регистр — та же школа
     dilya = student_in(client, "dilya", "Душанбе", "Школа №5")
 
-    for task in easy:  # 3 задачи, 3 очка
+    for task in easy:  # 3 задачи, 300 очков
         client.attempt(ali, task["id"], "20")
-    client.attempt(vali, hard["id"], "20")  # 1 задача, 5 очков
-    client.attempt(dilya, easy[0]["id"], "20")  # 1 задача, 1 очко
+    client.attempt(vali, hard["id"], "20")  # 1 задача, 500 очков
+    client.attempt(dilya, easy[0]["id"], "20")  # 1 задача, 100 очков
     client.attempt(dilya, easy[1]["id"], "999")  # неверно — не считается
 
     by_points = client.get("/api/stats/leaderboard").json()
     assert [r["username"] for r in by_points] == ["vali", "ali", "dilya"]
-    assert by_points[0]["points"] == 5
+    assert by_points[0]["points"] == 500
     by_solved = client.get("/api/stats/leaderboard", params={"metric": "solved"}).json()
     assert [r["username"] for r in by_solved][0] == "ali"
 
@@ -58,12 +58,12 @@ def test_leaderboards(client: ApiClient) -> None:
 
     schools = client.get("/api/stats/leaderboard/schools").json()
     assert schools[0]["students"] == 2
-    assert schools[0]["points"] == 8
+    assert schools[0]["points"] == 800
     assert schools[0]["rank"] == 1
     assert client.get("/api/stats/leaderboard/schools", params={"city": "Душанбе"}).json()[0]["school"] == "Школа №5"
 
     cities = client.get("/api/stats/leaderboard/cities").json()
-    assert [c["points"] for c in cities] == [8, 1]
+    assert [c["points"] for c in cities] == [800, 100]
     assert cities[0]["schools"] == 1
 
     places = client.get("/api/stats/places", params={"city": "худжанд"}).json()
@@ -74,7 +74,9 @@ def test_leaderboards(client: ApiClient) -> None:
 def test_achievements(client: ApiClient) -> None:
     theme = client.theme()
     teacher = client.teacher()
-    tasks = [client.task(teacher, theme["id"], title=f"Задача {i}", difficulty=5 if i == 0 else 2) for i in range(3)]
+    tasks = [
+        client.task(teacher, theme["id"], title=f"Задача {i}", difficulty=1000 if i == 0 else 200) for i in range(3)
+    ]
     student = client.student()
     sid = client.get("/api/users/me", student).json()["id"]
 
@@ -87,7 +89,7 @@ def test_achievements(client: ApiClient) -> None:
     result = client.get(f"/api/stats/achievements/{sid}").json()
     earned = {b["code"] for b in result["badges"] if b["earned"]}
     assert earned == {"first_solve", "theme_master", "hard_solver"}
-    assert result["points"] == 9
+    assert result["points"] == 1400
     assert result["current_streak"] == 1
     solved_10 = next(b for b in result["badges"] if b["code"] == "solved_10")
     assert (solved_10["progress"], solved_10["target"]) == (3, 10)

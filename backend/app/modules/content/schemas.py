@@ -53,7 +53,7 @@ class TaskIn(BaseModel):
     theme_id: int
     title: str = Field(min_length=1, max_length=150)
     condition: str = Field(default="", max_length=20_000, description="Markdown + формулы KaTeX ($…$, $$…$$)")
-    difficulty: int = Field(default=1, ge=1, le=5)
+    difficulty: int = Field(default=100, ge=100, le=10_000, multiple_of=100, description="100, 200, 300, …")
     check_mode: CheckMode = "auto"
     answer_type: AnswerType = "number"
     answer: str = Field(min_length=1, max_length=500)

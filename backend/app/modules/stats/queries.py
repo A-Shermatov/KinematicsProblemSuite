@@ -123,7 +123,7 @@ WHERE school IS NOT NULL AND is_active AND ($1::text IS NULL OR lower(city) = lo
 GROUP BY lower(school) ORDER BY users DESC, name LIMIT 100
 """
 
-# Всё для значков одним запросом. $1 ученик, $2 часовой пояс (для серий по дням).
+# Всё для значков одним запросом. $1 ученик, $2 часовой пояс (для серий по дням), $3 высший уровень сложности.
 ACHIEVEMENTS = f"""
 WITH solved AS (
     SELECT DISTINCT ON (a.task_id) a.task_id, a.created_at
@@ -155,7 +155,7 @@ olympiad_places AS (
 SELECT
     (SELECT count(*) FROM solved) AS solved_tasks,
     (SELECT COALESCE(sum(k.difficulty), 0) FROM solved s JOIN tasks k ON k.id = s.task_id) AS points,
-    (SELECT count(*) FROM solved s JOIN tasks k ON k.id = s.task_id WHERE k.difficulty = 5) AS hard_solved,
+    (SELECT count(*) FROM solved s JOIN tasks k ON k.id = s.task_id WHERE k.difficulty >= $3) AS hard_solved,
     COALESCE((SELECT max(len) FROM streaks), 0) AS best_streak,
     COALESCE((SELECT len FROM streaks
               WHERE last_day >= (now() AT TIME ZONE $2::text)::date - 1
