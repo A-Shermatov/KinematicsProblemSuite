@@ -9,7 +9,7 @@ def test_collections(client: ApiClient) -> None:
     foreign = client.task(other, theme["id"], title="Чужая")
     ids = [tasks[2]["id"], foreign["id"], tasks[0]["id"], tasks[2]["id"]]  # повтор отбрасывается
 
-    assert client.post("/api/collections", client.student(), json={"title": "X"}).status_code == 403
+    assert client.post("/api/collections", client.student("intruder"), json={"title": "X"}).status_code == 403
     created = client.post("/api/collections", teacher, json={"title": " Кинематика: разминка ", "task_ids": ids})
     assert created.status_code == 201, created.text
     collection = created.json()
