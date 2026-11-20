@@ -7,8 +7,15 @@ def iso(delta: timedelta) -> str:
     return (datetime.now(UTC) + delta).isoformat()
 
 
-def photo() -> dict:
-    return {"image": ("solution.png", tiny_png(), "image/png")}
+_photos = iter(range(1, 1 << 24))
+
+
+def photo(data: bytes | None = None) -> dict:
+    """Каждый вызов — новое фото (одинаковые фото у разных участников считаются списыванием)."""
+    if data is None:
+        n = next(_photos)
+        data = tiny_png((n >> 16 & 255, n >> 8 & 255, n & 255))
+    return {"image": ("solution.png", data, "image/png")}
 
 
 def create_olympiad(client: ApiClient, teacher: str, **overrides: object) -> dict:

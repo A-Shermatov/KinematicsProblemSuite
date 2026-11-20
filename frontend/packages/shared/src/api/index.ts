@@ -17,6 +17,8 @@ import type {
   OlympiadLevel,
   OlympiadLevelInput,
   OlympiadHistoryItem,
+  OlympiadAnnouncement,
+  OlympiadAttempt,
   TelegramStatus,
   Collection,
   CollectionDetail,
@@ -263,6 +265,11 @@ export const api = {
     mySubmissions: (id: number) => request<OlympiadSubmission[]>(`/api/olympiads/${id}/my-submissions`),
     results: (id: number) => request<OlympiadResults>(`/api/olympiads/${id}/results`),
     standings: (id: number) => request<OlympiadStandings>(`/api/olympiads/${id}/standings`),
+    announcements: (id: number) => request<OlympiadAnnouncement[]>(`/api/olympiads/${id}/announcements`),
+    announce: (id: number, text: string, taskId?: number | null) =>
+      request<OlympiadAnnouncement>(`/api/olympiads/${id}/announcements`, { method: "POST", json: { text, task_id: taskId ?? null } }),
+    attempts: (id: number, query: { user_id?: number; task_id?: number; rejected?: boolean } = {}) =>
+      request<OlympiadAttempt[]>(`/api/olympiads/${id}/attempts`, { query }),
     myHistory: (id: number) => request<OlympiadHistoryItem[]>(`/api/olympiads/${id}/my-history`),
     virtual: (id: number) => request<VirtualRun | null>(`/api/olympiads/${id}/virtual`),
     startVirtual: (id: number) => request<VirtualRun>(`/api/olympiads/${id}/virtual`, { method: "POST" }),

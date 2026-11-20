@@ -183,12 +183,12 @@ class ApiClient:
         return self.post("/api/attempts", token, data={"task_id": str(task_id), "answer": answer}, files=files)
 
 
-def tiny_png() -> bytes:
-    """Валидный PNG 1×1 без сторонних библиотек."""
+def tiny_png(color: tuple[int, int, int] = (255, 0, 0)) -> bytes:
+    """Валидный PNG 1×1 без сторонних библиотек; разный цвет — разный файл (для проверки на списывание)."""
 
     def chunk(kind: bytes, data: bytes) -> bytes:
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
 
     header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
-    pixels = zlib.compress(b"\x00\xff\x00\x00")
+    pixels = zlib.compress(b"\x00" + bytes(color))
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
