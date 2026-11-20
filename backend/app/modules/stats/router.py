@@ -6,9 +6,10 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Query
 
 from app.deps import Conn, SettingsDep, User, not_found
-from app.modules.olympiads import queries as olympiads_q
+from app.modules.rating import queries as rating_q
+from app.modules.rating import ranks
+from app.modules.rating import service as rating
 from app.modules.stats import queries as q
-from app.modules.stats import titles
 from app.modules.users import queries as user_q
 from app.storage import public_url
 
@@ -36,23 +37,27 @@ async def my_stats(user: User, conn: Conn) -> dict[str, Any]:
     return {"role": "student", **summary, "by_theme": by_theme}
 
 
-async def titles_for(conn: Conn, user_ids: list[int]) -> dict[int, dict[str, str] | None]:
-    """Высшее звание каждого пользователя (или None) — для рейтингов и списков."""
-    if not user_ids:
-        return {}
-    rows = await conn.fetch(q.TITLE_COUNTS, user_ids)
-    counts = {row["user_id"]: (row["prizes"], row["wins"]) for row in rows}
-    return {uid: titles.best(*counts.get(uid, (0, 0))) for uid in user_ids}
+async def titles_for(conn: Conn, user_ids: list[int]) -> dict[int, dict[str, Any] | None]:
+    """Звание каждого пользователя по рейтингу олимпиадника (или None) — для рейтингов и списков."""
+    return await rating.badges_for(conn, user_ids)
 
 
 @router.get("/achievements/{user_id}")
 async def achievements(user_id: int, conn: Conn) -> dict[str, Any]:
-    """Очки, решённые задачи и звания за олимпиады — для кабинета и публичного профиля."""
+    """Очки, решённые задачи, рейтинг олимпиадника с историей и звание — для кабинета и публичного профиля."""
     if await conn.fetchrow(user_q.GET_ACTIVE_BY_ID, user_id) is None:
         raise not_found("Пользователь")
     stats = dict(await conn.fetchrow(q.STUDENT_PROFILE, user_id))
-    prizes, wins = stats["olympiad_prizes"], stats["olympiad_wins"]
-    return {**stats, "title": titles.best(prizes, wins), "titles": titles.evaluate(prizes, wins)}
+    history = [dict(row) for row in await conn.fetch(rating_q.HISTORY, user_id)]
+    current = history[-1]["new_rating"] if history else None
+    return {
+        **stats,
+        "rating": current,
+        "max_rating": max((h["new_rating"] for h in history), default=None),
+        "history": history,
+        "title": ranks.badge(current),
+        "titles": ranks.ladder(current),
+    }
 
 
 @router.get("/activity/{user_id}")
@@ -140,20 +145,17 @@ async def city_leaderboard(
 @router.get("/leaderboard/olympiads")
 async def olympiad_leaderboard(
     conn: Conn,
-    period: Period = "all",
-    subject_id: int | None = None,
     city: Annotated[str | None, Query(max_length=60)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[dict[str, Any]]:
-    """Рейтинг по олимпиадам: сумма процентов от максимума по всем олимпиадам с опубликованными итогами."""
-    rows = await conn.fetch(olympiads_q.LEADERBOARD, limit, _since(period), subject_id, _clean(city))
-    user_titles = await titles_for(conn, [row["user_id"] for row in rows])
+    """Рейтинг олимпиадников, как на Codeforces: по текущему рейтингу (меняется после каждой олимпиады)."""
+    rows = await conn.fetch(rating_q.LEADERBOARD, limit, _clean(city))
     return [
         {
             "rank": index,
             **{k: v for k, v in dict(row).items() if k != "avatar_path"},
             "avatar_url": public_url(row["avatar_path"]),
-            "title": user_titles.get(row["user_id"]),
+            "title": ranks.badge(row["rating"]),
         }
         for index, row in enumerate(rows, start=1)
     ]

@@ -17,13 +17,14 @@ import {
   type Period,
   t,
   TitleBadge,
+  rankTextClass,
 } from "@kps/shared";
 
 type Tab = "students" | "olympiads" | "schools" | "cities";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "students", label: t("Ученики") },
-  { key: "olympiads", label: t("Олимпиады") },
+  { key: "olympiads", label: t("Олимпиадники") },
   { key: "schools", label: t("Школы") },
   { key: "cities", label: t("Города") },
 ];
@@ -80,7 +81,7 @@ export function Leaderboard() {
     const base = { period, subject_id: subjectId };
     if (tab === "schools") return { tab, rows: await api.stats.schools({ ...base, city: city || undefined }) } as const;
     if (tab === "cities") return { tab, rows: await api.stats.cities(base) } as const;
-    if (tab === "olympiads") return { tab, rows: await api.stats.olympiadLeaderboard({ ...base, city: city || undefined }) } as const;
+    if (tab === "olympiads") return { tab, rows: await api.stats.olympiadLeaderboard({ city: city || undefined }) } as const;
     return {
       tab,
       rows: await api.stats.leaderboard({ ...base, metric, city: city || undefined, school: school || undefined }),
@@ -91,7 +92,7 @@ export function Leaderboard() {
     tab === "students"
       ? t("Очки — сумма сложностей решённых задач, каждая задача засчитывается один раз.")
       : tab === "olympiads"
-        ? t("Очки — сумма процентов от максимума по всем олимпиадам. Медали — призовые места.")
+        ? t("Рейтинг олимпиадника, как на Codeforces: все начинают с 1200, после каждой олимпиады рейтинг растёт или падает в зависимости от места и силы соперников. От рейтинга зависит звание.")
         : tab === "schools"
           ? t("Сумма очков всех учеников школы. Укажите школу в профиле, чтобы играть за неё.")
           : t("Сумма очков всех учеников города.");
@@ -101,7 +102,7 @@ export function Leaderboard() {
       <PageHeader title={t("Рейтинг")} subtitle={subtitle} actions={<Segmented items={TABS} value={tab} onChange={(t) => update({ tab: t, school: null })} />} />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Segmented items={PERIODS} value={period} onChange={(p) => update({ period: p })} />
+        {tab !== "olympiads" && <Segmented items={PERIODS} value={period} onChange={(p) => update({ period: p })} />}
         {tab === "students" && (
           <Segmented
             items={[
@@ -113,6 +114,7 @@ export function Leaderboard() {
           />
         )}
         <select
+          hidden={tab === "olympiads"}
           value={subjectId ?? ""}
           onChange={(e) => update({ subject: e.target.value || null })}
           className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
@@ -192,7 +194,7 @@ export function Leaderboard() {
               <Avatar src={row.avatar_url} name={row.name || row.username} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium text-fg">{row.name || row.username}</span>
+                  <span className={cx("truncate font-semibold", rankTextClass(row.title?.code))}>{row.name || row.username}</span>
                   <TitleBadge title={row.title} className="hidden sm:inline-flex" />
                 </p>
                 <p className="truncate text-xs text-muted">
@@ -205,7 +207,10 @@ export function Leaderboard() {
                 {row.silver > 0 && <span>🥈{row.silver}</span>}
                 {row.bronze > 0 && <span>🥉{row.bronze}</span>}
               </div>
-              <p className="w-14 text-right text-lg font-bold text-primary">{row.points}</p>
+              <div className="w-20 text-right">
+                <p className={cx("text-lg font-bold tabular-nums", rankTextClass(row.title?.code))}>{row.rating}</p>
+                <p className="text-[11px] text-muted">{t("макс. {0}", [row.max_rating])}</p>
+              </div>
             </Link>
           ))}
         </Card>

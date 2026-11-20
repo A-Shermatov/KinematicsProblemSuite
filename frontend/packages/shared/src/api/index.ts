@@ -202,7 +202,7 @@ export const api = {
     schools: (query: LeaderboardQuery) => request<SchoolRow[]>("/api/stats/leaderboard/schools", { query, auth: false }),
     cities: (query: Omit<LeaderboardQuery, "city">) =>
       request<CityRow[]>("/api/stats/leaderboard/cities", { query, auth: false }),
-    olympiadLeaderboard: (query: LeaderboardQuery) =>
+    olympiadLeaderboard: (query: { city?: string; limit?: number }) =>
       request<OlympiadLeaderRow[]>("/api/stats/leaderboard/olympiads", { query, auth: false }),
     activity: (userId: number, days = 365) =>
       request<Activity>(`/api/stats/activity/${userId}`, { query: { days }, auth: false }),
@@ -284,6 +284,7 @@ export const api = {
 
   /** Только для админ-панели: всё под /api/admin. */
   admin: {
+    recomputeRating: () => request<{ olympiads: number }>("/api/admin/rating/recompute", { method: "POST" }),
     settings: () => request<{ difficulty_max: number }>("/api/admin/settings"),
     updateSettings: (data: { difficulty_max: number }) =>
       request<{ difficulty_max: number }>("/api/admin/settings", { method: "PUT", json: data }),

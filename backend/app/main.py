@@ -20,6 +20,7 @@ from app.modules.collections.router import router as collections_router
 from app.modules.content.router import router as content_router
 from app.modules.imports.router import router as imports_router
 from app.modules.olympiads.router import router as olympiads_router
+from app.modules.rating import service as rating_service
 from app.modules.settings.router import router as settings_router
 from app.modules.solutions.router import router as solutions_router
 from app.modules.stats.router import router as stats_router
@@ -67,6 +68,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await ensure_admin(pool, settings)
             async with pool.acquire() as conn:
                 await conn.execute(auth_q.DELETE_EXPIRED)
+                # Олимпиады, итоги которых появились не через API (например, демо-данные), — в рейтинг.
+                await rating_service.apply_pending(conn)
             yield
         finally:
             await pool.close()

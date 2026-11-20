@@ -161,15 +161,7 @@ SELECT
 """
 
 # Призовые места и победы сразу для многих пользователей (звания в рейтингах). $1 — массив id.
-TITLE_COUNTS = f"""
-WITH {_OLYMPIAD_PLACES}
-SELECT user_id,
-       count(*) FILTER (WHERE place <= 3 AND total > 0)::int AS prizes,
-       count(*) FILTER (WHERE place = 1 AND total > 0)::int AS wins
-FROM olympiad_places
-WHERE user_id = ANY($1::bigint[])
-GROUP BY user_id
-"""
+
 
 # Активность по дням за последний год: любая отправленная попытка (задачи и олимпиады).
 # $1 пользователь, $2 часовой пояс, $3 сколько дней назад.

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Avatar, Card, EmptyState, ErrorMessage, Loading, api, cx, t, useAsync, type StandingsCell } from "@kps/shared";
+import { Avatar, Card, EmptyState, ErrorMessage, Loading, api, cx, rankTextClass, t, useAsync, type StandingsCell } from "@kps/shared";
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const REFRESH_MS = 30_000;
@@ -68,6 +68,11 @@ export function OlympiadStandingsTable({ olympiadId, live, highlight }: { olympi
               <th className="px-4 py-3 text-right font-medium" title={t("Сумма минут до решений: при равных баллах выше тот, у кого меньше")}>
                 {t("Штраф")}
               </th>
+              {data.rated && (
+                <th className="px-4 py-3 text-right font-medium" title={t("Изменение рейтинга после олимпиады")}>
+                  Δ
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -80,7 +85,11 @@ export function OlympiadStandingsTable({ olympiadId, live, highlight }: { olympi
                     <div className="flex items-center gap-3">
                       <Avatar src={row.avatar_url} name={row.name || row.username} size={32} />
                       <div className="min-w-0">
-                        <Link to={`/users/${row.user_id}`} className="font-medium text-fg hover:text-primary">
+                        <Link
+                          to={`/users/${row.user_id}`}
+                          className={cx("font-semibold hover:underline", rankTextClass(row.title?.code) || "text-fg")}
+                          title={row.title ? `${t(row.title.name)} · ${row.title.rating}` : undefined}
+                        >
                           {row.name || row.username}
                         </Link>
                         <p className="truncate text-xs text-muted">{[row.school, row.city].filter(Boolean).join(", ")}</p>
@@ -97,6 +106,24 @@ export function OlympiadStandingsTable({ olympiadId, live, highlight }: { olympi
                     <span className="text-xs font-normal text-muted"> / {data.max_score}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-muted">{row.penalty}</td>
+                  {data.rated && (
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {row.rating_change && (
+                        <span title={`${row.rating_change.old} → ${row.rating_change.new}`}>
+                          <span
+                            className={cx(
+                              "font-semibold",
+                              row.rating_change.new > row.rating_change.old ? "text-success" : row.rating_change.new < row.rating_change.old ? "text-danger" : "text-muted",
+                            )}
+                          >
+                            {row.rating_change.new > row.rating_change.old ? "+" : ""}
+                            {row.rating_change.new - row.rating_change.old}
+                          </span>
+                          <span className="ml-1.5 text-xs text-muted">{row.rating_change.new}</span>
+                        </span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}

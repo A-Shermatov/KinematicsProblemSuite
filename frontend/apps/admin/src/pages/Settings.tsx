@@ -90,6 +90,41 @@ export function Settings() {
           </form>
         </Card>
       )}
+      <RatingCard />
     </>
+  );
+}
+
+/** Пересчёт рейтинга олимпиадников с нуля — после удаления олимпиады или ручной правки итогов. */
+function RatingCard() {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const recompute = async () => {
+    if (!window.confirm("Пересчитать рейтинг всех олимпиадников с нуля по всем олимпиадам с опубликованными итогами?")) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { olympiads } = await api.admin.recomputeRating();
+      setMessage(`Готово: учтено ${olympiads} ${plural(olympiads, ["олимпиада", "олимпиады", "олимпиад"])}.`);
+    } catch (err) {
+      setMessage(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="mt-6 max-w-3xl space-y-3 p-6">
+      <h2 className="font-semibold text-fg">Рейтинг олимпиадников</h2>
+      <p className="text-sm text-muted">
+        Рейтинг пересчитывается сам после публикации итогов каждой олимпиады. Полный пересчёт нужен, если олимпиаду удалили или итоги
+        изменили вручную в базе.
+      </p>
+      <div className="flex items-center gap-3">
+        <Button variant="secondary" onClick={recompute} loading={busy}>
+          Пересчитать рейтинг
+        </Button>
+        {message && <span className="text-sm text-fg">{message}</span>}
+      </div>
+    </Card>
   );
 }
