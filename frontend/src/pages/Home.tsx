@@ -1,42 +1,107 @@
-// --- src/pages/Home.tsx ---
-import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from "react-router-dom";
+import { api } from "../api";
+import { useAuth } from "../auth/AuthContext";
+import { Markdown } from "../components/Markdown";
+import { ButtonLink, Card } from "../components/ui";
+import { useAsync, useDocumentTitle } from "../lib/hooks";
+import { plural } from "../lib/format";
 
-export const Home = () => (
-  <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100 flex flex-col items-center justify-center p-4 pt-20">
-    <div className="text-center max-w-4xl animate-fade-in">
-      <h1 className="text-5xl font-extrabold text-gray-800 mb-4 tracking-tight md:text-6xl">
-        Kinematics Problem Suite
-      </h1>
-      <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed md:text-2xl">
-        Добро пожаловать на платформу для изучения кинематики! Решайте увлекательные задачи, создавайте свои и отслеживайте свой прогресс в реальном времени.
-      </p>
-      <Link
-        to="/themes"
-        className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-300 shadow-md"
-      >
-        Начать решать задачи
-      </Link>
+const FEATURES = [
+  {
+    icon: "✓",
+    title: "Умная автопроверка",
+    text: "Ответ «72 км/ч» засчитается в задаче, где ждут «20 м/с»: система понимает числа, погрешность и единицы измерения.",
+  },
+  {
+    icon: "∫",
+    title: "Формулы как в учебнике",
+    text: "Условия задач поддерживают Markdown и LaTeX — учитель видит предпросмотр прямо во время набора.",
+  },
+  {
+    icon: "↗",
+    title: "Прогресс и рейтинг",
+    text: "Статистика по темам, история решений и рейтинг учеников за неделю, месяц и всё время.",
+  },
+];
+
+const SAMPLE = `Автомобиль разгоняется из состояния покоя с ускорением $a = 2\\ \\text{м/с}^2$.
+
+$$s = \\frac{a t^2}{2}$$
+
+Какой путь он пройдёт за $t = 5$ с?`;
+
+export function Home() {
+  useDocumentTitle("Главная");
+  const { user } = useAuth();
+  const { data: subjects } = useAsync(() => api.subjects.list(), []);
+
+  return (
+    <div className="space-y-20">
+      <section className="grid items-center gap-10 pt-4 lg:grid-cols-[1.1fr_1fr]">
+        <div className="space-y-6">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
+            <span className="h-2 w-2 rounded-full bg-success" /> Подготовка к олимпиадам и экзаменам
+          </span>
+          <h1 className="text-4xl font-extrabold leading-[1.1] tracking-tight text-fg sm:text-5xl">
+            Решайте задачи по физике и математике —{" "}
+            <span className="bg-gradient-to-r from-indigo-500 to-violet-500 bg-clip-text text-transparent">с мгновенной проверкой</span>
+          </h1>
+          <p className="max-w-xl text-lg text-muted">
+            Кинематика, динамика, алгебра и олимпиадные задачи. Тренируйтесь в своём темпе, а учителя создают задачи и проверяют решения в одном месте.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <ButtonLink to="/catalog" size="lg">
+              Начать решать
+            </ButtonLink>
+            {!user && (
+              <ButtonLink to="/register" size="lg" variant="secondary">
+                Создать аккаунт
+              </ButtonLink>
+            )}
+          </div>
+        </div>
+
+        <Card className="relative overflow-hidden p-6">
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">Пример задачи</p>
+          <Markdown source={SAMPLE} />
+          <div className="mt-5 flex items-center gap-3 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm">
+            <span className="font-mono text-fg">25 м</span>
+            <span className="ml-auto font-medium text-success">✓ Верно!</span>
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid gap-5 md:grid-cols-3">
+        {FEATURES.map((feature) => (
+          <Card key={feature.title} className="p-6">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft text-xl font-bold text-primary">
+              {feature.icon}
+            </div>
+            <h3 className="mb-2 font-semibold text-fg">{feature.title}</h3>
+            <p className="text-sm leading-relaxed text-muted">{feature.text}</p>
+          </Card>
+        ))}
+      </section>
+
+      {subjects && subjects.length > 0 && (
+        <section className="space-y-5">
+          <h2 className="text-2xl font-bold tracking-tight text-fg">Предметы</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {subjects.map((subject) => (
+              <Link key={subject.id} to={`/catalog#subject-${subject.id}`} className="group">
+                <Card className="h-full p-5 transition group-hover:border-primary/50 group-hover:shadow-lg">
+                  <p className="font-semibold text-fg group-hover:text-primary">{subject.title}</p>
+                  <p className="mt-1 text-sm text-muted">{subject.description}</p>
+                  <p className="mt-3 text-xs font-medium text-muted">
+                    {subject.themes_count} {plural(subject.themes_count, ["тема", "темы", "тем"])}
+                  </p>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
-    <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3 max-w-5xl w-full px-4">
-      <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Изучайте кинематику</h3>
-        <p className="text-gray-600">
-          Решайте задачи по основам кинематики.
-        </p>
-      </div>
-      <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Создавайте задачи</h3>
-        <p className="text-gray-600">
-          Учителя могут создавать свои задачи для обучения учеников.
-        </p>
-      </div>
-      <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Отслеживайте прогресс</h3>
-        <p className="text-gray-600">
-          Следите за своими успехами с помощью статистики в личном кабинете и анализируйте свои попытки.
-        </p>
-      </div>
-    </div>
-  </div>
-);
+  );
+}

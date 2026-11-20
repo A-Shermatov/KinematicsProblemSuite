@@ -1,0 +1,172 @@
+import { useRef, useState, type FormEvent } from "react";
+import { useParams } from "react-router-dom";
+import { api } from "../api";
+import { displayName, roleLabel, useAuth } from "../auth/AuthContext";
+import { useTheme, type ThemeMode } from "../theme/ThemeContext";
+import { Avatar, Button, Card, ErrorMessage, Input, Loading, PageHeader, cx } from "../components/ui";
+import { formatDate } from "../lib/format";
+import { errorText, useAsync, useDocumentTitle } from "../lib/hooks";
+
+function Notice({ text }: { text: string | null }) {
+  return text ? <div className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success">{text}</div> : null;
+}
+
+export function Profile() {
+  useDocumentTitle("Настройки профиля");
+  const { user, setUser } = useAuth();
+  const { mode, setMode } = useTheme();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({ username: user?.username ?? "", first_name: user?.first_name ?? "", last_name: user?.last_name ?? "" });
+  const [passwords, setPasswords] = useState({ current: "", next: "" });
+  const [status, setStatus] = useState<{ profile?: string; password?: string; avatar?: string }>({});
+  const [errors, setErrors] = useState<{ profile?: string; password?: string; avatar?: string }>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (!user) return null;
+
+  const run = async (key: "profile" | "password" | "avatar", action: () => Promise<string>) => {
+    setBusy(key);
+    setErrors((e) => ({ ...e, [key]: undefined }));
+    setStatus((s) => ({ ...s, [key]: undefined }));
+    try {
+      const message = await action();
+      setStatus((s) => ({ ...s, [key]: message }));
+    } catch (err) {
+      setErrors((e) => ({ ...e, [key]: errorText(err) }));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveProfile = (event: FormEvent) => {
+    event.preventDefault();
+    void run("profile", async () => {
+      setUser(await api.users.updateMe({ ...form, username: form.username.trim() }));
+      return "Профиль сохранён";
+    });
+  };
+
+  const changePassword = (event: FormEvent) => {
+    event.preventDefault();
+    void run("password", async () => {
+      await api.users.changePassword(passwords.current, passwords.next);
+      setPasswords({ current: "", next: "" });
+      return "Пароль изменён. На других устройствах нужно будет войти заново.";
+    });
+  };
+
+  const uploadAvatar = (file: File | undefined) => {
+    if (!file) return;
+    void run("avatar", async () => {
+      setUser(await api.users.uploadAvatar(file));
+      return "Аватар обновлён";
+    });
+  };
+
+  const themes: { mode: ThemeMode; label: string }[] = [
+    { mode: "light", label: "☀ Светлая" },
+    { mode: "dark", label: "☾ Тёмная" },
+    { mode: "system", label: "◐ Как в системе" },
+  ];
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title="Настройки профиля" />
+      <div className="space-y-6">
+        <Card className="flex flex-wrap items-center gap-5 p-6">
+          <Avatar src={user.avatar_url} name={displayName(user)} size={72} />
+          <div className="flex-1 space-y-1">
+            <p className="font-semibold text-fg">{displayName(user)}</p>
+            <p className="text-sm text-muted">
+              {roleLabel[user.role]} · с {formatDate(user.created_at)}
+            </p>
+            <Notice text={status.avatar ?? null} />
+            {errors.avatar && <ErrorMessage>{errors.avatar}</ErrorMessage>}
+          </div>
+          <div className="flex gap-2">
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadAvatar(e.target.files?.[0])} />
+            <Button variant="secondary" size="sm" loading={busy === "avatar"} onClick={() => fileRef.current?.click()}>
+              Загрузить фото
+            </Button>
+            {user.avatar_url && (
+              <Button variant="ghost" size="sm" onClick={() => void run("avatar", async () => (setUser(await api.users.deleteAvatar()), "Фото удалено"))}>
+                Удалить
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="mb-4 font-semibold text-fg">Оформление</h2>
+          <div className="flex flex-wrap gap-2">
+            {themes.map((item) => (
+              <button
+                key={item.mode}
+                onClick={() => setMode(item.mode)}
+                className={cx(
+                  "rounded-xl border px-4 py-2 text-sm font-medium transition",
+                  mode === item.mode ? "border-primary bg-primary-soft text-primary" : "border-border text-muted hover:text-fg",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="mb-4 font-semibold text-fg">Личные данные</h2>
+          <form onSubmit={saveProfile} className="space-y-4">
+            <Notice text={status.profile ?? null} />
+            {errors.profile && <ErrorMessage>{errors.profile}</ErrorMessage>}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Имя" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required />
+              <Input label="Фамилия" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+            </div>
+            <Input label="Имя пользователя" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
+            <Button type="submit" loading={busy === "profile"}>
+              Сохранить
+            </Button>
+          </form>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="mb-4 font-semibold text-fg">Смена пароля</h2>
+          <form onSubmit={changePassword} className="space-y-4">
+            <Notice text={status.password ?? null} />
+            {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Текущий пароль" type="password" autoComplete="current-password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} required />
+              <Input label="Новый пароль" type="password" autoComplete="new-password" minLength={8} maxLength={72} value={passwords.next} onChange={(e) => setPasswords({ ...passwords, next: e.target.value })} required />
+            </div>
+            <Button type="submit" variant="secondary" loading={busy === "password"}>
+              Изменить пароль
+            </Button>
+          </form>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export function UserPage() {
+  const userId = Number(useParams().userId);
+  const { data: user, error, loading } = useAsync(() => api.users.get(userId), [userId]);
+  useDocumentTitle(user ? displayName(user) : undefined);
+
+  if (loading) return <Loading />;
+  if (error || !user) return <ErrorMessage>{error ?? "Пользователь не найден"}</ErrorMessage>;
+  return (
+    <div className="mx-auto max-w-2xl">
+      <Card className="flex flex-col items-center gap-3 p-8 text-center">
+        <Avatar src={user.avatar_url} name={displayName(user)} size={96} />
+        <h1 className="text-2xl font-bold text-fg">{displayName(user)}</h1>
+        <p className="text-muted">
+          @{user.username} · {roleLabel[user.role]}
+        </p>
+        <p className="text-sm text-muted">На платформе с {formatDate(user.created_at)}</p>
+        {!user.is_active && <p className="text-sm font-medium text-danger">Аккаунт заблокирован</p>}
+      </Card>
+    </div>
+  );
+}
