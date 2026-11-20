@@ -26,6 +26,16 @@ docker compose up --build
 
 Сайт и админ-панель — два отдельных приложения с отдельными Docker-образами. В продакшене выставляйте админку на свой домен (например `admin.example.tj`) и по возможности закрывайте по IP/VPN. Публичный nginx не пропускает запросы к `/api/admin/`.
 
+### Демо-данные для тестирования
+
+После первого запуска (миграции уже применены) можно залить учителей, учеников, задачи, историю решений и олимпиады во всех состояниях:
+
+```bash
+docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backend/scripts/demo_seed.sql
+```
+
+Пароль всех демо-пользователей — `demo12345`: учителя `teacher`, `teacher2`; ученики `farrukh`, `malika`, `dilshod`, `zarina`, `rustam`. Подробности — в шапке `backend/scripts/demo_seed.sql`. Только для локальной проверки, не для продакшена.
+
 ## Разработка без Docker
 
 ```bash
