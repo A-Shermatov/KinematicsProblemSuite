@@ -189,7 +189,8 @@ def test_full_lifecycle(client: ApiClient) -> None:
 
     finished = client.post(f"/api/olympiads/{oid}/publish-results", teacher).json()
     assert finished["phase"] == "finished"
-    assert finished["tasks"][0]["answer"] == "20"
+    assert finished["tasks"][0]["answer"] == "20"  # организатору
+    assert client.get(f"/api/olympiads/{oid}", ali).json()["tasks"][0]["answer"] is None  # ученику — никогда
 
     results = client.get(f"/api/olympiads/{oid}/results").json()
     assert results["max_score"] == 15

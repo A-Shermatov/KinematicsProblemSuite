@@ -33,5 +33,5 @@ def test_editorial_opens_day_after_end(client: ApiClient) -> None:
     )
     opened = client.get(url, ali).json()
     assert opened["text"].startswith("Общие замечания")
-    assert (opened["tasks"][0]["solution"], opened["tasks"][0]["answer"]) == (solution, "20")
+    assert (opened["tasks"][0]["solution"], opened["tasks"][0]["answer"]) == (solution, None)
     assert client.get(url).status_code == 200  # и без входа

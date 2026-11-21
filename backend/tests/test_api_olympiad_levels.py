@@ -1,5 +1,7 @@
+from datetime import timedelta
+
 from tests.conftest import ApiClient
-from tests.test_api_olympiads import add_task, create_olympiad, photo, set_phase
+from tests.test_api_olympiads import add_task, create_olympiad, iso, photo, set_phase
 
 
 def publish(client: ApiClient, teacher: str, oid: int) -> None:
@@ -30,7 +32,10 @@ def test_out_of_competition_and_early_finish(client: ApiClient) -> None:
     junior = levels["До 5 класса"]  # официально — рейтинг ниже 1200
     teacher = client.teacher()
     assert client.post("/api/olympiads", teacher, json={**_payload(), "level_id": 999999}).status_code == 422
-    olympiad = create_olympiad(client, teacher, level_id=junior["id"])
+    long = {"level_id": junior["id"], "starts_at": iso(timedelta(days=1)), "ends_at": iso(timedelta(days=1, hours=3))}
+    too_long = client.post("/api/olympiads", teacher, json={"title": "Долгая", **long})
+    assert too_long.status_code == 422 and "2 ч" in too_long.json()["detail"]  # предел уровня — 2 часа
+    olympiad = create_olympiad(client, teacher, level_id=junior["id"], ends_at=iso(timedelta(days=1, hours=2)))
     assert (olympiad["level_title"], olympiad["level_max_rating"]) == ("До 5 класса", 1200)
     oid = olympiad["id"]
     task = add_task(client, teacher, oid)

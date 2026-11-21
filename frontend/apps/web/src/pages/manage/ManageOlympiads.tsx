@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Badge,
@@ -39,11 +39,14 @@ import {
   SourcePicker,
   usePlatformSettings,
   type PickedSource,
+  type JuryCandidate,
+  type JuryInvitation,
+  plural,
 } from "@kps/shared";
 
 export function ManageOlympiads() {
   useDocumentTitle(t("Мои олимпиады"));
-  const { data, error, loading } = useAsync(() => api.olympiads.mine(), []);
+  const { data, error, loading, reload } = useAsync(() => api.olympiads.mine(), []);
   return (
     <>
       <PageHeader
@@ -51,6 +54,7 @@ export function ManageOlympiads() {
         subtitle={t("Создайте олимпиаду, добавьте задачи и отправьте на проверку администратору")}
         actions={<ButtonLink to="/manage/olympiads/new">{t("+ Новая олимпиада")}</ButtonLink>}
       />
+      <JuryInvitations onAccepted={reload} />
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState icon="🏁" title={t("Вы ещё не проводили олимпиад")} />}
@@ -283,6 +287,8 @@ export function OlympiadEditor() {
   const params = useParams();
   const olympiadId = params.olympiadId ? Number(params.olympiadId) : null;
   const navigate = useNavigate();
+  const { user: me } = useAuth();
+  const { settings } = usePlatformSettings();
   useDocumentTitle(olympiadId ? t("Олимпиада") : t("Новая олимпиада"));
   const defaultStart = new Date(Date.now() + 7 * 86400_000);
   defaultStart.setHours(10, 0, 0, 0);
@@ -324,7 +330,23 @@ export function OlympiadEditor() {
 
   if (loading || !data || !info) return <Loading />;
   const olympiad: OlympiadDetail | null = data.olympiad;
-  const editable = !olympiad || olympiad.status === "draft" || olympiad.status === "rejected";
+  const isAdmin = me?.role === "admin";
+  // Автор правит черновик; админ — любую олимпиаду в любой момент.
+  const infoEditable = !olympiad || olympiad.status === "draft" || olympiad.status === "rejected" || isAdmin;
+  // Добавлять и удалять задачи: автор — в черновике, админ — пока олимпиада не началась.
+  const editable = !olympiad || olympiad.status === "draft" || olympiad.status === "rejected" || (isAdmin && olympiad.phase === "upcoming");
+  // Предел длительности: у уровня свой, иначе общий из настроек.
+  const level = data.levels.find((item) => String(item.id) === info.level_id);
+  const maxMinutes = level?.max_duration_minutes ?? settings.olympiad_max_duration_minutes;
+  const minutes = (new Date(info.ends).getTime() - new Date(info.starts).getTime()) / 60000;
+  const windowError =
+    !info.starts || !info.ends
+      ? null
+      : minutes <= 0
+        ? t("Окончание должно быть позже начала")
+        : minutes > maxMinutes
+          ? t("Не дольше {0} мин для этого уровня", [maxMinutes])
+          : null;
   // Опубликованную олимпиаду можно исправлять до итогов (во время — с объявлением участникам).
   const canCorrect = olympiad?.status === "published" && olympiad.phase !== "finished";
 
@@ -403,7 +425,7 @@ export function OlympiadEditor() {
 
       <Card className="p-6">
         <form onSubmit={saveInfo} className="space-y-4">
-          <fieldset disabled={!editable} className="space-y-4">
+          <fieldset disabled={!infoEditable} className="space-y-4">
             <Input label={t("Название")} value={info.title} onChange={(e) => setInfo({ ...info, title: e.target.value })} required minLength={3} maxLength={150} placeholder={t("Осенняя олимпиада по физике, 9–11 классы")} />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Select
@@ -429,7 +451,15 @@ export function OlympiadEditor() {
                 ))}
               </Select>
               <Input label={t("Начало")} type="datetime-local" value={info.starts} onChange={(e) => setInfo({ ...info, starts: e.target.value })} required />
-              <Input label={t("Окончание")} type="datetime-local" value={info.ends} onChange={(e) => setInfo({ ...info, ends: e.target.value })} required />
+              <Input
+                label={t("Окончание")}
+                type="datetime-local"
+                value={info.ends}
+                onChange={(e) => setInfo({ ...info, ends: e.target.value })}
+                required
+                error={windowError}
+                hint={t("Длительность — до {0} мин", [maxMinutes])}
+              />
             </div>
             <Textarea
               label={t("Описание и правила")}
@@ -439,8 +469,8 @@ export function OlympiadEditor() {
               hint={t("Для кого олимпиада, формат, призы. Поддерживается Markdown.")}
             />
           </fieldset>
-          {editable && (
-            <Button type="submit" loading={saving}>
+          {infoEditable && (
+            <Button type="submit" loading={saving} disabled={!!windowError}>
               {olympiad ? t("Сохранить") : t("Создать и перейти к задачам")}
             </Button>
           )}
@@ -521,7 +551,7 @@ export function OlympiadEditor() {
 
       {olympiad && olympiad.phase !== "finished" && <JuryCard olympiadId={olympiad.id} />}
 
-      {olympiad && editable && (
+      {olympiad && editable && !(isAdmin && olympiad.status === "published") && (
         <Card className="flex flex-wrap items-center gap-4 p-5">
           <p className="flex-1 text-sm text-muted">{t("Когда всё готово, отправьте олимпиаду администратору. После публикации задачи можно только исправлять — участники получат объявление.")}</p>
           <Button variant="ghost" onClick={() => window.confirm(t("Удалить олимпиаду?")) && action(async () => { await api.olympiads.remove(olympiad.id); navigate("/manage/olympiads"); })}>
@@ -830,20 +860,30 @@ function AttemptsList({ olympiadId, userId, taskId, onZoom }: { olympiadId: numb
 /** Жюри олимпиады: организатор приглашает учителей по логину. Жюри проверяет решения, но не участвует. */
 function JuryCard({ olympiadId }: { olympiadId: number }) {
   const { data, setData, error } = useAsync(() => api.olympiads.juryMembers(olympiadId), [olympiadId]);
-  const [username, setUsername] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const add = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(query.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+  const { data: candidates, loading: searching } = useAsync(
+    () => (open ? api.olympiads.juryCandidates(olympiadId, debounced || undefined) : Promise.resolve([] as JuryCandidate[])),
+    [olympiadId, debounced, open, data?.length],
+  );
+  const invite = async (candidate: JuryCandidate) => {
+    setBusy(candidate.user_id);
     setMessage(null);
     try {
-      setData(await api.olympiads.addJury(olympiadId, username));
-      setUsername("");
+      setData(await api.olympiads.addJury(olympiadId, { user_id: candidate.user_id }));
+      setQuery("");
+      setOpen(false);
     } catch (err) {
       setMessage(errorText(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
   const remove = async (userId: number) => {
@@ -858,31 +898,118 @@ function JuryCard({ olympiadId }: { olympiadId: number }) {
     <Card className="space-y-4 p-6">
       <div>
         <h2 className="font-semibold text-fg">⚖️ {t("Жюри")}</h2>
-        <p className="text-sm text-muted">{t("Учителя из жюри проверяют решения и делают объявления. Участвовать в этой олимпиаде они не могут — как и вы, автор.")}</p>
+        <p className="text-sm text-muted">
+          {t("Пригласите учителей: они станут жюри, когда примут приглашение. Жюри проверяет решения и делает объявления, но участвовать в этой олимпиаде не может — как и вы, автор.")}
+        </p>
       </div>
       {(error || message) && <ErrorMessage>{error ?? message}</ErrorMessage>}
       {data && data.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {data.map((member) => (
-            <span key={member.user_id} className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-2 py-1 pl-1 pr-2 text-sm">
+            <span
+              key={member.user_id}
+              className={cx("inline-flex items-center gap-2 rounded-full border py-1 pl-1 pr-2 text-sm", member.status === "pending" ? "border-dashed border-warning/60" : "border-border bg-surface-2")}
+            >
               <Avatar src={member.avatar_url} name={member.name || member.username} size={24} />
               <span className="text-fg">{member.name || member.username}</span>
               <span className="text-xs text-muted">@{member.username}</span>
-              <button onClick={() => remove(member.user_id)} className="text-muted hover:text-danger" aria-label={t("Убрать из жюри")}>
+              {member.status === "pending" && <Badge tone="warning">{t("ждёт ответа")}</Badge>}
+              <button onClick={() => remove(member.user_id)} className="text-muted hover:text-danger" aria-label={member.status === "pending" ? t("Отозвать приглашение") : t("Убрать из жюри")}>
                 ✕
               </button>
             </span>
           ))}
         </div>
       )}
-      <form onSubmit={add} className="flex flex-wrap items-end gap-2">
-        <div className="w-64">
-          <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={t("Логин учителя")} required aria-label={t("Логин учителя")} />
+      <div className="relative max-w-xl">
+        <Input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={t("Пригласить учителя: начните вводить ФИО или логин")}
+          aria-label={t("Пригласить в жюри")}
+          role="combobox"
+          aria-expanded={open}
+          autoComplete="off"
+        />
+        {open && (
+          <div className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-border bg-surface shadow-card" role="listbox">
+            {searching && !candidates?.length && <p className="px-4 py-3 text-sm text-muted">{t("Ищем…")}</p>}
+            {!searching && candidates?.length === 0 && <p className="px-4 py-3 text-sm text-muted">{t("Учителей не нашлось")}</p>}
+            {candidates?.map((candidate) => (
+              <button
+                key={candidate.user_id}
+                type="button"
+                role="option"
+                aria-selected={false}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => invite(candidate)}
+                disabled={busy !== null}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 disabled:opacity-60"
+              >
+                <Avatar src={candidate.avatar_url} name={candidate.name || candidate.username} size={32} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-fg">
+                    {candidate.name || candidate.username} <span className="font-normal text-muted">@{candidate.username}</span>
+                  </span>
+                  <span className="block truncate text-xs text-muted">
+                    {candidate.subjects.length ? candidate.subjects.join(", ") : t("пока без своих задач")}
+                    {candidate.tasks > 0 && ` · ${candidate.tasks} ${plural(candidate.tasks, ["задача", "задачи", "задач"])}`}
+                  </span>
+                </span>
+                <span className="text-xs font-medium text-primary">{busy === candidate.user_id ? "…" : t("Пригласить")}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** Приглашения в жюри, ждущие ответа учителя. */
+export function JuryInvitations({ onAccepted }: { onAccepted?: () => void }) {
+  const { data, setData } = useAsync(() => api.olympiads.myJuryInvitations().catch(() => [] as JuryInvitation[]), []);
+  const [busy, setBusy] = useState<number | null>(null);
+  if (!data || data.length === 0) return null;
+  const respond = async (id: number, accept: boolean) => {
+    setBusy(id);
+    try {
+      if (accept) await api.olympiads.acceptJury(id);
+      else await api.olympiads.declineJury(id);
+      setData((prev) => prev!.filter((item) => item.olympiad_id !== id));
+      if (accept) onAccepted?.();
+    } catch (err) {
+      window.alert(errorText(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Card className="mb-6 space-y-3 border-primary/40 bg-primary-soft/40 p-5">
+      <p className="font-semibold text-fg">⚖️ {t("Вас пригласили в жюри")}</p>
+      {data.map((item) => (
+        <div key={item.olympiad_id} className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="min-w-0 flex-1">
+            <Link to={`/olympiads/${item.olympiad_id}`} className="font-medium text-fg hover:text-primary">
+              {item.title}
+            </Link>
+            <p className="text-xs text-muted">
+              {formatRange(item.starts_at, item.ends_at)} · {t("организатор")} {item.organizer_name || item.organizer_username}
+            </p>
+          </div>
+          <Button size="sm" onClick={() => respond(item.olympiad_id, true)} loading={busy === item.olympiad_id}>
+            {t("Принять")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => respond(item.olympiad_id, false)} disabled={busy === item.olympiad_id}>
+            {t("Отклонить")}
+          </Button>
         </div>
-        <Button type="submit" variant="secondary" loading={busy}>
-          {t("+ В жюри")}
-        </Button>
-      </form>
+      ))}
     </Card>
   );
 }

@@ -75,3 +75,11 @@ async def olympiad_announcement(
         await enqueue(
             conn, row["user_id"], "announcement", str(announcement_id), message, f"/olympiads/{olympiad['id']}"
         )
+
+
+async def jury_invitation(conn: asyncpg.Connection, olympiad: asyncpg.Record, user_id: int) -> None:
+    text = (
+        f"⚖️ Вас пригласили в жюри олимпиады «{esc(olympiad['title'])}». "
+        "Примите или отклоните приглашение в «Моих олимпиадах»."
+    )
+    await enqueue(conn, user_id, "jury_invite", str(olympiad["id"]), text, "/manage/olympiads")
