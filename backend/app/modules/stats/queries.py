@@ -77,13 +77,14 @@ per_student AS (
 )
 """
 
+# Ученики и учителя (учитель тоже решает задачи — видит себя в таблице).
 # $1 limit, $2 с какой даты, $3 предмет, $4 город, $5 школа, $6 метрика ('points' | 'solved').
 LEADERBOARD = f"""
 WITH {_SOLVED_CTE}
 SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
-       u.city, u.school, u.country_code, ps.solved_tasks, ps.points
+       u.city, u.school, u.country_code, u.role, ps.solved_tasks, ps.points
 FROM per_student ps
-JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
+JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role IN ('student', 'teacher')
 WHERE ($4::text IS NULL OR lower(u.city) = lower($4))
   AND ($5::text IS NULL OR lower(u.school) = lower($5))
 ORDER BY CASE WHEN $6::text = 'solved' THEN ps.solved_tasks ELSE ps.points END DESC,

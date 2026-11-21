@@ -66,6 +66,14 @@ def test_leaderboards(client: ApiClient) -> None:
     assert [c["points"] for c in cities] == [800, 100]
     assert cities[0]["schools"] == 1
 
+    # Учитель, решивший чужую задачу, тоже в таблице (с ролью — фронт помечает его).
+    colleague = client.teacher("colleague")
+    client.attempt(colleague, hard["id"], "20")
+    rows = client.get("/api/stats/leaderboard").json()
+    teacher_row = next(r for r in rows if r["username"] == "colleague")
+    assert teacher_row["role"] == "teacher" and teacher_row["points"] == 500
+    assert rows[0]["country_code"] == "TJ"
+
     places = client.get("/api/stats/places", params={"city": "худжанд"}).json()
     assert places["cities"][0].lower() == "худжанд"
     assert [s.lower() for s in places["schools"]] == ["лицей №1"]

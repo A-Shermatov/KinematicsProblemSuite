@@ -24,7 +24,7 @@ import {
 type Tab = "students" | "olympiads" | "schools" | "cities";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "students", label: t("Ученики") },
+  { key: "students", label: t("Участники") },
   { key: "olympiads", label: t("Олимпиадники") },
   { key: "schools", label: t("Школы") },
   { key: "cities", label: t("Города") },
@@ -36,12 +36,23 @@ const PERIODS: { key: Period; label: string }[] = [
 ];
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-function Segmented<T extends string>({ items, value, onChange }: { items: { key: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+function Segmented<T extends string>({
+  items,
+  value,
+  onChange,
+  disabled,
+}: {
+  items: { key: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
+    <div className={cx("flex rounded-xl border border-border bg-surface p-1 text-sm", disabled && "pointer-events-none opacity-40")} aria-disabled={disabled}>
       {items.map((item) => (
         <button
           key={item.key}
+          disabled={disabled}
           onClick={() => onChange(item.key)}
           className={cx("rounded-lg px-3 py-1.5 font-medium", value === item.key ? "bg-primary text-primary-fg" : "text-muted hover:text-fg")}
         >
@@ -100,25 +111,30 @@ export function Leaderboard() {
 
   return (
     <>
-      <PageHeader title={t("Рейтинг")} subtitle={subtitle} actions={<Segmented items={TABS} value={tab} onChange={(t) => update({ tab: t, school: null })} />} />
+      {/* Вкладки и фильтры всегда на одном месте: неподходящие для вкладки фильтры не исчезают, а гаснут. */}
+      <PageHeader title={t("Рейтинг")} />
+      <nav className="-mt-2 mb-4 overflow-x-auto" aria-label={t("Рейтинг")}>
+        <div className="inline-flex">
+          <Segmented items={TABS} value={tab} onChange={(next) => update({ tab: next, school: null })} />
+        </div>
+      </nav>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        {tab !== "olympiads" && <Segmented items={PERIODS} value={period} onChange={(p) => update({ period: p })} />}
-        {tab === "students" && (
-          <Segmented
-            items={[
-              { key: "points", label: t("По очкам") },
-              { key: "solved", label: t("По задачам") },
-            ]}
-            value={metric}
-            onChange={(m) => update({ metric: m === "points" ? null : m })}
-          />
-        )}
+      <div className="mb-3 flex min-h-10 flex-wrap items-center gap-3">
+        <Segmented items={PERIODS} value={period} onChange={(p) => update({ period: p })} disabled={tab === "olympiads"} />
+        <Segmented
+          items={[
+            { key: "points", label: t("По очкам") },
+            { key: "solved", label: t("По задачам") },
+          ]}
+          value={metric}
+          onChange={(m) => update({ metric: m === "points" ? null : m })}
+          disabled={tab !== "students"}
+        />
         <select
-          hidden={tab === "olympiads"}
+          disabled={tab === "olympiads"}
           value={subjectId ?? ""}
           onChange={(e) => update({ subject: e.target.value || null })}
-          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
+          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-fg disabled:opacity-40"
           aria-label={t("Предмет")}
         >
           <option value="">{t("Все предметы")}</option>
@@ -128,17 +144,15 @@ export function Leaderboard() {
             </option>
           ))}
         </select>
-        {tab !== "cities" && (
-          <form
-            className="w-48"
-            onSubmit={(event) => {
-              event.preventDefault();
-              update({ city: cityInput.trim() || null, school: null });
-            }}
-          >
-            <Input placeholder={t("Город, Enter")} value={cityInput} onChange={(e) => setCityInput(e.target.value)} aria-label={t("Город")} className="h-10" />
-          </form>
-        )}
+        <form
+          className={cx("w-48", tab === "cities" && "pointer-events-none opacity-40")}
+          onSubmit={(event) => {
+            event.preventDefault();
+            update({ city: cityInput.trim() || null, school: null });
+          }}
+        >
+          <Input disabled={tab === "cities"} placeholder={t("Город, Enter")} value={cityInput} onChange={(e) => setCityInput(e.target.value)} aria-label={t("Город")} className="h-10" />
+        </form>
         {school && (
           <button onClick={() => update({ school: null })} className="rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary">
             {school} ✕
@@ -150,6 +164,8 @@ export function Leaderboard() {
           </button>
         )}
       </div>
+
+      <p className="mb-6 text-sm text-muted">{subtitle}</p>
 
       {loading && <Loading />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
@@ -173,7 +189,14 @@ export function Leaderboard() {
                   school={row.school}
                   city={row.city}
                   nameClass={rankTextClass(row.title?.code)}
-                  extra={<TitleBadge title={row.title} className="hidden sm:inline-flex" />}
+                  extra={
+                    <>
+                      <TitleBadge title={row.title} className="hidden sm:inline-flex" />
+                      {row.role === "teacher" && (
+                        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted">{t("учитель")}</span>
+                      )}
+                    </>
+                  }
                 />
               </div>
               <div className="text-right">
