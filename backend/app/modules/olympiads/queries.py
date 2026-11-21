@@ -95,6 +95,14 @@ WHERE id = $1 AND status IN ('draft', 'rejected')
 RETURNING id
 """
 
+# Админ правит олимпиаду в любом статусе — статус (например, «опубликована») не меняется.
+ADMIN_UPDATE = """
+UPDATE olympiads
+SET title = $2, description = $3, subject_id = $4, starts_at = $5, ends_at = $6, level_id = $7, updated_at = now()
+WHERE id = $1
+RETURNING id
+"""
+
 DELETE = "DELETE FROM olympiads WHERE id = $1 AND status IN ('draft', 'rejected') RETURNING id"
 
 SUBMIT_FOR_REVIEW = """
