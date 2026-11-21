@@ -21,6 +21,8 @@ import {
   type Role,
   type User,
   UserCell,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 import { PUBLIC_URL } from "../config";
 
@@ -33,6 +35,7 @@ export function Users() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const { data, error, loading, setData } = useAsync(() => api.admin.users({ role: role ?? undefined, search: query || undefined }), [role, query]);
+  const paged = usePaged(data ?? [], 50, `${role}|${query}`);
 
   const apply = (updated: User) => setData((prev) => (prev ?? []).map((item) => (item.id === updated.id ? updated : item)));
 
@@ -76,44 +79,47 @@ export function Users() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState title="Никого не нашли" />}
       {data && data.length > 0 && (
-        <Card className="divide-y divide-border overflow-hidden">
-          {data.map((user) => {
-            const self = user.id === me?.id;
-            return (
-              <div key={user.id} className={cx("flex flex-wrap items-center gap-4 px-5 py-3.5", !user.is_active && "opacity-60")}>
-                <Avatar src={user.avatar_url} name={displayName(user)} />
-                <div className="min-w-0 flex-1">
-                  <a href={`${PUBLIC_URL}/users/${user.id}`} target="_blank" rel="noreferrer" className="hover:opacity-80">
-                    <UserCell name={displayName(user)} username={user.username} countryCode={user.country_code} school={user.school} city={user.city} />
-                  </a>
-                  <p className="text-xs text-muted">с {formatDate(user.created_at)}</p>
+        <>
+          <Card className="divide-y divide-border overflow-hidden">
+            {paged.pageItems.map((user) => {
+              const self = user.id === me?.id;
+              return (
+                <div key={user.id} className={cx("flex flex-wrap items-center gap-4 px-5 py-3.5", !user.is_active && "opacity-60")}>
+                  <Avatar src={user.avatar_url} name={displayName(user)} />
+                  <div className="min-w-0 flex-1">
+                    <a href={`${PUBLIC_URL}/users/${user.id}`} target="_blank" rel="noreferrer" className="hover:opacity-80">
+                      <UserCell name={displayName(user)} username={user.username} countryCode={user.country_code} school={user.school} city={user.city} />
+                    </a>
+                    <p className="text-xs text-muted">с {formatDate(user.created_at)}</p>
+                  </div>
+                  {!user.is_active && <Badge tone="danger">Заблокирован</Badge>}
+                  <select
+                    value={user.role}
+                    disabled={self}
+                    onChange={(e) => act(() => api.admin.setRole(user.id, e.target.value as Role))}
+                    className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-fg disabled:opacity-50"
+                    aria-label={`Роль ${user.username}`}
+                  >
+                    {(["student", "teacher", "admin"] as Role[]).map((item) => (
+                      <option key={item} value={item}>
+                        {roleLabel[item]}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant={user.is_active ? "danger" : "secondary"}
+                    disabled={self}
+                    onClick={() => act(() => api.admin.setActive(user.id, !user.is_active))}
+                  >
+                    {user.is_active ? "Заблокировать" : "Разблокировать"}
+                  </Button>
                 </div>
-                {!user.is_active && <Badge tone="danger">Заблокирован</Badge>}
-                <select
-                  value={user.role}
-                  disabled={self}
-                  onChange={(e) => act(() => api.admin.setRole(user.id, e.target.value as Role))}
-                  className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-fg disabled:opacity-50"
-                  aria-label={`Роль ${user.username}`}
-                >
-                  {(["student", "teacher", "admin"] as Role[]).map((item) => (
-                    <option key={item} value={item}>
-                      {roleLabel[item]}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  variant={user.is_active ? "danger" : "secondary"}
-                  disabled={self}
-                  onClick={() => act(() => api.admin.setActive(user.id, !user.is_active))}
-                >
-                  {user.is_active ? "Заблокировать" : "Разблокировать"}
-                </Button>
-              </div>
-            );
-          })}
-        </Card>
+              );
+            })}
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
     </>
   );

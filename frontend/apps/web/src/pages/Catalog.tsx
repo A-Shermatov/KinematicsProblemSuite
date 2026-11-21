@@ -21,6 +21,9 @@ import {
   type Task,
   type Theme,
   t,
+  Pagination,
+  usePaged,
+  useAuth,
 } from "@kps/shared";
 
 export function Catalog() {
@@ -116,16 +119,44 @@ export function TaskRow({ task, to }: { task: Task; to: string }) {
   );
 }
 
+const PAGE_SIZE = 25;
+
+/** Фильтр «Все / Решённые / Не решённые» для списков задач. */
+export function ProgressFilter({ value, onChange }: { value: "" | "solved" | "unsolved"; onChange: (value: "" | "solved" | "unsolved") => void }) {
+  const items: { key: "" | "solved" | "unsolved"; label: string }[] = [
+    { key: "", label: t("Все") },
+    { key: "unsolved", label: t("Не решённые") },
+    { key: "solved", label: t("Решённые") },
+  ];
+  return (
+    <div className="flex rounded-xl border border-border bg-surface p-1 text-sm" role="group" aria-label={t("Мой прогресс")}>
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          onClick={() => onChange(item.key)}
+          aria-pressed={value === item.key}
+          className={cx("rounded-lg px-3 py-1.5 font-medium", value === item.key ? "bg-primary text-primary-fg" : "text-muted hover:text-fg")}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ThemeTasks() {
   const themeId = Number(useParams().themeId);
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   /** "" — любой, "own" — авторские, иначе id источника. */
   const [source, setSource] = useState("");
+  const [progress, setProgress] = useState<"" | "solved" | "unsolved">("");
+  const { user } = useAuth();
   const { data, error, loading } = useAsync(async () => {
-    const [theme, tasks] = await Promise.all([api.themes.get(themeId), api.tasks.list({ theme_id: themeId })]);
+    const [theme, tasks] = await Promise.all([api.themes.get(themeId), api.tasks.list({ theme_id: themeId, limit: 1000 })]);
     return { theme, tasks };
-  }, [themeId]);
+  }, [themeId, user?.id]);
   useDocumentTitle(data?.theme.title);
 
   const tasks = useMemo(() => {
@@ -133,10 +164,12 @@ export function ThemeTasks() {
     return (data?.tasks ?? []).filter(
       (task) =>
         (difficulty === null || task.difficulty === difficulty) &&
+        (!progress || (progress === "solved" ? task.solved : !task.solved)) &&
         (!source || (source === "own" ? task.is_original : String(task.source_id) === source)) &&
         (!query || `${task.title} ${task.source_title ?? ""}`.toLowerCase().includes(query)),
     );
-  }, [data, difficulty, search, source]);
+  }, [data, difficulty, search, source, progress]);
+  const paged = usePaged(tasks, PAGE_SIZE, `${difficulty}|${search}|${source}|${progress}`);
 
   if (loading) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? t("Тема не найдена")}</ErrorMessage>;
@@ -193,15 +226,19 @@ export function ThemeTasks() {
             </option>
           ))}
         </select>
+        {user && <ProgressFilter value={progress} onChange={setProgress} />}
       </div>
       {tasks.length === 0 ? (
         <EmptyState title={data.tasks.length === 0 ? t("В этой теме пока нет задач") : t("Ничего не найдено")} />
       ) : (
-        <Card className="divide-y divide-border overflow-hidden">
-          {tasks.map((task) => (
-            <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
-          ))}
-        </Card>
+        <>
+          <Card className="divide-y divide-border overflow-hidden">
+            {paged.pageItems.map((task) => (
+              <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
+            ))}
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
     </>
   );
@@ -220,6 +257,7 @@ export function SourcesPage() {
   const sources = (data ?? []).filter(
     (source) => source.tasks_count > 0 && (!query || `${source.title} ${source.author}`.toLowerCase().includes(query)),
   );
+  const paged = usePaged(sources, 24, `${type}|${query}`);
 
   return (
     <>
@@ -250,7 +288,7 @@ export function SourcesPage() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && sources.length === 0 && <EmptyState icon="📚" title={t("Ничего не найдено")} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {sources.map((source) => (
+        {paged.pageItems.map((source) => (
           <Link key={source.id} to={`/sources/${source.id}`} className="group">
             <Card className="flex h-full gap-4 p-5 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40">
               <span className="text-3xl" aria-hidden>
@@ -267,19 +305,27 @@ export function SourcesPage() {
           </Link>
         ))}
       </div>
+      <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
     </>
   );
 }
 
 export function SourceTasksPage() {
   const sourceId = Number(useParams().sourceId);
+  const { user } = useAuth();
+  const [progress, setProgress] = useState<"" | "solved" | "unsolved">("");
   const { data, error, loading } = useAsync(async () => {
-    const [source, tasks] = await Promise.all([api.sources.get(sourceId), api.tasks.list({ source_id: sourceId })]);
+    const [source, tasks] = await Promise.all([api.sources.get(sourceId), api.tasks.list({ source_id: sourceId, limit: 1000 })]);
     // Порядок как в книге: по номеру задачи, затем без номера.
     tasks.sort((a, b) => (a.source_number ?? "~").localeCompare(b.source_number ?? "~", undefined, { numeric: true }));
     return { source, tasks };
-  }, [sourceId]);
+  }, [sourceId, user?.id]);
   useDocumentTitle(data?.source.title);
+  const shown = useMemo(
+    () => (data?.tasks ?? []).filter((task) => !progress || (progress === "solved" ? task.solved : !task.solved)),
+    [data, progress],
+  );
+  const paged = usePaged(shown, PAGE_SIZE, progress);
 
   if (loading) return <Loading />;
   if (error || !data) return <ErrorMessage>{error ?? t("Источник не найден")}</ErrorMessage>;
@@ -299,14 +345,24 @@ export function SourceTasksPage() {
           )
         }
       />
+      {user && tasks.length > 0 && (
+        <div className="mb-4">
+          <ProgressFilter value={progress} onChange={setProgress} />
+        </div>
+      )}
       {tasks.length === 0 ? (
         <EmptyState title={t("Задач из этого источника пока нет")} />
+      ) : shown.length === 0 ? (
+        <EmptyState title={t("Ничего не найдено")} />
       ) : (
-        <Card className="divide-y divide-border overflow-hidden">
-          {tasks.map((task) => (
-            <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
-          ))}
-        </Card>
+        <>
+          <Card className="divide-y divide-border overflow-hidden">
+            {paged.pageItems.map((task) => (
+              <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
+            ))}
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
     </>
   );

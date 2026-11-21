@@ -27,7 +27,20 @@ import {
 } from "@kps/shared";
 import { TaskHelpPanel } from "../components/TaskHelpPanel";
 
-function AttemptResult({ attempt }: { attempt: Attempt }) {
+function AttemptResult({ attempt, penalty, onHintOpened }: { attempt: Attempt; penalty?: number; onHintOpened?: (attempt: Attempt) => void }) {
+  const [opening, setOpening] = useState(false);
+  const [hintError, setHintError] = useState<string | null>(null);
+  const openHint = async () => {
+    setOpening(true);
+    setHintError(null);
+    try {
+      onHintOpened?.(await api.attempts.openHint(attempt.id));
+    } catch (err) {
+      setHintError(errorText(err));
+    } finally {
+      setOpening(false);
+    }
+  };
   const meta = statusMeta[attempt.status];
   const styles = {
     success: "border-success/30 bg-success-soft text-success",
@@ -46,6 +59,27 @@ function AttemptResult({ attempt }: { attempt: Attempt }) {
         <p className="mt-1 text-fg">
           {t("Ответ:")} <span className="font-mono">{attempt.correct_answer}{attempt.task_unit ? ` ${attempt.task_unit}` : ""}</span>
         </p>
+      )}
+      {attempt.status === "incorrect" && attempt.mistake_hint_available && (
+        <div className="mt-3 border-t border-current/20 pt-2">
+          {attempt.mistake_hint ? (
+            <div className="flex gap-1.5 text-fg">
+              <span aria-hidden>💡</span>
+              <Markdown source={attempt.mistake_hint} className="text-sm" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openHint}
+              disabled={opening}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-current/40 px-3 py-1.5 text-xs font-medium hover:bg-surface/60 disabled:opacity-60"
+            >
+              💡 {t("Подсказка к этому ответу")}
+              {penalty ? <span className="opacity-80">· −{penalty}% {t("очков")}</span> : null}
+            </button>
+          )}
+          {hintError && <p className="mt-1 text-xs text-danger">{hintError}</p>}
+        </div>
       )}
     </div>
   );
@@ -136,6 +170,11 @@ export function TaskPage() {
                 </span>
               )}
               <Difficulty value={task.difficulty} />
+              {user && (user.role === "admin" || user.id === task.author_id) && (
+                <ButtonLink to={`/manage/tasks/${task.id}/edit`} variant="secondary" size="sm">
+                  ✏️ {t("Изменить")}
+                </ButtonLink>
+              )}
             </div>
           }
         />
@@ -180,7 +219,16 @@ export function TaskPage() {
             </p>
           ) : (
             <form onSubmit={submit} className="space-y-4">
-              {last && <AttemptResult attempt={last} />}
+              {last && (
+                <AttemptResult
+                  attempt={last}
+                  penalty={help.hint_penalty}
+                  onHintOpened={(updated) => {
+                    setData((prev) => (prev ? { ...prev, attempts: prev.attempts.map((a) => (a.id === updated.id ? updated : a)) } : prev!));
+                    api.tasks.help(task.id).then((next) => setData((prev) => (prev ? { ...prev, help: next } : prev!)), () => undefined);
+                  }}
+                />
+              )}
               {submitError && <ErrorMessage>{submitError}</ErrorMessage>}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                 <div className="flex-1">

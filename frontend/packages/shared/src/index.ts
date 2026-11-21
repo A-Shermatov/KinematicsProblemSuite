@@ -13,6 +13,7 @@ export { TranslatableFields, cleanTranslations } from "./components/Translatable
 export { PlaceFields, placeOf, placePayload, type Place } from "./components/PlaceFields";
 export { PasswordInput, PasswordRequirements } from "./components/PasswordField";
 export { UserCell } from "./components/UserCell";
+export { Pagination, pageNumbers, usePaged } from "./components/Pagination";
 export * from "./lib/geo";
 export * from "./lib/password";
 export { ThemeToggle } from "./components/ThemeToggle";

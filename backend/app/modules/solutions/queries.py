@@ -7,7 +7,8 @@ a.student_id, st.username AS student_username,
 trim(st.first_name || ' ' || st.last_name) AS student_name,
 a.answer, a.image_path, a.status, a.system_grade, a.teacher_grade, a.feedback,
 a.graded_by, a.graded_at, a.created_at,
-COALESCE(a.expected, k.answer) AS correct_answer, k.unit AS task_unit
+COALESCE(a.expected, k.answer) AS correct_answer, k.unit AS task_unit,
+a.mistake_hint, EXISTS (SELECT 1 FROM attempt_hint_opens ho WHERE ho.attempt_id = a.id) AS mistake_hint_opened
 """
 
 ATTEMPT_FROM = """
@@ -18,8 +19,14 @@ JOIN users st ON st.id = a.student_id
 """
 
 INSERT_ATTEMPT = """
-INSERT INTO attempts (task_id, student_id, answer, image_path, status, system_grade, feedback, hints_used, expected)
-VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT count(*) FROM task_hint_opens WHERE task_id = $1 AND user_id = $2), $8)
+INSERT INTO attempts (task_id, student_id, answer, image_path, status, system_grade, feedback, hints_used, expected,
+                      mistake_hint)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        -- Обычные подсказки и открытые подсказки к неверным ответам снижают очки одинаково.
+        (SELECT count(*) FROM task_hint_opens WHERE task_id = $1 AND user_id = $2)
+        + (SELECT count(*) FROM attempt_hint_opens ho JOIN attempts x ON x.id = ho.attempt_id
+           WHERE x.task_id = $1 AND x.student_id = $2),
+        $8, $9)
 RETURNING id
 """
 
@@ -54,3 +61,5 @@ RECENT_ATTEMPTS_COUNT = """
 SELECT count(*) FROM attempts
 WHERE task_id = $1 AND student_id = $2 AND created_at > now() - interval '1 minute'
 """
+
+OPEN_MISTAKE_HINT = "INSERT INTO attempt_hint_opens (attempt_id) VALUES ($1) ON CONFLICT DO NOTHING"

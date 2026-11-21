@@ -21,6 +21,8 @@ import {
   type AttemptScope,
   type AttemptStatus,
   t,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 
 const STATUS_FILTERS: (AttemptStatus | null)[] = [null, "pending", "correct", "incorrect", "graded"];
@@ -39,6 +41,7 @@ export function Attempts() {
     () => api.attempts.list({ scope, status: status ?? undefined }),
     [scope, status],
   );
+  const paged = usePaged(data ?? [], 30, `${scope}|${status}`);
 
   const update = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -107,6 +110,7 @@ export function Attempts() {
         </EmptyState>
       )}
       {data && data.length > 0 && (
+        <>
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
@@ -120,7 +124,7 @@ export function Attempts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {data.map((attempt) => {
+              {paged.pageItems.map((attempt) => {
                 const meta = statusMeta[attempt.status];
                 const canGrade = user && (user.role === "admin" || attempt.task_author_id === user.id);
                 return (
@@ -172,6 +176,8 @@ export function Attempts() {
             </tbody>
           </table>
         </Card>
+        <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
 
       {grading && (

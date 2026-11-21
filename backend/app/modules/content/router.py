@@ -102,7 +102,7 @@ async def list_tasks(
         Literal["solved", "unsolved", "new"] | None,
         Query(description="Мой прогресс: решённые, нерешённые (были попытки), новые"),
     ] = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[TaskOut]:
     rows = await conn.fetch(
@@ -367,7 +367,10 @@ def _help_out(row: asyncpg.Record, user: CurrentUser | None) -> TaskHelpOut:
     return TaskHelpOut(
         hints_total=len(hints),
         hints=hints[:opened],
-        points=row["difficulty"] * (100 - HINT_PENALTY * (0 if staff_view else opened)) // 100,
+        # Открытые подсказки к неверным ответам снижают очки так же, как обычные (не больше чем на 60%).
+        points=row["difficulty"]
+        * (100 - HINT_PENALTY * (0 if staff_view else min(3, opened + row["mistake_hints_opened"])))
+        // 100,
         hint_penalty=HINT_PENALTY,
         has_explanation=bool(row["explanation"].strip()),
         explanation=row["explanation"] if explanation_open and row["explanation"].strip() else None,

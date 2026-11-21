@@ -65,6 +65,7 @@ async def create_attempt(
         attempt_status, system_grade, feedback = (
             ("correct", 100, result.feedback) if result.correct else ("incorrect", 0, result.feedback)
         )
+        mistake = None
         if not result.correct:
             mistakes = json.loads(task["mistakes"]) if isinstance(task["mistakes"], str) else task["mistakes"]
             hint = mistake_hint(
@@ -75,10 +76,11 @@ async def create_attempt(
                 tolerance=task["tolerance"],
                 mistakes=mistakes or [],
             )
-            if hint:
-                feedback = f"{feedback}. {hint}" if not feedback.endswith((".", "!")) else f"{feedback} {hint}"
+            # Подсказку по ошибке не показываем сразу: ученик откроет её сам, со снижением очков.
+            mistake = hint or None
     else:
         attempt_status, system_grade, feedback = "pending", None, "Ожидает проверки учителем"
+        mistake = None
 
     try:
         attempt_id = await conn.fetchval(
@@ -91,6 +93,7 @@ async def create_attempt(
             system_grade,
             feedback,
             expected if specs else None,
+            mistake,
         )
     except Exception:
         delete_file(settings.upload_dir, image_path)
@@ -106,7 +109,7 @@ async def list_attempts(
     scope: Scope | None = None,
     status_filter: Annotated[AttemptStatus | None, Query(alias="status")] = None,
     task_id: int | None = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[AttemptOut]:
     """mine — мои решения; authored — решения моих задач. Все решения — в /api/admin/attempts."""
@@ -128,6 +131,18 @@ async def get_attempt(attempt_id: int, user: User, conn: Conn) -> AttemptOut:
     if not (user.is_admin or row["student_id"] == user.id or row["task_author_id"] == user.id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
     return AttemptOut.from_row(row, viewer_id=user.id, viewer_is_admin=user.is_admin)
+
+
+@router.post("/{attempt_id}/hint", response_model=AttemptOut)
+async def open_mistake_hint(attempt_id: int, user: User, conn: Conn) -> AttemptOut:
+    """Открыть подсказку к своему неверному ответу. Снижает очки за задачу, как обычная подсказка."""
+    row = await conn.fetchrow(q.GET_ATTEMPT, attempt_id)
+    if row is None or row["student_id"] != user.id:
+        raise not_found("Попытка")
+    if not row["mistake_hint"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="К этому ответу подсказки нет")
+    await conn.execute(q.OPEN_MISTAKE_HINT, attempt_id)
+    return AttemptOut.from_row(await conn.fetchrow(q.GET_ATTEMPT, attempt_id), viewer_id=user.id, viewer_is_admin=False)
 
 
 @router.post("/{attempt_id}/grade", response_model=AttemptOut)

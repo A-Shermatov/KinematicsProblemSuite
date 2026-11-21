@@ -64,7 +64,7 @@ async def list_users(
     conn: Conn,
     role: Role | None = None,
     search: Annotated[str | None, Query(max_length=50)] = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[UserOut]:
     rows = await conn.fetch(user_q.LIST, role, search or None, limit, offset)
@@ -168,7 +168,7 @@ async def list_attempts(
     status_filter: Annotated[AttemptStatus | None, Query(alias="status")] = None,
     task_id: int | None = None,
     student_id: int | None = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[AttemptOut]:
     rows = await conn.fetch(solutions_q.LIST_ATTEMPTS, student_id, None, status_filter, task_id, limit, offset)
@@ -182,7 +182,7 @@ async def list_attempts(
 async def list_certificates(
     conn: Conn,
     status_filter: Annotated[CertificateStatus | None, Query(alias="status")] = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[CertificateOut]:
     rows = await conn.fetch(teachers_q.ADMIN_LIST_CERTIFICATES, status_filter, limit, offset)
@@ -208,7 +208,7 @@ async def review_certificate(
 async def list_reviews(
     conn: Conn,
     hidden: bool | None = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ReviewOut]:
     rows = await conn.fetch(teachers_q.ADMIN_LIST_REVIEWS, hidden, limit, offset)

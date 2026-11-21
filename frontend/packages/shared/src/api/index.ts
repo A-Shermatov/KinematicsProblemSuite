@@ -198,6 +198,7 @@ export const api = {
   },
 
   attempts: {
+    openHint: (id: number) => request<Attempt>(`/api/attempts/${id}/hint`, { method: "POST" }),
     submit: (taskId: number, answer: string, image?: File | null) => {
       const form = new FormData();
       form.append("task_id", String(taskId));
@@ -206,7 +207,7 @@ export const api = {
       return request<Attempt>("/api/attempts", { method: "POST", form });
     },
     list: (query: { scope?: AttemptScope; status?: AttemptStatus; task_id?: number } = {}) =>
-      request<Attempt[]>("/api/attempts", { query: { ...query, limit: 200 } }),
+      request<Attempt[]>("/api/attempts", { query: { ...query, limit: 1000 } }),
     grade: (id: number, grade: number, feedback: string) =>
       request<Attempt>(`/api/attempts/${id}/grade`, { method: "POST", json: { grade, feedback } }),
   },
@@ -336,7 +337,7 @@ export const api = {
     removeCity: (id: number) => request<void>(`/api/admin/geo/cities/${id}`, { method: "DELETE" }),
     stats: () => request<AdminStats>("/api/admin/stats"),
     users: (query: { role?: Role; search?: string } = {}) =>
-      request<User[]>("/api/admin/users", { query: { ...query, limit: 200 } }),
+      request<User[]>("/api/admin/users", { query: { ...query, limit: 1000 } }),
     setActive: (id: number, is_active: boolean) =>
       request<User>(`/api/admin/users/${id}/active`, { method: "PATCH", json: { is_active } }),
     setRole: (id: number, role: Role) =>
@@ -349,7 +350,7 @@ export const api = {
     updateTheme: (id: number, data: ThemeInput) => request<Theme>(`/api/admin/themes/${id}`, { method: "PUT", json: data }),
     removeTheme: (id: number) => request<void>(`/api/admin/themes/${id}`, { method: "DELETE" }),
     attempts: (query: { status?: AttemptStatus; task_id?: number; student_id?: number } = {}) =>
-      request<Attempt[]>("/api/admin/attempts", { query: { ...query, limit: 200 } }),
+      request<Attempt[]>("/api/admin/attempts", { query: { ...query, limit: 1000 } }),
     certificates: (status?: CertificateStatus) =>
       request<Certificate[]>("/api/admin/certificates", { query: { status } }),
     reviewCertificate: (id: number, status: "verified" | "rejected", reason = "") =>

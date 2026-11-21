@@ -33,6 +33,9 @@ class AttemptOut(BaseModel):
         description="Правильный ответ: виден автору задачи, админу и ученику после верного решения"
     )
     task_unit: str | None
+    # Подсказка по неверному ответу: есть ли она и её текст — после того как ученик откроет (−20% очков).
+    mistake_hint_available: bool = False
+    mistake_hint: str | None = None
 
     @classmethod
     def from_row(cls, row: Any, *, viewer_id: int, viewer_is_admin: bool) -> AttemptOut:
@@ -57,6 +60,11 @@ class AttemptOut(BaseModel):
             created_at=row["created_at"],
             correct_answer=row["correct_answer"] if reveal else None,
             task_unit=row["task_unit"],
+            mistake_hint_available=bool(row["mistake_hint"]),
+            # Автор и админ видят подсказку всегда, ученик — после открытия.
+            mistake_hint=row["mistake_hint"]
+            if row["mistake_hint_opened"] or viewer_is_admin or row["task_author_id"] == viewer_id
+            else None,
         )
 
 

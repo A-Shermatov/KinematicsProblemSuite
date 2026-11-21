@@ -18,6 +18,8 @@ import {
   useDocumentTitle,
   type Attempt,
   type AttemptStatus,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 import { PUBLIC_URL } from "../config";
 
@@ -30,6 +32,7 @@ export function Attempts() {
   const [grading, setGrading] = useState<Attempt | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const { data, error, loading, setData } = useAsync(() => api.admin.attempts({ status: status ?? undefined }), [status]);
+  const paged = usePaged(data ?? [], 50, String(status));
 
   const setStatus = (value: AttemptStatus | null) => {
     const next = new URLSearchParams(params);
@@ -59,57 +62,60 @@ export function Attempts() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState title="Решений нет" />}
       {data && data.length > 0 && (
-        <Card className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-5 py-3 font-medium">Задача</th>
-                <th className="px-5 py-3 font-medium">Ученик</th>
-                <th className="px-5 py-3 font-medium">Ответ</th>
-                <th className="px-5 py-3 font-medium">Статус</th>
-                <th className="px-5 py-3 font-medium">Дата</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {data.map((attempt) => (
-                <tr key={attempt.id} className="align-top hover:bg-surface-2/60">
-                  <td className="px-5 py-3.5">
-                    <a href={`${PUBLIC_URL}/tasks/${attempt.task_id}`} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-primary">
-                      {attempt.task_title}
-                    </a>
-                    <p className="text-xs text-muted">{attempt.theme_title}</p>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <p className="text-fg">{attempt.student_name || attempt.student_username}</p>
-                    <p className="text-xs text-muted">@{attempt.student_username}</p>
-                  </td>
-                  <td className="max-w-56 px-5 py-3.5">
-                    <p className="truncate font-mono text-fg" title={attempt.answer}>
-                      {attempt.answer || "—"}
-                    </p>
-                    {attempt.correct_answer && <p className="text-xs text-muted">эталон: {attempt.correct_answer}</p>}
-                    {attempt.image_url && (
-                      <button className="text-xs text-primary hover:underline" onClick={() => setZoom(attempt.image_url)}>
-                        📎 фото
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Badge tone={statusMeta[attempt.status].tone}>{statusMeta[attempt.status].label}</Badge>
-                    {attempt.teacher_grade !== null && <p className="mt-1 text-xs text-muted">{attempt.teacher_grade} баллов</p>}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-3.5 text-muted">{formatDateTime(attempt.created_at)}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <Button size="sm" variant={attempt.status === "pending" ? "primary" : "secondary"} onClick={() => setGrading(attempt)}>
-                      {attempt.status === "pending" ? "Оценить" : "Изменить"}
-                    </Button>
-                  </td>
+        <>
+          <Card className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-5 py-3 font-medium">Задача</th>
+                  <th className="px-5 py-3 font-medium">Ученик</th>
+                  <th className="px-5 py-3 font-medium">Ответ</th>
+                  <th className="px-5 py-3 font-medium">Статус</th>
+                  <th className="px-5 py-3 font-medium">Дата</th>
+                  <th className="px-5 py-3" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paged.pageItems.map((attempt) => (
+                  <tr key={attempt.id} className="align-top hover:bg-surface-2/60">
+                    <td className="px-5 py-3.5">
+                      <a href={`${PUBLIC_URL}/tasks/${attempt.task_id}`} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-primary">
+                        {attempt.task_title}
+                      </a>
+                      <p className="text-xs text-muted">{attempt.theme_title}</p>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <p className="text-fg">{attempt.student_name || attempt.student_username}</p>
+                      <p className="text-xs text-muted">@{attempt.student_username}</p>
+                    </td>
+                    <td className="max-w-56 px-5 py-3.5">
+                      <p className="truncate font-mono text-fg" title={attempt.answer}>
+                        {attempt.answer || "—"}
+                      </p>
+                      {attempt.correct_answer && <p className="text-xs text-muted">эталон: {attempt.correct_answer}</p>}
+                      {attempt.image_url && (
+                        <button className="text-xs text-primary hover:underline" onClick={() => setZoom(attempt.image_url)}>
+                          📎 фото
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Badge tone={statusMeta[attempt.status].tone}>{statusMeta[attempt.status].label}</Badge>
+                      {attempt.teacher_grade !== null && <p className="mt-1 text-xs text-muted">{attempt.teacher_grade} баллов</p>}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-muted">{formatDateTime(attempt.created_at)}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <Button size="sm" variant={attempt.status === "pending" ? "primary" : "secondary"} onClick={() => setGrading(attempt)}>
+                        {attempt.status === "pending" ? "Оценить" : "Изменить"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
       {grading && (
         <GradeDialog

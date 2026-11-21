@@ -18,6 +18,8 @@ import {
   useDocumentTitle,
   type Collection,
   type TaskProgress,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 import { TaskRow } from "./Catalog";
 
@@ -54,6 +56,7 @@ export function CollectionsPage() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const { data, error, loading } = useAsync(() => api.collections.list({ search: query || undefined }), [query, user?.id]);
+  const paged = usePaged(data ?? [], 24, query);
   return (
     <>
       <PageHeader
@@ -83,8 +86,9 @@ export function CollectionsPage() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState icon="🗂" title={t("Подборок пока нет")} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {data?.map((collection) => <CollectionCard key={collection.id} collection={collection} showProgress={user?.role === "student"} />)}
+        {paged.pageItems.map((collection) => <CollectionCard key={collection.id} collection={collection} showProgress={user?.role === "student"} />)}
       </div>
+      <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
     </>
   );
 }
@@ -150,7 +154,8 @@ export function PracticePage() {
   const progress = (useParams().progress as TaskProgress) || "unsolved";
   const tab = PROGRESS_TABS.find((item) => item.key === progress) ?? PROGRESS_TABS[0];
   useDocumentTitle(tab.label);
-  const { data, error, loading } = useAsync(() => api.tasks.list({ progress: tab.key, limit: 200 }), [tab.key]);
+  const { data, error, loading } = useAsync(() => api.tasks.list({ progress: tab.key, limit: 1000 }), [tab.key]);
+  const paged = usePaged(data ?? [], 25, tab.key);
   return (
     <>
       <PageHeader title={t("Мои задачи для повторения")} subtitle={t("Вернитесь к задачам, которые не получились с первого раза")} />
@@ -165,11 +170,14 @@ export function PracticePage() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState icon="🎉" title={tab.empty} />}
       {data && data.length > 0 && (
-        <Card className="divide-y divide-border overflow-hidden">
-          {data.map((task) => (
-            <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
-          ))}
-        </Card>
+        <>
+          <Card className="divide-y divide-border overflow-hidden">
+            {paged.pageItems.map((task) => (
+              <TaskRow key={task.id} task={task} to={`/tasks/${task.id}`} />
+            ))}
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
     </>
   );
