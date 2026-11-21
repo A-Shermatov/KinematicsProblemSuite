@@ -81,7 +81,7 @@ per_student AS (
 LEADERBOARD = f"""
 WITH {_SOLVED_CTE}
 SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
-       u.city, u.school, ps.solved_tasks, ps.points
+       u.city, u.school, u.country_code, ps.solved_tasks, ps.points
 FROM per_student ps
 JOIN users u ON u.id = ps.student_id AND u.is_active AND u.role = 'student'
 WHERE ($4::text IS NULL OR lower(u.city) = lower($4))

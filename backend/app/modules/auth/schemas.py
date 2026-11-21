@@ -7,7 +7,8 @@ from app.modules.users.schemas import USERNAME_PATTERN, LocationFields, UserOut
 
 class RegisterIn(LocationFields):
     username: str = Field(pattern=USERNAME_PATTERN)
-    password: str = Field(min_length=8, max_length=72)
+    # Требования (длина из настроек, буква, цифра) проверяет роутер — они настраиваются.
+    password: str = Field(min_length=1, max_length=72)
     first_name: str = Field(min_length=1, max_length=50)
     last_name: str = Field(default="", max_length=50)
 

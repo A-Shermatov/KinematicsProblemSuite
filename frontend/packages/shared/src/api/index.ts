@@ -15,6 +15,9 @@ import type {
   DuplicateCheck,
   OlympiadStandings,
   OlympiadLevel,
+  Region,
+  PlaceInput,
+  AdminSettings,
   JuryMember,
   OlympiadEditorial,
   ArchiveProblem,
@@ -83,17 +86,14 @@ type LeaderboardQuery = {
 };
 
 export const api = {
+  geo: {
+    regions: (country: string) => request<Region[]>("/api/geo/regions", { query: { country }, auth: false }),
+  },
+
   auth: {
     login: (username: string, password: string) =>
       request<TokenPair>("/api/auth/login", { method: "POST", json: { username, password }, auth: false }),
-    register: (data: {
-      username: string;
-      password: string;
-      first_name: string;
-      last_name: string;
-      city: string | null;
-      school: string | null;
-    }) =>
+    register: (data: { username: string; password: string; first_name: string; last_name: string } & PlaceInput) =>
       request<User>("/api/auth/register", { method: "POST", json: data, auth: false }),
     logout: (refreshToken: string) =>
       request<void>("/api/auth/logout", { method: "POST", json: { refresh_token: refreshToken }, auth: false }),
@@ -101,7 +101,7 @@ export const api = {
 
   users: {
     me: () => request<User>("/api/users/me"),
-    updateMe: (data: { username: string; first_name: string; last_name: string; city: string | null; school: string | null }) =>
+    updateMe: (data: { username: string; first_name: string; last_name: string } & PlaceInput) =>
       request<User>("/api/users/me", { method: "PATCH", json: data }),
     changePassword: (current_password: string, new_password: string) =>
       request<void>("/api/users/me/password", { method: "POST", json: { current_password, new_password } }),
@@ -312,9 +312,14 @@ export const api = {
       request<OlympiadLevel>(`/api/admin/olympiad-levels/${id}`, { method: "PUT", json: data }),
     removeLevel: (id: number) => request<void>(`/api/admin/olympiad-levels/${id}`, { method: "DELETE" }),
     recomputeRating: () => request<{ olympiads: number }>("/api/admin/rating/recompute", { method: "POST" }),
-    settings: () => request<{ difficulty_max: number }>("/api/admin/settings"),
-    updateSettings: (data: { difficulty_max: number }) =>
-      request<{ difficulty_max: number }>("/api/admin/settings", { method: "PUT", json: data }),
+    settings: () => request<AdminSettings>("/api/admin/settings"),
+    updateSettings: (data: AdminSettings) => request<AdminSettings>("/api/admin/settings", { method: "PUT", json: data }),
+    createRegion: (data: { country_code: string; name: string; position?: number }) =>
+      request<{ id: number }>("/api/admin/geo/regions", { method: "POST", json: data }),
+    removeRegion: (id: number) => request<void>(`/api/admin/geo/regions/${id}`, { method: "DELETE" }),
+    createCity: (regionId: number, name: string) =>
+      request<{ id: number }>("/api/admin/geo/cities", { method: "POST", json: { region_id: regionId, name } }),
+    removeCity: (id: number) => request<void>(`/api/admin/geo/cities/${id}`, { method: "DELETE" }),
     stats: () => request<AdminStats>("/api/admin/stats"),
     users: (query: { role?: Role; search?: string } = {}) =>
       request<User[]>("/api/admin/users", { query: { ...query, limit: 200 } }),

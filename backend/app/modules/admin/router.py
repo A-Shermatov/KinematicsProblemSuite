@@ -15,6 +15,7 @@ from app.deps import Admin, Conn, not_found, require_roles
 from app.modules.auth import queries as auth_q
 from app.modules.content import queries as content_q
 from app.modules.content.schemas import SubjectIn, SubjectOut, ThemeIn, ThemeOut
+from app.modules.geo.router import admin_router as geo_admin_router
 from app.modules.olympiads import queries as olympiads_q
 from app.modules.olympiads.schemas import LevelIn, LevelOut, OlympiadOut
 from app.modules.olympiads.schemas import ReviewIn as OlympiadReviewIn
@@ -280,3 +281,7 @@ async def delete_level(level_id: int, conn: Conn) -> None:
     """Олимпиады с этим уровнем останутся без уровня (все участники — официально)."""
     if await conn.fetchval(olympiads_q.DELETE_LEVEL, level_id) is None:
         raise not_found("Уровень")
+
+
+# Справочник областей и городов (только админ — зависимость роутера админки).
+router.include_router(geo_admin_router)

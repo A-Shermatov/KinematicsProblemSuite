@@ -5,8 +5,15 @@ import {
   Card,
   ErrorMessage,
   Input,
+  PasswordInput,
+  PasswordRequirements,
   PlaceFields,
   api,
+  passwordValid,
+  placeOf,
+  placePayload,
+  usePlatformSettings,
+  type Place,
   errorText,
   useAuth,
   useDocumentTitle,
@@ -70,7 +77,7 @@ export function Login() {
         )}
         {error && <ErrorMessage>{error}</ErrorMessage>}
         <Input label={t("Имя пользователя")} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
-        <Input label={t("Пароль")} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput label={t("Пароль")} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <Button type="submit" className="w-full" size="lg" loading={loading}>
           {t("Войти")}
         </Button>
@@ -79,18 +86,46 @@ export function Login() {
   );
 }
 
+const USERNAME_RE = /^[A-Za-z0-9_.-]+$/;
+
+/** Ошибки полей регистрации — показываются сразу, как только поле начали заполнять. */
+function registerErrors(form: { first_name: string; username: string; password: string; confirm: string }, minLength: number) {
+  const username = form.username.trim();
+  return {
+    first_name: form.first_name.trim() ? null : t("Укажите имя"),
+    username: !username
+      ? t("Придумайте имя пользователя")
+      : !USERNAME_RE.test(username)
+        ? t("Только латиница, цифры, точка, дефис и подчёркивание")
+        : username.length < 3
+          ? t("Не короче 3 символов")
+          : null,
+    password: passwordValid(form.password, minLength, username) ? null : t("Пароль не подходит под требования ниже"),
+    confirm: !form.confirm ? t("Повторите пароль") : form.confirm !== form.password ? t("Пароли не совпадают") : null,
+  };
+}
+
 export function Register() {
   useDocumentTitle(t("Регистрация"));
   const navigate = useNavigate();
-  const [form, setForm] = useState({ first_name: "", last_name: "", username: "", password: "", confirm: "", city: "", school: "" });
+  const { settings } = usePlatformSettings();
+  const [form, setForm] = useState({ first_name: "", last_name: "", username: "", password: "", confirm: "" });
+  const [place, setPlace] = useState<Place>(placeOf(null));
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm({ ...form, [key]: event.target.value });
+  const errors = registerErrors(form, settings.password_min_length);
+  const shown = (key: keyof typeof errors) => (touched[key] ? errors[key] : null);
+  const set = (key: keyof typeof form) => (event: { target: { value: string } }) => {
+    setForm({ ...form, [key]: event.target.value });
+    setTouched((prev) => ({ ...prev, [key]: true }));
+  };
+  const blur = (key: string) => () => setTouched((prev) => ({ ...prev, [key]: true }));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (form.password !== form.confirm) {
-      setError(t("Пароли не совпадают"));
+    if (Object.values(errors).some(Boolean)) {
+      setTouched({ first_name: true, username: true, password: true, confirm: true });
       return;
     }
     setLoading(true);
@@ -101,8 +136,7 @@ export function Register() {
         password: form.password,
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
-        city: form.city.trim() || null,
-        school: form.school.trim() || null,
+        ...placePayload(place),
       });
       navigate("/login", { state: { registered: true } });
     } catch (err) {
@@ -125,26 +159,28 @@ export function Register() {
         </>
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit} className="space-y-4" noValidate>
         {error && <ErrorMessage>{error}</ErrorMessage>}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label={t("Имя")} value={form.first_name} onChange={set("first_name")} required maxLength={50} autoComplete="given-name" />
+          <Input label={t("Имя")} value={form.first_name} onChange={set("first_name")} onBlur={blur("first_name")} error={shown("first_name")} required maxLength={50} autoComplete="given-name" />
           <Input label={t("Фамилия")} value={form.last_name} onChange={set("last_name")} maxLength={50} autoComplete="family-name" />
         </div>
         <Input
           label={t("Имя пользователя")}
           value={form.username}
           onChange={set("username")}
+          onBlur={blur("username")}
+          error={shown("username")}
           required
-          minLength={3}
           maxLength={50}
-          pattern="[A-Za-z0-9_.\-]+"
           hint={t("Латиница, цифры, точка, дефис и подчёркивание")}
           autoComplete="username"
+          autoCapitalize="off"
         />
-        <Input label={t("Пароль")} type="password" value={form.password} onChange={set("password")} required minLength={8} maxLength={72} hint={t("Не меньше 8 символов")} autoComplete="new-password" />
-        <Input label={t("Повторите пароль")} type="password" value={form.confirm} onChange={set("confirm")} required autoComplete="new-password" />
-        <PlaceFields city={form.city} school={form.school} onChange={(place) => setForm({ ...form, ...place })} />
+        <PasswordInput label={t("Пароль")} value={form.password} onChange={set("password")} onBlur={blur("password")} error={shown("password")} required maxLength={72} autoComplete="new-password" />
+        <PasswordRequirements password={form.password} minLength={settings.password_min_length} username={form.username} />
+        <PasswordInput label={t("Повторите пароль")} value={form.confirm} onChange={set("confirm")} onBlur={blur("confirm")} error={shown("confirm")} required autoComplete="new-password" />
+        <PlaceFields value={place} onChange={setPlace} showCountry={settings.show_country_field} />
         <Button type="submit" className="w-full" size="lg" loading={loading}>
           {t("Зарегистрироваться")}
         </Button>

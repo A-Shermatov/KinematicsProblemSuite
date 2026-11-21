@@ -10,6 +10,13 @@ import {
   Loading,
   PageHeader,
   PlaceFields,
+  PasswordInput,
+  PasswordRequirements,
+  passwordValid,
+  placeOf,
+  placePayload,
+  usePlatformSettings,
+  type Place,
   api,
   cx,
   displayName,
@@ -43,9 +50,9 @@ export function Profile() {
     username: user?.username ?? "",
     first_name: user?.first_name ?? "",
     last_name: user?.last_name ?? "",
-    city: user?.city ?? "",
-    school: user?.school ?? "",
   });
+  const [place, setPlace] = useState<Place>(placeOf(user));
+  const { settings } = usePlatformSettings();
   const [passwords, setPasswords] = useState({ current: "", next: "" });
   const [status, setStatus] = useState<{ profile?: string; password?: string; avatar?: string }>({});
   const [errors, setErrors] = useState<{ profile?: string; password?: string; avatar?: string }>({});
@@ -74,8 +81,7 @@ export function Profile() {
         await api.users.updateMe({
           ...form,
           username: form.username.trim(),
-          city: form.city.trim() || null,
-          school: form.school.trim() || null,
+          ...placePayload(place),
         }),
       );
       return t("Профиль сохранён");
@@ -165,11 +171,28 @@ export function Profile() {
             <Notice text={status.profile ?? null} />
             {errors.profile && <ErrorMessage>{errors.profile}</ErrorMessage>}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label={t("Имя")} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required />
+              <Input
+                label={t("Имя")}
+                value={form.first_name}
+                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                error={form.first_name.trim() ? null : t("Укажите имя")}
+                required
+              />
               <Input label={t("Фамилия")} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
             </div>
-            <Input label={t("Имя пользователя")} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
-            <PlaceFields city={form.city} school={form.school} onChange={(place) => setForm({ ...form, ...place })} />
+            <Input
+              label={t("Имя пользователя")}
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              error={
+                !/^[A-Za-z0-9_.-]{3,50}$/.test(form.username.trim())
+                  ? t("3–50 символов: латиница, цифры, точка, дефис и подчёркивание")
+                  : null
+              }
+              required
+            />
+            {/* Страну видно, если админ включил поле или она уже не Таджикистан. */}
+            <PlaceFields value={place} onChange={setPlace} showCountry={settings.show_country_field || place.country_code !== "TJ"} />
             <Button type="submit" loading={busy === "profile"}>
               {t("Сохранить")}
             </Button>
@@ -184,10 +207,24 @@ export function Profile() {
             <Notice text={status.password ?? null} />
             {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label={t("Текущий пароль")} type="password" autoComplete="current-password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} required />
-              <Input label={t("Новый пароль")} type="password" autoComplete="new-password" minLength={8} maxLength={72} value={passwords.next} onChange={(e) => setPasswords({ ...passwords, next: e.target.value })} required />
+              <PasswordInput label={t("Текущий пароль")} autoComplete="current-password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} required />
+              <PasswordInput
+                label={t("Новый пароль")}
+                autoComplete="new-password"
+                maxLength={72}
+                value={passwords.next}
+                onChange={(e) => setPasswords({ ...passwords, next: e.target.value })}
+                error={passwords.next && !passwordValid(passwords.next, settings.password_min_length, user.username) ? t("Пароль не подходит под требования ниже") : null}
+                required
+              />
             </div>
-            <Button type="submit" variant="secondary" loading={busy === "password"}>
+            {passwords.next && <PasswordRequirements password={passwords.next} minLength={settings.password_min_length} username={user.username} />}
+            <Button
+              type="submit"
+              variant="secondary"
+              loading={busy === "password"}
+              disabled={!passwords.current || !passwordValid(passwords.next, settings.password_min_length, user.username)}
+            >
               {t("Изменить пароль")}
             </Button>
           </form>

@@ -43,9 +43,29 @@ export interface User {
   role: Role;
   is_active: boolean;
   avatar_url: string | null;
+  country_code: string;
+  region_id: number | null;
+  region_name: string | null;
   city: string | null;
   school: string | null;
   created_at: string;
+}
+
+/** Область страны с городами (справочник ведёт администратор). */
+export interface Region {
+  id: number;
+  country_code: string;
+  name: string;
+  position: number;
+  cities: { id: number; name: string }[];
+}
+
+/** Место пользователя для регистрации и профиля. */
+export interface PlaceInput {
+  country_code: string;
+  region_id: number | null;
+  city: string | null;
+  school: string | null;
 }
 
 export interface TokenPair {
@@ -239,6 +259,7 @@ export interface LeaderboardRow {
   avatar_url: string | null;
   city: string | null;
   school: string | null;
+  country_code: string;
   solved_tasks: number;
   points: number;
   title: UserTitle | null;
@@ -568,6 +589,7 @@ export interface OlympiadLeaderRow {
   avatar_url: string | null;
   city: string | null;
   school: string | null;
+  country_code: string;
   olympiads: number;
   rating: number;
   max_rating: number;
@@ -577,8 +599,14 @@ export interface OlympiadLeaderRow {
   title: UserTitle | null;
 }
 
-export interface PlatformSettings {
+/** Настройки, которые меняет администратор. */
+export interface AdminSettings {
   difficulty_max: number;
+  password_min_length: number;
+  show_country_field: boolean;
+}
+
+export interface PlatformSettings extends AdminSettings {
   difficulty_step: number;
   difficulty_levels: number[];
 }
@@ -713,6 +741,7 @@ export interface StandingsRow {
   name: string;
   avatar_url: string | null;
   school: string | null;
+  country_code: string;
   city: string | null;
   total: number;
   penalty: number;

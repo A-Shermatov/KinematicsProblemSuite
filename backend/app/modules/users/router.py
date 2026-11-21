@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.deps import Conn, SettingsDep, User, not_found
 from app.modules.auth import queries as auth_q
+from app.modules.auth.router import check_password, check_region
 from app.modules.users import queries as q
 from app.modules.users.schemas import (
     PasswordChange,
@@ -28,8 +29,17 @@ async def get_me(user: User, conn: Conn) -> UserOut:
 async def update_me(data: ProfileUpdate, user: User, conn: Conn) -> UserOut:
     if await conn.fetchval(q.USERNAME_TAKEN, data.username, user.id):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Имя пользователя уже занято")
+    await check_region(conn, data.country_code, data.region_id)
     row = await conn.fetchrow(
-        q.UPDATE_PROFILE, user.id, data.username, data.first_name, data.last_name, data.city, data.school
+        q.UPDATE_PROFILE,
+        user.id,
+        data.username,
+        data.first_name,
+        data.last_name,
+        data.city,
+        data.school,
+        data.country_code,
+        data.region_id,
     )
     return UserOut.from_row(row)
 
@@ -39,6 +49,7 @@ async def change_password(data: PasswordChange, user: User, conn: Conn) -> None:
     row = await conn.fetchrow(q.GET_AUTH_BY_USERNAME, user.username)
     if row is None or not verify_password(data.current_password, row["password_hash"]):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Текущий пароль указан неверно")
+    await check_password(conn, data.new_password, user.username)
     async with conn.transaction():
         await conn.execute(q.UPDATE_PASSWORD, user.id, hash_password(data.new_password))
         # После смены пароля все остальные сессии должны перелогиниться.

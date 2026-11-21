@@ -1,6 +1,9 @@
 """SQL для пользователей. Плейсхолдеры $1, $2… — нативный синтаксис PostgreSQL/asyncpg."""
 
-USER_COLUMNS = "id, username, first_name, last_name, role, is_active, avatar_path, city, school, created_at"
+USER_COLUMNS = """
+id, username, first_name, last_name, role, is_active, avatar_path, country_code, region_id,
+(SELECT r.name FROM regions r WHERE r.id = users.region_id) AS region_name, city, school, created_at
+"""
 
 GET_BY_ID = f"SELECT {USER_COLUMNS} FROM users WHERE id = $1"
 
@@ -17,14 +20,15 @@ SELECT EXISTS (SELECT 1 FROM users WHERE lower(username) = lower($1) AND id <> C
 """
 
 INSERT = f"""
-INSERT INTO users (username, first_name, last_name, password_hash, role, city, school)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO users (username, first_name, last_name, password_hash, role, city, school, country_code, region_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'TJ'), $9)
 RETURNING {USER_COLUMNS}
 """
 
 UPDATE_PROFILE = f"""
 UPDATE users
-SET username = $2, first_name = $3, last_name = $4, city = $5, school = $6, updated_at = now()
+SET username = $2, first_name = $3, last_name = $4, city = $5, school = $6, country_code = $7, region_id = $8,
+    updated_at = now()
 WHERE id = $1
 RETURNING {USER_COLUMNS}
 """
@@ -61,3 +65,6 @@ LIMIT $3 OFFSET $4
 """
 
 ADMIN_EXISTS = "SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin')"
+
+# Область должна быть из выбранной страны.
+REGION_COUNTRY = "SELECT country_code FROM regions WHERE id = $1"

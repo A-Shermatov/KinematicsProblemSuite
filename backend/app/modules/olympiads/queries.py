@@ -305,7 +305,8 @@ official AS (
 SELECT CASE WHEN sc.official
             THEN RANK() OVER (PARTITION BY sc.official ORDER BY sc.total DESC, sc.penalty) END::int AS place,
        sc.official,
-       u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,
+       u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
+       u.city, u.school, u.country_code,
        sc.total, sc.penalty, sc.task_points::text AS task_points, sc.cells::text AS cells
 FROM official sc
 JOIN users u ON u.id = sc.user_id
@@ -361,7 +362,8 @@ virtual AS (
     WHERE r.olympiad_id = $1 AND r.ends_at <= now()
     GROUP BY r.id
 )
-SELECT v.user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, u.city, u.school,
+SELECT v.user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
+       u.city, u.school, u.country_code,
        v.total, v.started_at,
        (1 + (SELECT count(*) FROM official o WHERE o.total > v.total))::int AS would_place
 FROM virtual v

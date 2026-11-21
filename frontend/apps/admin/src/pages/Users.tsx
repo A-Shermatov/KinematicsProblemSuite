@@ -20,6 +20,7 @@ import {
   useDocumentTitle,
   type Role,
   type User,
+  UserCell,
 } from "@kps/shared";
 import { PUBLIC_URL } from "../config";
 
@@ -82,12 +83,10 @@ export function Users() {
               <div key={user.id} className={cx("flex flex-wrap items-center gap-4 px-5 py-3.5", !user.is_active && "opacity-60")}>
                 <Avatar src={user.avatar_url} name={displayName(user)} />
                 <div className="min-w-0 flex-1">
-                  <a href={`${PUBLIC_URL}/users/${user.id}`} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-primary">
-                    {displayName(user)}
+                  <a href={`${PUBLIC_URL}/users/${user.id}`} target="_blank" rel="noreferrer" className="hover:opacity-80">
+                    <UserCell name={displayName(user)} username={user.username} countryCode={user.country_code} school={user.school} city={user.city} />
                   </a>
-                  <p className="text-xs text-muted">
-                    @{user.username} · с {formatDate(user.created_at)}
-                  </p>
+                  <p className="text-xs text-muted">с {formatDate(user.created_at)}</p>
                 </div>
                 {!user.is_active && <Badge tone="danger">Заблокирован</Badge>}
                 <select

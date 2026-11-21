@@ -18,6 +18,7 @@ from app.modules.auth import queries as auth_q
 from app.modules.auth.router import router as auth_router
 from app.modules.collections.router import router as collections_router
 from app.modules.content.router import router as content_router
+from app.modules.geo.router import router as geo_router
 from app.modules.imports.router import router as imports_router
 from app.modules.olympiads.router import router as olympiads_router
 from app.modules.rating import service as rating_service
@@ -48,6 +49,8 @@ async def ensure_admin(pool: asyncpg.Pool, settings: Settings) -> None:
             "",
             hash_password(settings.admin_password),
             "admin",
+            None,
+            None,
             None,
             None,
         )
@@ -98,6 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         teachers_router,
         olympiads_router,
         settings_router,
+        geo_router,
         admin_router,
     ):
         api.include_router(router)
