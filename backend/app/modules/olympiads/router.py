@@ -505,8 +505,9 @@ async def update(olympiad_id: int, data: OlympiadIn, user: User, conn: Conn) -> 
         if data.starts_at <= datetime.now(UTC):
             raise HTTPException(422, detail="Начало олимпиады должно быть в будущем")
     await _check_level(conn, data)
+    in_draft = row["status"] in ("draft", "rejected")
     await conn.execute(
-        q.UPDATE,
+        q.UPDATE if in_draft else q.ADMIN_UPDATE,
         olympiad_id,
         data.title,
         data.description,
