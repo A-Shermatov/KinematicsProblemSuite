@@ -73,10 +73,10 @@ def test_password_rules_follow_admin_setting(client: ApiClient) -> None:
     admin = client.admin_token()
     current = client.get("/api/admin/settings", admin).json()
     assert current["password_min_length"] == 8 and current["show_country_field"] is False
-    client.put("/api/admin/settings", admin, json={**current, "password_min_length": 12, "show_country_field": True})
+    client.put("/api/admin/settings", admin, json={**current, "password_min_length": 14, "show_country_field": True})
     public = client.get("/api/settings").json()
-    assert public["password_min_length"] == 12 and public["show_country_field"] is True
-    assert register("petya", PASSWORD) == 422  # 12 символов — мало
+    assert public["password_min_length"] == 14 and public["show_country_field"] is True
+    assert register("petya", PASSWORD) == 422  # 12 символов при минимуме 14 — мало
     assert register("petya", "longer-password-1") == 201
     token = client.login("petya", "longer-password-1")["access_token"]
     change = {"current_password": "longer-password-1", "new_password": "short1"}
