@@ -1,5 +1,6 @@
 import { useDeferredValue, useId, useRef, useState } from "react";
 import { Markdown } from "./Markdown";
+import { LatexHelpButton, LatexReference, insertLatexAt } from "./LatexReference";
 import { cx } from "./ui";
 import { t } from "../i18n";
 
@@ -43,6 +44,7 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12,
   const imageRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [reference, setReference] = useState(false);
 
   const uploadImage = async (file: File) => {
     if (!onUploadImage) return;
@@ -117,6 +119,7 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12,
                 </button>
               </>
             )}
+            <LatexHelpButton open={reference} onToggle={() => setReference((v) => !v)} className="hover:bg-surface" />
           </div>
           <div className="flex rounded-lg bg-surface p-0.5 text-xs font-medium" role="tablist">
             {tabs.map((tab) => (
@@ -137,12 +140,31 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12,
           </div>
         </div>
 
+        {reference && (
+          <LatexReference
+            onInsert={(code) => {
+              if (mode === "preview") setMode("split");
+              insertLatexAt(textareaRef, value, onChange, code);
+            }}
+            onClose={() => {
+              setReference(false);
+              textareaRef.current?.focus();
+            }}
+          />
+        )}
         <div className={cx("grid", mode === "split" && "lg:grid-cols-2")}>
           <textarea
             id={id}
             ref={textareaRef}
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              // Ctrl+/ (⌘+/) — справочник формул.
+              if ((event.ctrlKey || event.metaKey) && event.key === "/") {
+                event.preventDefault();
+                setReference((v) => !v);
+              }
+            }}
             placeholder={placeholder}
             rows={rows}
             spellCheck
@@ -168,7 +190,7 @@ export function MarkdownEditor({ value, onChange, label, placeholder, rows = 12,
       {uploadError && <p className="text-xs text-danger">{uploadError}</p>}
       <p className="text-xs text-muted">
         {t("Markdown и формулы LaTeX:")} <code className="rounded bg-surface-2 px-1">$v = s/t$</code>  {t("в строке,")}{" "}
-        <code className="rounded bg-surface-2 px-1">$$…$$</code>  {t("отдельным блоком.")}
+        <code className="rounded bg-surface-2 px-1">$$…$$</code>  {t("отдельным блоком.")} {t("Справочник формул — кнопка ƒx или Ctrl+/.")}
       </p>
     </div>
   );

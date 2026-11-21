@@ -151,7 +151,11 @@ def _call(model: str, body: bytes) -> dict[str, Any]:
 def _request(
     content: bytes, media_type: str, preferred: str | None = None, sleep: Any = time.sleep
 ) -> tuple[dict[str, Any], str]:
-    body = json.dumps(
+    return generate(_vision_body(content, media_type), preferred, sleep)
+
+
+def _vision_body(content: bytes, media_type: str) -> bytes:
+    return json.dumps(
         {
             "contents": [
                 {
@@ -165,6 +169,10 @@ def _request(
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
         }
     ).encode("utf-8")
+
+
+def generate(body: bytes, preferred: str | None = None, sleep: Any = time.sleep) -> tuple[dict[str, Any], str]:
+    """Запрос к Gemini с повторами и запасными моделями; возвращает ответ и модель, которая ответила."""
     codes: list[int] = []
     for model in models(preferred):
         for delay in (*RETRY_DELAYS, None):

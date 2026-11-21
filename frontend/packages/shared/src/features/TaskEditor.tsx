@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, type AnswerType, type CheckMode, type DuplicateHit, type TaskFull, type TaskInput, type TaskParams } from "../api";
 import { TranslatableFields, cleanTranslations } from "../components/TranslatableFields";
 import { MarkdownEditor } from "../components/MarkdownEditor";
-import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, Textarea, cx } from "../components/ui";
+import { LatexField } from "../components/LatexField";
+import { Button, ButtonLink, Card, ErrorMessage, Input, Loading, PageHeader, Select, cx } from "../components/ui";
 import { formatSource } from "../lib/format";
 import { SourcePicker, type PickedSource } from "./SourcePicker";
 import { AiModelSelect, aiModelLabel, useAiModel } from "./AiModelSelect";
@@ -457,12 +458,12 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
           {form.hints.map((hint, index) => (
             <div key={index} className="flex items-start gap-2">
               <div className="flex-1">
-                <Textarea
+                <LatexField
                   label={t("Подсказка {0}", [index + 1])}
                   rows={2}
                   value={hint}
                   maxLength={2000}
-                  onChange={(e) => setForm({ ...form, hints: form.hints.map((h, i) => (i === index ? e.target.value : h)) })}
+                  onChange={(value) => setForm({ ...form, hints: form.hints.map((h, i) => (i === index ? value : h)) })}
                   placeholder={index === 0 ? t("Например: переведите скорость в м/с") : undefined}
                 />
               </div>
@@ -499,12 +500,13 @@ export function TaskEditor({ taskId, listPath, listLabel, onSaved, taskUrl = (id
                   maxLength={100}
                   onChange={(e) => setForm({ ...form, mistakes: form.mistakes.map((m, i) => (i === index ? { ...m, answer: e.target.value } : m)) })}
                 />
-                <Input
+                <LatexField
+                  single
                   value={mistake.message}
                   placeholder={t("Пояснение: не перевели км/ч в м/с")}
-                  aria-label={t("Пояснение")}
+                  ariaLabel={t("Пояснение")}
                   maxLength={300}
-                  onChange={(e) => setForm({ ...form, mistakes: form.mistakes.map((m, i) => (i === index ? { ...m, message: e.target.value } : m)) })}
+                  onChange={(value) => setForm({ ...form, mistakes: form.mistakes.map((m, i) => (i === index ? { ...m, message: value } : m)) })}
                 />
                 <Button type="button" variant="ghost" size="sm" onClick={() => setForm({ ...form, mistakes: form.mistakes.filter((_, i) => i !== index) })} aria-label={t("Удалить")}>
                   ✕
