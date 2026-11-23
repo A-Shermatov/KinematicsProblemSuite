@@ -56,3 +56,23 @@ class ImportFailure(BaseModel):
 class ImportResult(BaseModel):
     created: list[int]
     failed: list[ImportFailure]
+
+
+class TranslateIn(BaseModel):
+    """Поля задачи для перевода; пустые остаются пустыми."""
+
+    source: Literal["ru", "en", "tg"] = "ru"
+    target: Literal["ru", "en", "tg"]
+    title: str = Field(default="", max_length=150)
+    condition: str = Field(default="", max_length=20_000)
+    hints: list[str] = Field(default_factory=list, max_length=3)
+    explanation: str = Field(default="", max_length=20_000)
+    model: str | None = None
+
+
+class TranslateOut(BaseModel):
+    title: str
+    condition: str
+    hints: list[str]
+    explanation: str
+    model: str

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import type { TaskTranslations, TranslationLang } from "../api";
+import { api, type TaskTranslations, type TranslationLang } from "../api";
+import { errorText, useAsync } from "../lib/hooks";
 import { LANGS, t, type Lang } from "../i18n";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Input, cx } from "./ui";
@@ -29,6 +30,30 @@ export function TranslatableFields({ title, condition, translations, onChange, c
   const current = lang === "ru" ? null : (translations[lang] ?? { title: "", condition: "" });
   const setTranslation = (patch: Partial<{ title: string; condition: string }>) =>
     onChange({ translations: { ...translations, [lang]: { ...current!, ...patch } } });
+  const { data: caps } = useAsync(() => api.imports.capabilities().catch(() => null), []);
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  // Откуда переводить: на вкладке перевода — с русского; на русской — с заполненного перевода.
+  const sourceLang: Lang | null =
+    lang !== "ru" ? (title.trim() || condition.trim() ? "ru" : null) : ((["en", "tg"] as TranslationLang[]).find((code) => filled(translations[code])) ?? null);
+  const autoTranslate = async () => {
+    if (!sourceLang) return;
+    const from = sourceLang === "ru" ? { title, condition } : translations[sourceLang as TranslationLang]!;
+    const target = lang === "ru" ? { title, condition } : current!;
+    if ((target.title.trim() || target.condition.trim()) && !window.confirm(t("Заменить текущий текст переводом?"))) return;
+    setTranslating(true);
+    setTranslateError(null);
+    try {
+      const result = await api.imports.translate({ source: sourceLang, target: lang, title: from.title, condition: from.condition });
+      if (lang === "ru") onChange({ title: result.title, condition: result.condition });
+      else setTranslation({ title: result.title, condition: result.condition });
+    } catch (err) {
+      setTranslateError(errorText(err));
+    } finally {
+      setTranslating(false);
+    }
+  };
+  const langLabel = (code: Lang) => LANGS.find((item) => item.code === code)?.label ?? code;
 
   return (
     <div className="space-y-4">
@@ -51,7 +76,19 @@ export function TranslatableFields({ title, condition, translations, onChange, c
         <p className="text-xs text-muted">
           {lang === "ru" ? t("Русский — основной язык, обязателен") : t("Необязательно: без перевода ученики увидят русский вариант")}
         </p>
+        {caps?.ai_enabled && sourceLang && (
+          <button
+            type="button"
+            onClick={autoTranslate}
+            disabled={translating}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-fg hover:border-primary hover:text-primary disabled:opacity-60"
+            title={t("ИИ переведёт название и условие, формулы и рисунки останутся как есть")}
+          >
+            {translating ? "⏳" : "🌐"} {t("Перевести с языка {0}", [langLabel(sourceLang)])}
+          </button>
+        )}
       </div>
+      {translateError && <p className="text-xs text-danger">{translateError}</p>}
       <div className={cx("grid gap-4", aside ? (asideClassName ?? "md:grid-cols-[2fr_1fr]") : null)}>
         {current ? (
           <Input

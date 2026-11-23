@@ -7,6 +7,8 @@ export * from "./settings/SettingsContext";
 export * from "./components/ui";
 export { Markdown } from "./components/Markdown";
 export { MarkdownEditor } from "./components/MarkdownEditor";
+export { LATEX_GROUPS, LatexReference, insideMath, latexInsertion } from "./components/LatexReference";
+export { LatexField } from "./components/LatexField";
 export { TranslatableFields, cleanTranslations } from "./components/TranslatableFields";
 export { PlaceFields, placeOf, placePayload, type Place } from "./components/PlaceFields";
 export { PasswordInput, PasswordRequirements } from "./components/PasswordField";

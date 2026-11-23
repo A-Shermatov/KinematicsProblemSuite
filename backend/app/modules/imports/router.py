@@ -18,7 +18,16 @@ from app.modules.content.router import find_duplicates, insert_task
 from app.modules.content.schemas import TaskIn
 from app.modules.imports import ai
 from app.modules.imports.parsers import AI_FORMATS, TEXT_FORMATS, ImportFormatError, parse_file
-from app.modules.imports.schemas import ImportFailure, ImportIn, ImportResult, ParseResult, TaskDraft
+from app.modules.imports.schemas import (
+    ImportFailure,
+    ImportIn,
+    ImportResult,
+    ParseResult,
+    TaskDraft,
+    TranslateIn,
+    TranslateOut,
+)
+from app.modules.imports.translate import translate as translate_fields
 from app.storage import public_url, save_image
 
 router = APIRouter(prefix="/tasks/import", tags=["import"])
@@ -129,3 +138,16 @@ async def upload_condition_image(
     """Рисунок к условию задачи (схема, график). Возвращает URL для вставки в Markdown: ![рисунок](url)."""
     path = await save_image(file, upload_dir=settings.upload_dir, subdir="tasks", max_bytes=settings.max_upload_bytes)
     return {"url": public_url(path) or ""}
+
+
+@router.post("/translate", response_model=TranslateOut)
+async def translate(data: TranslateIn, _: Staff) -> TranslateOut:
+    """Перевод условия (ИИ) с сохранением формул, параметров и рисунков — для вкладок EN/TJ в редакторе."""
+    if data.source == data.target:
+        raise HTTPException(422, detail="Выберите другой язык перевода")
+    fields = {"title": data.title, "condition": data.condition, "hints": data.hints, "explanation": data.explanation}
+    try:
+        result, model = await translate_fields(fields, data.source, data.target, data.model)
+    except ai.AIUnavailableError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from None
+    return TranslateOut(**result, model=model)

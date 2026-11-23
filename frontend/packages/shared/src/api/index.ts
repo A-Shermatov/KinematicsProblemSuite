@@ -1,3 +1,4 @@
+import type { Lang } from "../i18n";
 import { request } from "./client";
 import type {
   Achievements,
@@ -151,6 +152,11 @@ export const api = {
 
   imports: {
     capabilities: () => request<ImportCapabilities>("/api/tasks/import/capabilities"),
+    translate: (data: { source: Lang; target: Lang; title: string; condition: string; hints?: string[]; explanation?: string }) =>
+      request<{ title: string; condition: string; hints: string[]; explanation: string; model: string }>("/api/tasks/import/translate", {
+        method: "POST",
+        json: data,
+      }),
     parse: (file: File, model?: string) => {
       const form = new FormData();
       form.append("file", file);
