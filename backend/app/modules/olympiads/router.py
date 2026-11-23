@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 import asyncpg
@@ -32,10 +32,12 @@ from app.modules.olympiads.schemas import (
     SubmissionOut,
     VirtualAnswerIn,
     VirtualRunOut,
+    VirtualStartIn,
     VirtualSubmissionOut,
 )
 from app.modules.rating import queries as rating_q
 from app.modules.rating import service as rating
+from app.modules.settings import service as settings_service
 from app.modules.solutions.checker import check_answer
 from app.modules.telegram import notify
 from app.storage import delete_file, public_url, save_image
@@ -68,9 +70,27 @@ async def _managed(conn: asyncpg.Connection, olympiad_id: int, user: CurrentUser
     return row
 
 
-async def _check_level(conn: asyncpg.Connection, level_id: int | None) -> None:
-    if level_id is not None and await conn.fetchrow(q.GET_LEVEL, level_id) is None:
-        raise HTTPException(422, detail="Такого уровня олимпиады нет")
+async def _check_level(conn: asyncpg.Connection, data: OlympiadIn) -> None:
+    """Уровень существует, а длительность не больше предела уровня (или общего предела из настроек)."""
+    level = None
+    if data.level_id is not None:
+        level = await conn.fetchrow(q.GET_LEVEL, data.level_id)
+        if level is None:
+            raise HTTPException(422, detail="Такого уровня олимпиады нет")
+    limit = (level and level["max_duration_minutes"]) or (
+        await settings_service.load(conn)
+    ).olympiad_max_duration_minutes
+    minutes = (data.ends_at - data.starts_at).total_seconds() / 60
+    if minutes > limit:
+        where = f"уровня «{level['title']}»" if level else "без уровня"
+        raise HTTPException(422, detail=f"Олимпиада {where} длится не дольше {_duration(limit)}")
+
+
+def _duration(minutes: int) -> str:
+    hours, rest = divmod(minutes, 60)
+    if not hours:
+        return f"{rest} мин"
+    return f"{hours} ч" + (f" {rest} мин" if rest else "")
 
 
 def _can_judge(row: asyncpg.Record, user: CurrentUser | None) -> bool:
@@ -109,12 +129,13 @@ async def _detail(
     tasks = await conn.fetch(q.LIST_TASKS, row["id"]) if show_tasks else []
     reveal = judge or phase == "finished"
     if reveal and not judge and viewer is not None:
-        # Пока идёт виртуальное участие, ответы скрыты — иначе это не тренировка.
+        # Пока идёт (или вот-вот начнётся) виртуальное участие, источник и сложность скрыты.
         run = await conn.fetchrow(q.GET_RUN, row["id"], viewer.id)
-        reveal = not (run and run["active"])
+        reveal = not (run and (run["active"] or run["scheduled"]))
     return OlympiadDetail(
         **dict(row),
-        tasks=[OlympiadTaskOut.from_row(t, reveal=reveal, lang=lang, manage=manage) for t in tasks],
+        # Правильный ответ видят только организатор и жюри — ученикам никогда (разбор — да).
+        tasks=[OlympiadTaskOut.from_row(t, reveal=reveal, lang=lang, manage=manage, show_answer=judge) for t in tasks],
         can_manage=manage,
         ungraded_count=await conn.fetchval(q.UNGRADED_COUNT, row["id"]) if judge else None,
     )
@@ -319,7 +340,7 @@ async def submit(
 async def my_submissions(olympiad_id: int, user: User, conn: Conn) -> list[SubmissionOut]:
     row = await _get(conn, olympiad_id, user)
     rows = await conn.fetch(q.MY_SUBMISSIONS, olympiad_id, user.id)
-    return [SubmissionOut.from_row(r, reveal=row["phase"] == "finished") for r in rows]
+    return [SubmissionOut.from_row(r, reveal=row["phase"] == "finished", show_answer=False) for r in rows]
 
 
 @router.get("/{olympiad_id}/my-history")
@@ -468,7 +489,7 @@ async def standings(olympiad_id: int, conn: Conn, viewer: OptionalUser) -> dict[
 async def create(data: OlympiadIn, teacher: Teacher, conn: Conn) -> OlympiadDetail:
     if data.starts_at <= datetime.now(UTC):
         raise HTTPException(422, detail="Начало олимпиады должно быть в будущем")
-    await _check_level(conn, data.level_id)
+    await _check_level(conn, data)
     olympiad_id = await conn.fetchval(
         q.INSERT, data.title, data.description, data.subject_id, teacher.id, data.starts_at, data.ends_at, data.level_id
     )
@@ -478,12 +499,15 @@ async def create(data: OlympiadIn, teacher: Teacher, conn: Conn) -> OlympiadDeta
 @router.put("/{olympiad_id}", response_model=OlympiadDetail)
 async def update(olympiad_id: int, data: OlympiadIn, user: User, conn: Conn) -> OlympiadDetail:
     row = await _managed(conn, olympiad_id, user)
-    _require_editable(row)
-    if data.starts_at <= datetime.now(UTC):
-        raise HTTPException(422, detail="Начало олимпиады должно быть в будущем")
-    await _check_level(conn, data.level_id)
+    # Админ может править любую олимпиаду в любой момент (например, исправить время или название).
+    if not user.is_admin:
+        _require_editable(row)
+        if data.starts_at <= datetime.now(UTC):
+            raise HTTPException(422, detail="Начало олимпиады должно быть в будущем")
+    await _check_level(conn, data)
+    in_draft = row["status"] in ("draft", "rejected")
     await conn.execute(
-        q.UPDATE,
+        q.UPDATE if in_draft else q.ADMIN_UPDATE,
         olympiad_id,
         data.title,
         data.description,
@@ -520,9 +544,16 @@ def _task_args(data: OlympiadTaskIn) -> tuple[Any, ...]:
     )
 
 
+def _require_tasks_editable(row: asyncpg.Record, user: CurrentUser) -> None:
+    """Добавлять и удалять задачи: автор — в черновике, админ — пока олимпиада не началась."""
+    if user.is_admin and row["phase"] == "upcoming":
+        return
+    _require_editable(row)
+
+
 @router.post("/{olympiad_id}/tasks", response_model=OlympiadTaskOut, status_code=status.HTTP_201_CREATED)
 async def add_task(olympiad_id: int, data: OlympiadTaskIn, user: User, conn: Conn) -> OlympiadTaskOut:
-    _require_editable(await _managed(conn, olympiad_id, user))
+    _require_tasks_editable(await _managed(conn, olympiad_id, user), user)
     task_id = await conn.fetchval(q.INSERT_TASK, olympiad_id, *_task_args(data))
     return OlympiadTaskOut.from_row(await conn.fetchrow(q.GET_TASK, task_id, olympiad_id), reveal=True, manage=True)
 
@@ -599,12 +630,13 @@ async def editorial(olympiad_id: int, conn: Conn, viewer: OptionalUser, lang: Re
     if not _visible(row, viewer):
         raise not_found("Олимпиада")
     manage = _can_manage(row, viewer)
-    if not manage:
+    judge = _can_judge(row, viewer)
+    if not judge:
         if row["status"] != "published" or datetime.now(UTC) < row["editorial_at"]:
             raise HTTPException(status.HTTP_409_CONFLICT, detail="Разбор откроется через сутки после окончания")
         if viewer is not None:
             run = await conn.fetchrow(q.GET_RUN, olympiad_id, viewer.id)
-            if run and run["active"]:
+            if run and (run["active"] or run["scheduled"]):
                 raise HTTPException(
                     status.HTTP_409_CONFLICT, detail="Разбор откроется, когда закончится ваше виртуальное участие"
                 )
@@ -617,7 +649,7 @@ async def editorial(olympiad_id: int, conn: Conn, viewer: OptionalUser, lang: Re
                 "id": t["id"],
                 "label": _label(i),
                 "title": (None if manage else (_json(t["translations"]).get(lang) or {}).get("title")) or t["title"],
-                "answer": t["answer"],
+                "answer": t["answer"] if judge else None,
                 "unit": t["unit"],
                 "max_points": t["max_points"],
                 "solution": t["solution"],
@@ -665,7 +697,7 @@ async def announce(olympiad_id: int, data: AnnouncementIn, user: User, conn: Con
 
 @router.delete("/{olympiad_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(olympiad_id: int, task_id: int, user: User, conn: Conn) -> None:
-    _require_editable(await _managed(conn, olympiad_id, user))
+    _require_tasks_editable(await _managed(conn, olympiad_id, user), user)
     if await conn.fetchval(q.DELETE_TASK, task_id, olympiad_id) is None:
         raise not_found("Задача")
 
@@ -721,21 +753,58 @@ async def jury_members(olympiad_id: int, user: User, conn: Conn) -> list[dict[st
     ]
 
 
+@router.get("/{olympiad_id}/jury-candidates")
+async def jury_candidates(olympiad_id: int, user: User, conn: Conn, q_: Annotated[str | None, Query(alias="q")] = None):
+    """Учителя для выпадающего списка «Пригласить в жюри»: ФИО, логин и предметы, по которым у них есть задачи."""
+    row = await _managed(conn, olympiad_id, user)
+    search = " ".join(q_.split()) if q_ else None
+    rows = await conn.fetch(q.JURY_CANDIDATES, olympiad_id, row["organizer_id"], search or None)
+    return [
+        {**{k: v for k, v in dict(r).items() if k != "avatar_path"}, "avatar_url": public_url(r["avatar_path"])}
+        for r in rows
+    ]
+
+
 @router.post("/{olympiad_id}/jury-members", status_code=status.HTTP_201_CREATED)
 async def add_jury_member(olympiad_id: int, data: JuryMemberIn, user: User, conn: Conn) -> list[dict[str, Any]]:
-    """Организатор приглашает учителя в жюри (по логину). Участник олимпиады не может быть в жюри."""
+    """Организатор приглашает учителя в жюри. Членом жюри он станет, когда примет приглашение."""
     row = await _managed(conn, olympiad_id, user)
     if row["phase"] == "finished":
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Итоги опубликованы — состав жюри не меняется")
-    member = await conn.fetchrow(q.FIND_TEACHER, data.username.strip().lstrip("@"))
+    if data.user_id is not None:
+        member = await conn.fetchrow(q.GET_USER_BRIEF, data.user_id)
+    else:
+        member = await conn.fetchrow(q.FIND_TEACHER, (data.username or "").strip().lstrip("@"))
     if member is None or member["role"] != "teacher":
-        raise HTTPException(422, detail="Учитель с таким логином не найден")
+        raise HTTPException(422, detail="Учитель не найден")
     if member["id"] == row["organizer_id"]:
         raise HTTPException(422, detail="Организатор и так проверяет решения")
     if await conn.fetchval(q.IS_REGISTERED, olympiad_id, member["id"]):
         raise HTTPException(409, detail="Этот учитель участвует в олимпиаде — в жюри его добавить нельзя")
-    await conn.execute(q.ADD_JURY, olympiad_id, member["id"])
+    if await conn.fetchval(q.ADD_JURY, olympiad_id, member["id"], user.id) is not None:
+        await notify.jury_invitation(conn, row, member["id"])
     return await jury_members(olympiad_id, user, conn)
+
+
+@router.get("/jury-invitations/mine")
+async def my_jury_invitations(user: User, conn: Conn) -> list[dict[str, Any]]:
+    """Приглашения в жюри, ждущие ответа, — показываются учителю в «Моих олимпиадах» и в кабинете."""
+    return [dict(r) for r in await conn.fetch(q.MY_JURY_INVITATIONS, user.id)]
+
+
+@router.post("/{olympiad_id}/jury-invitation/accept", response_model=OlympiadDetail)
+async def accept_jury(olympiad_id: int, user: User, conn: Conn) -> OlympiadDetail:
+    if await conn.fetchval(q.IS_REGISTERED, olympiad_id, user.id):
+        raise HTTPException(409, detail="Вы участник этой олимпиады — в жюри быть нельзя")
+    if await conn.fetchval(q.ACCEPT_JURY, olympiad_id, user.id) is None:
+        raise not_found("Приглашение")
+    return await _detail(conn, await _get(conn, olympiad_id, user), user)
+
+
+@router.post("/{olympiad_id}/jury-invitation/decline", status_code=status.HTTP_204_NO_CONTENT)
+async def decline_jury(olympiad_id: int, user: User, conn: Conn) -> None:
+    if await conn.fetchval(q.DECLINE_JURY, olympiad_id, user.id) is None:
+        raise not_found("Приглашение")
 
 
 @router.delete("/{olympiad_id}/jury-members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -791,14 +860,14 @@ async def _finished_for_virtual(conn: asyncpg.Connection, olympiad_id: int, user
 
 async def _run_out(conn: asyncpg.Connection, olympiad: asyncpg.Record, run: asyncpg.Record) -> VirtualRunOut:
     rows = await conn.fetch(q.RUN_SUBMISSIONS, run["id"])
-    finished = not run["active"]
+    finished = not run["active"] and not run["scheduled"]
     submissions = [
         VirtualSubmissionOut(
             **{
                 **dict(r),
                 "correct": r["correct"] if finished else None,
                 "points": r["points"] if finished else None,
-                "correct_answer": r["correct_answer"] if finished else None,
+                "correct_answer": None,  # правильный ответ ученикам не показываем
             }
         )
         for r in rows
@@ -809,6 +878,7 @@ async def _run_out(conn: asyncpg.Connection, olympiad: asyncpg.Record, run: asyn
         started_at=run["started_at"],
         ends_at=run["ends_at"],
         active=run["active"],
+        scheduled=run["scheduled"],
         submissions=submissions,
         total=total,
         max_score=olympiad["max_score"],
@@ -825,15 +895,22 @@ async def my_virtual_run(olympiad_id: int, user: User, conn: Conn) -> VirtualRun
 
 
 @router.post("/{olympiad_id}/virtual", response_model=VirtualRunOut, status_code=status.HTTP_201_CREATED)
-async def start_virtual(olympiad_id: int, user: User, conn: Conn) -> VirtualRunOut:
-    """Начать виртуальное участие: личный таймер той же длительности, что у официальной олимпиады."""
+async def start_virtual(olympiad_id: int, user: User, conn: Conn, data: VirtualStartIn | None = None) -> VirtualRunOut:
+    """Начать виртуальное участие: личный таймер той же длительности, что у официальной олимпиады.
+
+    Старт можно отложить на delay_minutes (не больше предела из настроек администратора, максимум час).
+    """
+    delay = data.delay_minutes if data else 0
+    limit = (await settings_service.load(conn)).virtual_start_max_minutes
+    if delay > limit:
+        raise HTTPException(422, detail=f"Отложить старт можно не больше чем на {limit} мин")
     olympiad = await _finished_for_virtual(conn, olympiad_id, user)
     if _can_manage(olympiad, user) or olympiad["is_jury"]:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Организатор и жюри не участвуют в этой олимпиаде")
     if olympiad["is_registered"]:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Вы участвовали в этой олимпиаде официально")
     duration = olympiad["ends_at"] - olympiad["starts_at"]
-    if await conn.fetchval(q.START_RUN, olympiad_id, user.id, duration) is None:
+    if await conn.fetchval(q.START_RUN, olympiad_id, user.id, duration, timedelta(minutes=delay)) is None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Вы уже участвовали в этой олимпиаде виртуально")
     return await _run_out(conn, olympiad, await conn.fetchrow(q.GET_RUN, olympiad_id, user.id))
 
@@ -846,7 +923,8 @@ async def submit_virtual(
     olympiad = await _finished_for_virtual(conn, olympiad_id, user)
     run = await conn.fetchrow(q.GET_RUN, olympiad_id, user.id)
     if run is None or not run["active"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Виртуальное участие не идёт")
+        detail = "Виртуальное участие ещё не началось" if run and run["scheduled"] else "Виртуальное участие не идёт"
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=detail)
     task = await conn.fetchrow(q.GET_TASK, task_id, olympiad_id)
     if task is None:
         raise not_found("Задача")
@@ -868,6 +946,14 @@ async def finish_virtual(olympiad_id: int, user: User, conn: Conn) -> VirtualRun
         raise not_found("Виртуальное участие")
     await conn.execute(q.FINISH_RUN, run["id"])
     return await _run_out(conn, olympiad, await conn.fetchrow(q.GET_RUN, olympiad_id, user.id))
+
+
+@router.delete("/{olympiad_id}/virtual", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_virtual(olympiad_id: int, user: User, conn: Conn) -> None:
+    """Отменить отложенный старт, пока он не наступил."""
+    run = await conn.fetchrow(q.GET_RUN, olympiad_id, user.id)
+    if run is None or await conn.fetchval(q.CANCEL_RUN, run["id"]) is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Отменить можно только участие, которое ещё не началось")
 
 
 @router.get("/{olympiad_id}/virtual/standings")

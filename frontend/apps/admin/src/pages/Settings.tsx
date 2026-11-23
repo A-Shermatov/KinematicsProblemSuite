@@ -110,6 +110,31 @@ export function Settings() {
                     error={form.password_min_length < 6 || form.password_min_length > 32 ? "От 6 до 32 символов" : null}
                   />
                 </div>
+                <div className="space-y-1 border-t border-border pt-5">
+                  <h2 className="font-semibold text-fg">Олимпиады</h2>
+                  <p className="text-sm text-muted">У каждого уровня свой предел длительности (в «Уровнях олимпиад» ниже); здесь — для олимпиад без уровня.</p>
+                </div>
+                <div className="grid max-w-xl gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Олимпиада без уровня — не дольше, мин"
+                    type="number"
+                    min={15}
+                    max={1440}
+                    value={form.olympiad_max_duration_minutes}
+                    onChange={(e) => setForm({ ...form, olympiad_max_duration_minutes: Number(e.target.value) })}
+                    error={form.olympiad_max_duration_minutes < 15 || form.olympiad_max_duration_minutes > 1440 ? "От 15 до 1440 минут" : null}
+                  />
+                  <Input
+                    label="Отложить виртуальный старт — до, мин"
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={form.virtual_start_max_minutes}
+                    onChange={(e) => setForm({ ...form, virtual_start_max_minutes: Number(e.target.value) })}
+                    hint="0 — только сразу; максимум 60"
+                    error={form.virtual_start_max_minutes < 0 || form.virtual_start_max_minutes > 60 ? "От 0 до 60 минут" : null}
+                  />
+                </div>
                 <label className="flex items-start gap-3 text-sm text-fg">
                   <input
                     type="checkbox"
@@ -171,7 +196,7 @@ function RatingCard() {
   );
 }
 
-const EMPTY_LEVEL: OlympiadLevelInput = { title: "", description: "", min_rating: null, max_rating: null, position: 0 };
+const EMPTY_LEVEL: OlympiadLevelInput = { title: "", description: "", min_rating: null, max_rating: null, position: 0, max_duration_minutes: 180 };
 const numberOrNull = (value: string) => (value.trim() === "" ? null : Number(value));
 
 /** Уровни олимпиад (как Div. 1/2/3 на Codeforces): учитель выбирает уровень при создании олимпиады. */
@@ -237,6 +262,7 @@ function LevelsCard() {
               {level.description && <p className="text-xs text-muted">{level.description}</p>}
             </div>
             <span className="font-mono text-xs text-fg">{levelRange(level.min_rating, level.max_rating) || "любой рейтинг"}</span>
+            <span className="text-xs text-muted">⏱ {level.max_duration_minutes ? `до ${level.max_duration_minutes} мин` : "общий предел"}</span>
             <Button size="sm" variant="ghost" onClick={() => open(level)}>
               Изменить
             </Button>
@@ -261,6 +287,18 @@ function LevelsCard() {
               placeholder="без границы"
             />
             <Input label="Порядок" type="number" min={0} value={form.position} onChange={(e) => setForm({ ...form, position: Number(e.target.value) })} />
+          </div>
+          <div className="max-w-xs">
+            <Input
+              label="Олимпиада длится не дольше, мин"
+              type="number"
+              min={15}
+              max={1440}
+              value={form.max_duration_minutes ?? ""}
+              onChange={(e) => setForm({ ...form, max_duration_minutes: numberOrNull(e.target.value) })}
+              placeholder="общий предел"
+              error={form.max_duration_minutes !== null && (form.max_duration_minutes < 15 || form.max_duration_minutes > 1440) ? "От 15 до 1440 минут" : null}
+            />
           </div>
           <Input label="Описание" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={300} placeholder="Для кого этот уровень" />
           {message && <ErrorMessage>{message}</ErrorMessage>}

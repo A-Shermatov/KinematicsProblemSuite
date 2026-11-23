@@ -69,6 +69,9 @@ class OlympiadOut(BaseModel):
     is_official: bool | None = None
     # Зритель в жюри этой олимпиады: проверяет решения, участвовать не может.
     is_jury: bool = False
+    # Зрителя пригласили в жюри, ответа ещё нет.
+    jury_invited: bool = False
+    level_max_duration_minutes: int | None = None
     created_at: datetime
 
 
@@ -130,15 +133,18 @@ class OlympiadTaskOut(BaseModel):
     is_original: bool = False
 
     @classmethod
-    def from_row(cls, row: Any, *, reveal: bool, lang: Lang = DEFAULT_LANG, manage: bool = False) -> OlympiadTaskOut:
+    def from_row(
+        cls, row: Any, *, reveal: bool, lang: Lang = DEFAULT_LANG, manage: bool = False, show_answer: bool | None = None
+    ) -> OlympiadTaskOut:
         # Организатору — русский оригинал и переводы отдельно (для редактора), остальным — перевод с фолбэком.
         data = localize(row, DEFAULT_LANG if manage else lang, keep_translations=manage)
         data["source_author"] = data.get("source_author") or ""
         if data.get("is_original") and not data.get("source_type"):
             data["source_type"] = "own"
-        if not reveal:
+        if not (reveal if show_answer is None else show_answer):
             data["answer"] = None
             data["tolerance"] = None
+        if not reveal:
             # Источник и сложность до итогов скрыты: по источнику легко найти решение.
             for key in ("difficulty", "source_id", "source_type", "source_title", "source_year", "source_number"):
                 data[key] = None
@@ -178,9 +184,11 @@ class SubmissionOut(BaseModel):
     task_unit: str | None
 
     @classmethod
-    def from_row(cls, row: Any, *, reveal: bool) -> SubmissionOut:
+    def from_row(cls, row: Any, *, reveal: bool, show_answer: bool = True) -> SubmissionOut:
         data = dict(row)
         data["image_url"] = public_url(data.pop("image_path")) or ""
+        if not show_answer:
+            data["correct_answer"] = None
         if not reveal:
             # До публикации итогов участник не видит ни эталон, ни результат автопроверки.
             data["correct_answer"] = None
@@ -221,6 +229,8 @@ class VirtualRunOut(BaseModel):
     started_at: datetime
     ends_at: datetime
     active: bool
+    # Старт отложен и ещё не наступил.
+    scheduled: bool = False
     submissions: list[VirtualSubmissionOut]
     total: int | None
     max_score: int
@@ -232,8 +242,14 @@ class VirtualAnswerIn(BaseModel):
     answer: str = Field(min_length=1, max_length=500)
 
 
+class VirtualStartIn(BaseModel):
+    delay_minutes: int = Field(default=0, ge=0, le=60)
+
+
 class LevelIn(BaseModel):
     title: str = Field(min_length=2, max_length=60)
+    # Предел длительности олимпиады этого уровня; None — общий предел из настроек.
+    max_duration_minutes: int | None = Field(default=None, ge=15, le=1440)
     description: str = Field(default="", max_length=300)
     min_rating: int | None = Field(default=None, ge=0, le=5000)
     max_rating: int | None = Field(default=None, ge=1, le=5000)
@@ -278,4 +294,13 @@ class EditorialIn(BaseModel):
 
 
 class JuryMemberIn(BaseModel):
-    username: str = Field(min_length=1, max_length=50)
+    """Кого пригласить: id из выпадающего списка или логин."""
+
+    user_id: int | None = None
+    username: str | None = Field(default=None, min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def one_of(self) -> JuryMemberIn:
+        if self.user_id is None and not self.username:
+            raise ValueError("Выберите учителя")
+        return self

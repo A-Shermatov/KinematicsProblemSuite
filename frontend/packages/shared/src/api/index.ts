@@ -20,6 +20,8 @@ import type {
   PlaceInput,
   AdminSettings,
   JuryMember,
+  JuryCandidate,
+  JuryInvitation,
   OlympiadEditorial,
   ArchiveProblem,
   ArchiveQuery,
@@ -256,8 +258,12 @@ export const api = {
     saveEditorial: (id: number, data: { text: string; solutions: Record<number, string> }) =>
       request<{ saved: boolean }>(`/api/olympiads/${id}/editorial`, { method: "PUT", json: data }),
     juryMembers: (id: number) => request<JuryMember[]>(`/api/olympiads/${id}/jury-members`),
-    addJury: (id: number, username: string) =>
-      request<JuryMember[]>(`/api/olympiads/${id}/jury-members`, { method: "POST", json: { username } }),
+    addJury: (id: number, who: { user_id?: number; username?: string }) =>
+      request<JuryMember[]>(`/api/olympiads/${id}/jury-members`, { method: "POST", json: who }),
+    juryCandidates: (id: number, q?: string) => request<JuryCandidate[]>(`/api/olympiads/${id}/jury-candidates`, { query: { q } }),
+    myJuryInvitations: () => request<JuryInvitation[]>("/api/olympiads/jury-invitations/mine"),
+    acceptJury: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/jury-invitation/accept`, { method: "POST" }),
+    declineJury: (id: number) => request<void>(`/api/olympiads/${id}/jury-invitation/decline`, { method: "POST" }),
     removeJury: (id: number, userId: number) => request<void>(`/api/olympiads/${id}/jury-members/${userId}`, { method: "DELETE" }),
     levels: () => request<OlympiadLevel[]>("/api/olympiads/levels", { auth: false }),
     finish: (id: number) => request<OlympiadDetail>(`/api/olympiads/${id}/finish`, { method: "POST" }),
@@ -290,7 +296,9 @@ export const api = {
       request<OlympiadAttempt[]>(`/api/olympiads/${id}/attempts`, { query }),
     myHistory: (id: number) => request<OlympiadHistoryItem[]>(`/api/olympiads/${id}/my-history`),
     virtual: (id: number) => request<VirtualRun | null>(`/api/olympiads/${id}/virtual`),
-    startVirtual: (id: number) => request<VirtualRun>(`/api/olympiads/${id}/virtual`, { method: "POST" }),
+    startVirtual: (id: number, delayMinutes = 0) =>
+      request<VirtualRun>(`/api/olympiads/${id}/virtual`, { method: "POST", json: { delay_minutes: delayMinutes } }),
+    cancelVirtual: (id: number) => request<void>(`/api/olympiads/${id}/virtual`, { method: "DELETE" }),
     submitVirtual: (id: number, taskId: number, answer: string) =>
       request<VirtualRun>(`/api/olympiads/${id}/virtual/tasks/${taskId}`, { method: "POST", json: { answer } }),
     finishVirtual: (id: number) => request<VirtualRun>(`/api/olympiads/${id}/virtual/finish`, { method: "POST" }),

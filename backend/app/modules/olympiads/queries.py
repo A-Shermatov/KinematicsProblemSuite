@@ -15,6 +15,7 @@ EDITORIAL_DELAY = "interval '24 hours'"
 _COLUMNS = f"""
 o.id, o.title, o.description, o.subject_id, s.title AS subject_title,
 o.level_id, lv.title AS level_title, lv.min_rating AS level_min_rating, lv.max_rating AS level_max_rating,
+lv.max_duration_minutes AS level_max_duration_minutes,
 o.organizer_id, trim(u.first_name || ' ' || u.last_name) AS organizer_name,
 o.starts_at, o.ends_at, o.status, o.reject_reason, o.results_published, o.created_at,
 {PHASE} AS phase,
@@ -36,7 +37,10 @@ LEFT JOIN olympiad_levels lv ON lv.id = o.level_id
 _VIEWER = """
 EXISTS (SELECT 1 FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_registered,
 (SELECT p.official FROM olympiad_participants p WHERE p.olympiad_id = o.id AND p.user_id = $2) AS is_official,
-EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $2) AS is_jury
+EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $2 AND j.status = 'accepted')
+    AS is_jury,
+EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $2 AND j.status = 'pending')
+    AS jury_invited
 """
 
 # $1 этап (NULL — все), $2 id зрителя, $3 уровень (NULL — все).
@@ -54,9 +58,11 @@ LIMIT 100
 # Олимпиады учителя: свои и те, где он в жюри.
 LIST_BY_ORGANIZER = f"""
 SELECT {_COLUMNS}, FALSE AS is_registered, NULL::boolean AS is_official,
-       EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $1) AS is_jury
+       EXISTS (SELECT 1 FROM olympiad_jury j
+               WHERE j.olympiad_id = o.id AND j.user_id = $1 AND j.status = 'accepted') AS is_jury
 {_FROM}
-WHERE o.organizer_id = $1 OR EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $1)
+WHERE o.organizer_id = $1
+   OR EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = o.id AND j.user_id = $1 AND j.status = 'accepted')
 ORDER BY o.starts_at DESC
 """
 
@@ -86,6 +92,14 @@ UPDATE olympiads
 SET title = $2, description = $3, subject_id = $4, starts_at = $5, ends_at = $6, level_id = $7,
     status = 'draft', reject_reason = '', updated_at = now()
 WHERE id = $1 AND status IN ('draft', 'rejected')
+RETURNING id
+"""
+
+# Админ правит олимпиаду в любом статусе — статус (например, «опубликована») не меняется.
+ADMIN_UPDATE = """
+UPDATE olympiads
+SET title = $2, description = $3, subject_id = $4, starts_at = $5, ends_at = $6, level_id = $7, updated_at = now()
+WHERE id = $1
 RETURNING id
 """
 
@@ -315,18 +329,27 @@ ORDER BY sc.total DESC, sc.penalty, NOT sc.official, u.id
 
 # ---------- Виртуальное участие ----------
 
-RUN_COLUMNS = "r.id, r.olympiad_id, r.user_id, r.started_at, r.ends_at, (now() < r.ends_at) AS active"
+# Старт можно отложить: до started_at участие «запланировано» (scheduled), затем идёт (active).
+RUN_COLUMNS = """
+r.id, r.olympiad_id, r.user_id, r.started_at, r.ends_at,
+(now() >= r.started_at AND now() < r.ends_at) AS active, (now() < r.started_at) AS scheduled
+"""
 
 GET_RUN = f"SELECT {RUN_COLUMNS} FROM olympiad_virtual_runs r WHERE r.olympiad_id = $1 AND r.user_id = $2"
 
 START_RUN = """
-INSERT INTO olympiad_virtual_runs (olympiad_id, user_id, ends_at)
-VALUES ($1, $2, now() + $3::interval)
+INSERT INTO olympiad_virtual_runs (olympiad_id, user_id, started_at, ends_at)
+VALUES ($1, $2, now() + $4::interval, now() + $4::interval + $3::interval)
 ON CONFLICT (olympiad_id, user_id) DO NOTHING
 RETURNING id
 """
 
-FINISH_RUN = "UPDATE olympiad_virtual_runs SET ends_at = now() WHERE id = $1 AND ends_at > now() RETURNING id"
+FINISH_RUN = """
+UPDATE olympiad_virtual_runs SET ends_at = now()
+WHERE id = $1 AND started_at <= now() AND ends_at > now()
+RETURNING id
+"""
+CANCEL_RUN = "DELETE FROM olympiad_virtual_runs WHERE id = $1 AND started_at > now() RETURNING id"
 
 UPSERT_VIRTUAL_SUBMISSION = """
 INSERT INTO olympiad_virtual_submissions (run_id, task_id, answer, correct, points)
@@ -379,15 +402,17 @@ SELECT (1 + count(*))::int FROM official WHERE total > $2
 
 # ---------- Уровни ----------
 
-LEVEL_COLUMNS = "id, title, description, min_rating, max_rating, position"
+LEVEL_COLUMNS = "id, title, description, min_rating, max_rating, position, max_duration_minutes"
 LIST_LEVELS = f"SELECT {LEVEL_COLUMNS} FROM olympiad_levels ORDER BY position, id"
 GET_LEVEL = f"SELECT {LEVEL_COLUMNS} FROM olympiad_levels WHERE id = $1"
 INSERT_LEVEL = f"""
-INSERT INTO olympiad_levels (title, description, min_rating, max_rating, position) VALUES ($1, $2, $3, $4, $5)
+INSERT INTO olympiad_levels (title, description, min_rating, max_rating, position, max_duration_minutes)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING {LEVEL_COLUMNS}
 """
 UPDATE_LEVEL = f"""
-UPDATE olympiad_levels SET title = $2, description = $3, min_rating = $4, max_rating = $5, position = $6
+UPDATE olympiad_levels
+SET title = $2, description = $3, min_rating = $4, max_rating = $5, position = $6, max_duration_minutes = $7
 WHERE id = $1
 RETURNING {LEVEL_COLUMNS}
 """
@@ -458,11 +483,54 @@ LIMIT $9 OFFSET $10
 # ---------- Состав жюри ----------
 
 JURY_MEMBERS = """
-SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, j.added_at
+SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path, j.added_at,
+       j.status
 FROM olympiad_jury j JOIN users u ON u.id = j.user_id
 WHERE j.olympiad_id = $1
 ORDER BY j.added_at
 """
 FIND_TEACHER = "SELECT id, role FROM users WHERE lower(username) = lower($1) AND is_active"
-ADD_JURY = "INSERT INTO olympiad_jury (olympiad_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+# Приглашение: член жюри появится, когда учитель примет его.
+ADD_JURY = """
+INSERT INTO olympiad_jury (olympiad_id, user_id, status, invited_by) VALUES ($1, $2, 'pending', $3)
+ON CONFLICT DO NOTHING
+RETURNING user_id
+"""
+ACCEPT_JURY = """
+UPDATE olympiad_jury SET status = 'accepted', responded_at = now()
+WHERE olympiad_id = $1 AND user_id = $2 AND status = 'pending'
+RETURNING user_id
+"""
+DECLINE_JURY = (
+    "DELETE FROM olympiad_jury WHERE olympiad_id = $1 AND user_id = $2 AND status = 'pending' RETURNING user_id"
+)
+
+# Приглашения учителя в жюри, ждущие ответа.
+MY_JURY_INVITATIONS = """
+SELECT o.id AS olympiad_id, o.title, o.starts_at, o.ends_at, j.added_at AS invited_at,
+       trim(org.first_name || ' ' || org.last_name) AS organizer_name, org.username AS organizer_username
+FROM olympiad_jury j
+JOIN olympiads o ON o.id = j.olympiad_id
+JOIN users org ON org.id = o.organizer_id
+WHERE j.user_id = $1 AND j.status = 'pending' AND (o.results_published IS NOT TRUE)
+ORDER BY o.starts_at
+"""
+
+# Кого можно пригласить: активные учителя (кроме организатора, жюри и участников) с предметами их задач.
+JURY_CANDIDATES = """
+SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
+       COALESCE((SELECT array_agg(DISTINCT s.title ORDER BY s.title)
+                 FROM tasks t JOIN themes th ON th.id = t.theme_id JOIN subjects s ON s.id = th.subject_id
+                 WHERE t.author_id = u.id AND t.is_active), '{}') AS subjects,
+       (SELECT count(*) FROM tasks t WHERE t.author_id = u.id AND t.is_active)::int AS tasks
+FROM users u
+WHERE u.role = 'teacher' AND u.is_active AND u.id <> $2
+  AND NOT EXISTS (SELECT 1 FROM olympiad_jury j WHERE j.olympiad_id = $1 AND j.user_id = u.id)
+  AND NOT EXISTS (SELECT 1 FROM olympiad_participants p WHERE p.olympiad_id = $1 AND p.user_id = u.id)
+  AND ($3::text IS NULL OR u.username ILIKE '%' || $3 || '%' OR u.first_name ILIKE '%' || $3 || '%'
+       OR u.last_name ILIKE '%' || $3 || '%')
+ORDER BY tasks DESC, u.last_name, u.first_name
+LIMIT 20
+"""
+GET_USER_BRIEF = "SELECT id, role FROM users WHERE id = $1 AND is_active"
 REMOVE_JURY = "DELETE FROM olympiad_jury WHERE olympiad_id = $1 AND user_id = $2 RETURNING user_id"

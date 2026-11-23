@@ -143,6 +143,15 @@ export function Olympiads() {
                 <Button size="sm" variant={olympiad.status === "pending" ? "primary" : "secondary"} onClick={() => setOpened(olympiad)}>
                   {olympiad.status === "pending" ? "Проверить" : "Открыть"}
                 </Button>
+                <a
+                  href={`${PUBLIC_URL}/manage/olympiads/${olympiad.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-8 items-center rounded-xl border border-border px-3 text-sm text-fg hover:bg-surface-2"
+                  title="Изменить название, время, описание и задачи"
+                >
+                  Изменить ↗
+                </a>
                 {olympiad.status === "published" && olympiad.phase !== "upcoming" && (
                   <a href={`${PUBLIC_URL}/manage/olympiads/${olympiad.id}/jury`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-xl border border-border px-3 text-sm text-fg hover:bg-surface-2">
                     Жюри ↗

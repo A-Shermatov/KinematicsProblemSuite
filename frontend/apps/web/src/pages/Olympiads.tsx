@@ -40,6 +40,7 @@ import {
   UntranslatedNote,
   intlLocale,
   levelRange,
+  usePlatformSettings,
   formatSource,
 } from "@kps/shared";
 import { OlympiadStandingsTable } from "../components/OlympiadStandings";
@@ -306,14 +307,22 @@ function VirtualAnswerForm({ olympiadId, task, saved, onSaved }: { olympiadId: n
   );
 }
 
+const DELAYS = [0, 5, 10, 15, 30, 45, 60];
+
 function VirtualStartCard({ olympiad, onStarted }: { olympiad: OlympiadDetail; onStarted: (run: VirtualRun) => void }) {
   const [busy, setBusy] = useState(false);
+  const { settings } = usePlatformSettings();
+  const delays = DELAYS.filter((minutes) => minutes <= settings.virtual_start_max_minutes);
+  const [delay, setDelay] = useState(0);
   const duration = formatDuration(new Date(olympiad.ends_at).getTime() - new Date(olympiad.starts_at).getTime());
   const start = async () => {
-    if (!window.confirm(t("Таймер на {0} запустится сразу и не остановится. Начать?", [duration]))) return;
+    const question = delay
+      ? t("Таймер на {0} запустится через {1} мин и не остановится. Запланировать?", [duration, delay])
+      : t("Таймер на {0} запустится сразу и не остановится. Начать?", [duration]);
+    if (!window.confirm(question)) return;
     setBusy(true);
     try {
-      onStarted(await api.olympiads.startVirtual(olympiad.id));
+      onStarted(await api.olympiads.startVirtual(olympiad.id, delay));
     } catch (err) {
       window.alert(errorText(err));
     } finally {
@@ -331,8 +340,86 @@ function VirtualStartCard({ olympiad, onStarted }: { olympiad: OlympiadDetail; o
           {t("Личный таймер на")} {duration}{t(", как у участников. Только ответы, без фото — проверка автоматическая. Ответы и итоги скроются, пока идёт ваше время. На официальные места, дипломы и рейтинг не влияет.")}
         </p>
       </div>
-      <Button onClick={start} loading={busy} size="lg">
-        {t("Решить виртуально")}
+      <div className="flex flex-wrap items-center gap-2">
+        {delays.length > 1 && (
+          <select
+            value={delay}
+            onChange={(e) => setDelay(Number(e.target.value))}
+            className="h-11 rounded-xl border border-border bg-surface px-3 text-sm text-fg"
+            aria-label={t("Когда начать")}
+          >
+            {delays.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes ? t("через {0} мин", [minutes]) : t("сразу")}
+              </option>
+            ))}
+          </select>
+        )}
+        <Button onClick={start} loading={busy} size="lg">
+          {delay ? t("Запланировать") : t("Решить виртуально")}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+/** Отложенный виртуальный старт: обратный отсчёт и отмена, пока время не наступило. */
+function VirtualScheduledCard({ olympiad, run, onChanged }: { olympiad: OlympiadDetail; run: VirtualRun; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const cancel = async () => {
+    setBusy(true);
+    try {
+      await api.olympiads.cancelVirtual(olympiad.id);
+      onChanged();
+    } catch (err) {
+      window.alert(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="flex flex-wrap items-center gap-5 border-warning/40 bg-warning-soft/40 p-5">
+      <span className="text-4xl" aria-hidden>
+        ⏳
+      </span>
+      <div className="min-w-[14rem] flex-1">
+        <p className="font-semibold text-fg">{t("Виртуальное участие запланировано")}</p>
+        <p className="text-sm text-muted">{t("Старт {0}. Таймер запустится сам — приготовьте бумагу и ручку.", [formatDateTime(run.started_at)])}</p>
+      </div>
+      <Countdown to={run.started_at} label={t("До старта")} />
+      <Button variant="ghost" onClick={cancel} loading={busy}>
+        {t("Отменить")}
+      </Button>
+    </Card>
+  );
+}
+
+/** Приглашение в жюри этой олимпиады — принять или отклонить прямо здесь. */
+function JuryInviteCard({ olympiad, onDone }: { olympiad: OlympiadDetail; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const respond = async (accept: boolean) => {
+    setBusy(true);
+    try {
+      if (accept) await api.olympiads.acceptJury(olympiad.id);
+      else await api.olympiads.declineJury(olympiad.id);
+      onDone();
+    } catch (err) {
+      window.alert(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="flex flex-wrap items-center gap-4 border-primary/40 bg-primary-soft/40 p-5">
+      <span className="text-3xl" aria-hidden>
+        ⚖️
+      </span>
+      <p className="min-w-[14rem] flex-1 text-sm text-fg">{t("Организатор пригласил вас в жюри этой олимпиады. Жюри проверяет решения и не может участвовать.")}</p>
+      <Button size="sm" onClick={() => respond(true)} loading={busy}>
+        {t("Принять")}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => respond(false)} disabled={busy}>
+        {t("Отклонить")}
       </Button>
     </Card>
   );
@@ -461,7 +548,8 @@ export function OlympiadPage() {
   const phaseChanged =
     (olympiad.phase === "upcoming" && now >= new Date(olympiad.starts_at).getTime()) ||
     (olympiad.phase === "running" && now >= new Date(olympiad.ends_at).getTime()) ||
-    (virtualActive && now >= new Date(run!.ends_at).getTime());
+    (virtualActive && now >= new Date(run!.ends_at).getTime()) ||
+    (!!run?.scheduled && now >= new Date(run.started_at).getTime());
 
   const finishEarly = async () => {
     if (!window.confirm(t("Завершить олимпиаду сейчас? Отправка решений закроется для всех, начнётся проверка жюри."))) return;
@@ -581,7 +669,7 @@ export function OlympiadPage() {
       {phaseChanged && (
         <Card className="flex flex-wrap items-center gap-4 border-primary/40 bg-primary-soft p-4">
           <p className="flex-1 text-sm text-fg">
-            {olympiad.phase === "upcoming" ? t("Олимпиада началась!") : virtualActive ? t("Ваше время вышло — посмотрите результат.") : t("Время вышло — олимпиада завершена.")}
+            {run?.scheduled ? t("Ваше виртуальное участие началось!") : olympiad.phase === "upcoming" ? t("Олимпиада началась!") : virtualActive ? t("Ваше время вышло — посмотрите результат.") : t("Время вышло — олимпиада завершена.")}
           </p>
           <Button size="sm" onClick={reload}>
             {t("Обновить")}
@@ -589,8 +677,10 @@ export function OlympiadPage() {
         </Card>
       )}
 
+      {olympiad.jury_invited && <JuryInviteCard olympiad={olympiad} onDone={reload} />}
       {canVirtual && <VirtualStartCard olympiad={olympiad} onStarted={setRun} />}
-      {run && !run.active && <VirtualResultCard run={run} />}
+      {run?.scheduled && <VirtualScheduledCard olympiad={olympiad} run={run} onChanged={reload} />}
+      {run && !run.active && !run.scheduled && <VirtualResultCard run={run} />}
 
       {myRow && !virtualActive && (
         <Card className="flex flex-wrap items-center gap-4 border-primary/30 p-5">
@@ -869,7 +959,8 @@ export function OlympiadStandingsTab() {
 /** Вкладка «Разбор» — через сутки после окончания. */
 export function OlympiadEditorialPage() {
   const { olympiad, virtualActive } = useOlympiad();
-  return <EditorialTab olympiad={olympiad} virtualActive={virtualActive} />;
+  const { run } = useOlympiad();
+  return <EditorialTab olympiad={olympiad} virtualActive={virtualActive || !!run?.scheduled} />;
 }
 
 /** Вкладка «Мои отправки» — все попытки, как «Мои посылки» на Codeforces. */

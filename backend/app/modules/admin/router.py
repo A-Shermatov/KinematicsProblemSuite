@@ -255,7 +255,13 @@ async def recompute_rating(conn: Conn) -> dict[str, int]:
 @router.post("/olympiad-levels", response_model=LevelOut, status_code=status.HTTP_201_CREATED)
 async def create_level(data: LevelIn, conn: Conn) -> LevelOut:
     row = await conn.fetchrow(
-        olympiads_q.INSERT_LEVEL, data.title, data.description, data.min_rating, data.max_rating, data.position
+        olympiads_q.INSERT_LEVEL,
+        data.title,
+        data.description,
+        data.min_rating,
+        data.max_rating,
+        data.position,
+        data.max_duration_minutes,
     )
     return LevelOut(**dict(row))
 
@@ -270,6 +276,7 @@ async def update_level(level_id: int, data: LevelIn, conn: Conn) -> LevelOut:
         data.min_rating,
         data.max_rating,
         data.position,
+        data.max_duration_minutes,
     )
     if row is None:
         raise not_found("Уровень")

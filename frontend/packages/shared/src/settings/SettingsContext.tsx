@@ -7,6 +7,8 @@ const DEFAULT: PlatformSettings = {
   difficulty_levels: [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],
   password_min_length: 8,
   show_country_field: false,
+  olympiad_max_duration_minutes: 240,
+  virtual_start_max_minutes: 60,
 };
 
 interface SettingsState {

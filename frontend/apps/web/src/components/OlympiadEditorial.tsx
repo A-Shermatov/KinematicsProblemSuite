@@ -118,13 +118,16 @@ export function EditorialTab({ olympiad, virtualActive }: { olympiad: OlympiadDe
               <h3 className="text-lg font-semibold text-fg">
                 {task.label}. {task.title}
               </h3>
-              <span className="text-sm text-muted">
-                {t("Ответ:")}{" "}
-                <span className="font-mono text-fg">
-                  {task.answer}
-                  {task.unit ? ` ${task.unit}` : ""}
+              {/* Ответ видят только организатор и жюри; ученикам — разбор без отдельной строки ответа. */}
+              {task.answer && (
+                <span className="text-sm text-muted">
+                  {t("Ответ:")}{" "}
+                  <span className="font-mono text-fg">
+                    {task.answer}
+                    {task.unit ? ` ${task.unit}` : ""}
+                  </span>
                 </span>
-              </span>
+              )}
             </div>
             {task.solution ? <Markdown source={task.solution} /> : <p className="text-sm text-muted">{t("Разбора этой задачи нет.")}</p>}
           </Card>

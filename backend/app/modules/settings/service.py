@@ -25,6 +25,10 @@ class PlatformSettings(BaseModel):
     password_min_length: int = Field(default=8, ge=6, le=32)
     # Показывать поле «Страна» в регистрации; иначе страна — Таджикистан.
     show_country_field: bool = False
+    # Предел длительности олимпиады без уровня (у уровней — свой предел).
+    olympiad_max_duration_minutes: int = Field(default=240, ge=15, le=1440)
+    # Насколько можно отложить старт виртуального участия (не больше часа).
+    virtual_start_max_minutes: int = Field(default=60, ge=0, le=60)
 
     @field_validator("difficulty_max")
     @classmethod

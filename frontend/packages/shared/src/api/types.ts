@@ -431,6 +431,10 @@ export interface Olympiad {
   is_official: boolean | null;
   /** Зритель в жюри: проверяет решения, участвовать не может. */
   is_jury: boolean;
+  /** Зрителя пригласили в жюри — ждём ответа. */
+  jury_invited: boolean;
+  /** Предел длительности для уровня олимпиады (мин). */
+  level_max_duration_minutes: number | null;
   created_at: string;
 }
 
@@ -442,6 +446,8 @@ export interface OlympiadLevel {
   min_rating: number | null;
   max_rating: number | null;
   position: number;
+  /** Предел длительности олимпиады этого уровня (мин); null — общий из настроек. */
+  max_duration_minutes: number | null;
 }
 
 export type OlympiadLevelInput = Omit<OlympiadLevel, "id">;
@@ -562,6 +568,8 @@ export interface VirtualRun {
   started_at: string;
   ends_at: string;
   active: boolean;
+  /** Старт отложен и ещё не наступил. */
+  scheduled: boolean;
   submissions: VirtualSubmission[];
   total: number | null;
   max_score: number;
@@ -604,6 +612,10 @@ export interface AdminSettings {
   difficulty_max: number;
   password_min_length: number;
   show_country_field: boolean;
+  /** Предел длительности олимпиады без уровня (мин). */
+  olympiad_max_duration_minutes: number;
+  /** Насколько можно отложить старт виртуального участия (мин, до 60). */
+  virtual_start_max_minutes: number;
 }
 
 export interface PlatformSettings extends AdminSettings {
@@ -855,7 +867,8 @@ export type ArchiveQuery = {
 export interface OlympiadEditorial {
   available_at: string;
   text: string;
-  tasks: { id: number; label: string; title: string; answer: string; unit: string | null; max_points: number; solution: string }[];
+  /** answer — только организатору и жюри. */
+  tasks: { id: number; label: string; title: string; answer: string | null; unit: string | null; max_points: number; solution: string }[];
 }
 
 export interface JuryMember {
@@ -864,4 +877,26 @@ export interface JuryMember {
   name: string;
   avatar_url: string | null;
   added_at: string;
+  /** pending — приглашён, ждём ответа; accepted — в жюри. */
+  status: "pending" | "accepted";
+}
+
+/** Учитель для выпадающего списка «Пригласить в жюри». */
+export interface JuryCandidate {
+  user_id: number;
+  username: string;
+  name: string;
+  avatar_url: string | null;
+  subjects: string[];
+  tasks: number;
+}
+
+export interface JuryInvitation {
+  olympiad_id: number;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  invited_at: string;
+  organizer_name: string;
+  organizer_username: string;
 }

@@ -30,9 +30,10 @@ def test_virtual_participation(client: ApiClient) -> None:
     teacher, ali, oid, first, second = finished_olympiad(client)
     vali = client.student("vali")
 
-    # Пока не начал — участия нет, ответы в архиве видны.
+    # Пока не начал — участия нет. Правильный ответ ученикам не показывается никогда (разбор — да).
     assert client.get(f"/api/olympiads/{oid}/virtual", vali).json() is None
-    assert client.get(f"/api/olympiads/{oid}", vali).json()["tasks"][0]["answer"] == "20"
+    assert client.get(f"/api/olympiads/{oid}", vali).json()["tasks"][0]["answer"] is None
+    assert client.get(f"/api/olympiads/{oid}", teacher).json()["tasks"][0]["answer"] == "20"
 
     # Организатор и официальные участники виртуально не участвуют.
     assert client.post(f"/api/olympiads/{oid}/virtual", teacher).status_code == 403
@@ -63,9 +64,10 @@ def test_virtual_participation(client: ApiClient) -> None:
     done = client.post(f"/api/olympiads/{oid}/virtual/finish", vali).json()
     assert done["active"] is False
     assert done["total"] == 15 and done["would_place"] == 1 and done["official_participants"] == 1
-    assert {s["correct_answer"] for s in done["submissions"]} == {"20", "72"}
+    assert {s["correct_answer"] for s in done["submissions"]} == {None}
+    assert {s["correct"] for s in done["submissions"]} == {True}
     assert client.post(f"{base}/{first['id']}", vali, json={"answer": "1"}).status_code == 409
-    assert client.get(f"/api/olympiads/{oid}", vali).json()["tasks"][0]["answer"] == "20"
+    assert client.get(f"/api/olympiads/{oid}", vali).json()["tasks"][0]["answer"] is None
 
     standings = client.get(f"/api/olympiads/{oid}/virtual/standings").json()
     assert [(r["username"], r["total"], r["would_place"]) for r in standings] == [("vali", 15, 1)]

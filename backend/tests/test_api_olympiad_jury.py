@@ -13,8 +13,23 @@ def test_jury_and_teacher_participants(client: ApiClient) -> None:
     assert client.post(members, author, json={"username": "nobody"}).status_code == 422
     assert client.post(members, judge, json={"username": "judge"}).status_code == 403  # только организатор
     added = client.post(members, author, json={"username": "@judge"})
-    assert added.status_code == 201 and [m["username"] for m in added.json()] == ["judge"]
+    assert added.status_code == 201 and [(m["username"], m["status"]) for m in added.json()] == [("judge", "pending")]
     publish(client, author, oid)
+
+    # Пока приглашение не принято, прав жюри нет.
+    invited = client.get(f"/api/olympiads/{oid}", judge).json()
+    assert (invited["is_jury"], invited["jury_invited"]) == (False, True)
+    assert client.get(f"/api/olympiads/{oid}/submissions", judge).status_code == 403
+    assert [i["olympiad_id"] for i in client.get("/api/olympiads/jury-invitations/mine", judge).json()] == [oid]
+    assert client.post(f"/api/olympiads/{oid}/jury-invitation/accept", judge).json()["is_jury"] is True
+    assert client.get("/api/olympiads/jury-invitations/mine", judge).json() == []
+    assert client.post(f"/api/olympiads/{oid}/jury-invitation/accept", judge).status_code == 404
+
+    # Выпадающий список: учителя с предметами их задач, без автора, жюри и участников.
+    client.task(coach, client.theme()["id"])
+    candidates = client.get(f"/api/olympiads/{oid}/jury-candidates", author).json()
+    assert [(c["username"], c["tasks"]) for c in candidates] == [("coach", 1)] and candidates[0]["subjects"]
+    assert client.get(f"/api/olympiads/{oid}/jury-candidates", coach).status_code == 403
 
     # Жюри видит условия и ответы заранее, олимпиада есть в его «Моих олимпиадах».
     seen = client.get(f"/api/olympiads/{oid}", judge).json()
