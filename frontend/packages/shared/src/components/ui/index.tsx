@@ -76,6 +76,9 @@ const fieldClass =
   "w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-fg placeholder:text-muted/70 " +
   "transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-[var(--ring)] disabled:opacity-60";
 
+/** Поле с ошибкой: красная рамка (и при фокусе тоже), aria-invalid — для экранных дикторов. */
+const invalidClass = "border-danger focus:border-danger focus:ring-danger/20";
+
 interface FieldWrapperProps {
   label?: string;
   hint?: ReactNode;
@@ -93,7 +96,13 @@ function FieldWrapper({ label, hint, error, id, children }: FieldWrapperProps) {
         </label>
       )}
       {children}
-      {error ? <p className="text-xs text-danger">{error}</p> : hint ? <p className="text-xs text-muted">{hint}</p> : null}
+      {error ? (
+        <p id={`${id}-error`} className="text-xs text-danger" role="alert">
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="text-xs text-muted">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -106,7 +115,14 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     const fieldId = id ?? autoId;
     return (
       <FieldWrapper label={label} hint={hint} error={error} id={fieldId}>
-        <input ref={ref} id={fieldId} className={cx(fieldClass, "h-11", className)} {...rest} />
+        <input
+          ref={ref}
+          id={fieldId}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${fieldId}-error` : undefined}
+          className={cx(fieldClass, "h-11", error && invalidClass, className)}
+          {...rest}
+        />
       </FieldWrapper>
     );
   },
@@ -118,7 +134,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
     const fieldId = id ?? autoId;
     return (
       <FieldWrapper label={label} hint={hint} error={error} id={fieldId}>
-        <textarea ref={ref} id={fieldId} className={cx(fieldClass, "py-2.5 leading-relaxed", className)} {...rest} />
+        <textarea
+          ref={ref}
+          id={fieldId}
+          aria-invalid={error ? true : undefined}
+          className={cx(fieldClass, "py-2.5 leading-relaxed", error && invalidClass, className)}
+          {...rest}
+        />
       </FieldWrapper>
     );
   },
@@ -137,7 +159,7 @@ export function Select({
   const fieldId = id ?? autoId;
   return (
     <FieldWrapper label={label} hint={hint} error={error} id={fieldId}>
-      <select id={fieldId} className={cx(fieldClass, "h-11 pr-8", className)} {...rest}>
+      <select id={fieldId} aria-invalid={error ? true : undefined} className={cx(fieldClass, "h-11 pr-8", error && invalidClass, className)} {...rest}>
         {children}
       </select>
     </FieldWrapper>

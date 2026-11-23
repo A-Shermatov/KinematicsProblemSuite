@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.modules.geo.countries import COUNTRY_CODES, DEFAULT_COUNTRY
 from app.storage import public_url
 
 Role = Literal["student", "teacher", "admin"]
@@ -20,6 +21,9 @@ class UserOut(BaseModel):
     role: Role
     is_active: bool
     avatar_url: str | None
+    country_code: str = "TJ"
+    region_id: int | None = None
+    region_name: str | None = None
     city: str | None
     school: str | None
     created_at: datetime
@@ -34,6 +38,9 @@ class UserOut(BaseModel):
             role=row["role"],
             is_active=row["is_active"],
             avatar_url=public_url(row["avatar_path"]),
+            country_code=row["country_code"],
+            region_id=row["region_id"],
+            region_name=row["region_name"],
             city=row["city"],
             school=row["school"],
             created_at=row["created_at"],
@@ -48,8 +55,10 @@ def clean_place(value: str | None) -> str | None:
 
 
 class LocationFields(BaseModel):
-    """Город и школа — необязательные: не только школьники могут учиться на платформе."""
+    """Страна (по умолчанию Таджикистан), область, город и школа. Всё, кроме страны, необязательно."""
 
+    country_code: str = DEFAULT_COUNTRY
+    region_id: int | None = None
     city: str | None = Field(default=None, max_length=60)
     school: str | None = Field(default=None, max_length=120)
 
@@ -57,6 +66,14 @@ class LocationFields(BaseModel):
     @classmethod
     def clean(cls, value: str | None) -> str | None:
         return clean_place(value)
+
+    @field_validator("country_code")
+    @classmethod
+    def country(cls, value: str) -> str:
+        value = value.strip().upper()
+        if value not in COUNTRY_CODES:
+            raise ValueError("Неизвестная страна")
+        return value
 
 
 class ProfileUpdate(LocationFields):
@@ -72,7 +89,8 @@ class ProfileUpdate(LocationFields):
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=8, max_length=72)
+    # Требования (длина из настроек, буква, цифра) проверяет роутер.
+    new_password: str = Field(min_length=1, max_length=72)
 
 
 class ActiveUpdate(BaseModel):

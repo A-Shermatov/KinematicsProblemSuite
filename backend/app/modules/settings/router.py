@@ -12,7 +12,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 @router.get("")
 async def public_settings(conn: Conn) -> dict[str, Any]:
-    """Публичные настройки, нужные интерфейсу: шкала сложности."""
+    """Публичные настройки, нужные интерфейсу: шкала сложности, требования к паролю, поле страны."""
     settings = await service.load(conn)
     return {
         **settings.model_dump(),

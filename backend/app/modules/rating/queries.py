@@ -58,7 +58,7 @@ counts AS (
     FROM rating_changes GROUP BY user_id
 )
 SELECT u.id AS user_id, u.username, trim(u.first_name || ' ' || u.last_name) AS name, u.avatar_path,
-       u.city, u.school, c.rating, k.max_rating, k.olympiads, k.gold, k.silver, k.bronze
+       u.city, u.school, u.country_code, c.rating, k.max_rating, k.olympiads, k.gold, k.silver, k.bronze
 FROM current c
 JOIN counts k USING (user_id)
 JOIN users u ON u.id = c.user_id AND u.is_active

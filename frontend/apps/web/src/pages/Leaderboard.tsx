@@ -18,6 +18,7 @@ import {
   t,
   TitleBadge,
   rankTextClass,
+  UserCell,
 } from "@kps/shared";
 
 type Tab = "students" | "olympiads" | "schools" | "cities";
@@ -165,11 +166,15 @@ export function Leaderboard() {
               <Rank rank={row.rank} />
               <Avatar src={row.avatar_url} name={row.name || row.username} size={40} />
               <div className="min-w-0 flex-1">
-                <p className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium text-fg">{row.name || row.username}</span>
-                  <TitleBadge title={row.title} className="hidden sm:inline-flex" />
-                </p>
-                <p className="truncate text-xs text-muted">{[row.school, row.city].filter(Boolean).join(", ") || `@${row.username}`}</p>
+                <UserCell
+                  name={row.name}
+                  username={row.username}
+                  countryCode={row.country_code}
+                  school={row.school}
+                  city={row.city}
+                  nameClass={rankTextClass(row.title?.code)}
+                  extra={<TitleBadge title={row.title} className="hidden sm:inline-flex" />}
+                />
               </div>
               <div className="text-right">
                 <p className="text-lg font-bold text-primary">{metric === "solved" ? row.solved_tasks : row.points}</p>
@@ -193,14 +198,22 @@ export function Leaderboard() {
               <Rank rank={row.rank} />
               <Avatar src={row.avatar_url} name={row.name || row.username} size={40} />
               <div className="min-w-0 flex-1">
-                <p className="flex min-w-0 items-center gap-2">
-                  <span className={cx("truncate font-semibold", rankTextClass(row.title?.code))}>{row.name || row.username}</span>
-                  <TitleBadge title={row.title} className="hidden sm:inline-flex" />
-                </p>
-                <p className="truncate text-xs text-muted">
-                  {row.olympiads} {plural(row.olympiads, ["олимпиада", "олимпиады", "олимпиад"])}
-                  {(row.school || row.city) && ` · ${[row.school, row.city].filter(Boolean).join(", ")}`}
-                </p>
+                <UserCell
+                  name={row.name}
+                  username={row.username}
+                  countryCode={row.country_code}
+                  school={row.school}
+                  city={row.city}
+                  nameClass={rankTextClass(row.title?.code)}
+                  extra={
+                    <>
+                      <TitleBadge title={row.title} className="hidden sm:inline-flex" />
+                      <span className="hidden shrink-0 text-xs text-muted md:inline">
+                        · {row.olympiads} {plural(row.olympiads, ["олимпиада", "олимпиады", "олимпиад"])}
+                      </span>
+                    </>
+                  }
+                />
               </div>
               <div className="hidden gap-2 text-sm sm:flex" aria-label={t("Медали")}>
                 {row.gold > 0 && <span>🥇{row.gold}</span>}

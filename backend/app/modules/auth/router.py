@@ -16,8 +16,10 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.config import Settings
 from app.deps import Conn, SettingsDep
+from app.modules.auth import passwords
 from app.modules.auth import queries as q
 from app.modules.auth.schemas import LoginIn, RefreshIn, RegisterIn, TokenPair
+from app.modules.settings import service as settings_service
 from app.modules.users import queries as user_q
 from app.modules.users.schemas import UserOut
 from app.security import TokenError, create_token, decode_token, hash_password, verify_password
@@ -47,8 +49,25 @@ async def _issue_tokens(conn: asyncpg.Connection, settings: Settings, user_row: 
     return TokenPair(access_token=access, refresh_token=refresh, user=UserOut.from_row(user_row))
 
 
+async def check_password(conn: asyncpg.Connection, password: str, username: str) -> None:
+    """Требования к паролю из настроек администратора — 422 со списком того, что исправить."""
+    settings = await settings_service.load(conn)
+    found = passwords.problems(password, min_length=settings.password_min_length, username=username)
+    if found:
+        raise HTTPException(422, detail=". ".join(found))
+
+
+async def check_region(conn: asyncpg.Connection, country_code: str, region_id: int | None) -> None:
+    if region_id is None:
+        return
+    if await conn.fetchval(user_q.REGION_COUNTRY, region_id) != country_code:
+        raise HTTPException(422, detail="Область не из выбранной страны")
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(data: RegisterIn, conn: Conn) -> UserOut:
+    await check_password(conn, data.password, data.username)
+    await check_region(conn, data.country_code, data.region_id)
     if await conn.fetchval(user_q.USERNAME_TAKEN, data.username, None):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Имя пользователя уже занято")
     try:
@@ -61,6 +80,8 @@ async def register(data: RegisterIn, conn: Conn) -> UserOut:
             "student",
             data.city,
             data.school,
+            data.country_code,
+            data.region_id,
         )
     except asyncpg.UniqueViolationError as exc:  # гонка двух одинаковых регистраций
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Имя пользователя уже занято") from exc

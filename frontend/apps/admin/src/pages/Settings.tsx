@@ -15,7 +15,10 @@ import {
   usePlatformSettings,
   Input,
   levelRange,
+  type AdminSettings,
   type OlympiadLevel,
+  countryOptions,
+  flagEmoji,
   type OlympiadLevelInput,
 } from "@kps/shared";
 
@@ -25,13 +28,15 @@ export function Settings() {
   useDocumentTitle("Настройки");
   const { reload } = usePlatformSettings();
   const { data, error, loading } = useAsync(() => api.admin.settings(), []);
-  const [max, setMax] = useState(1000);
+  const [form, setForm] = useState<AdminSettings | null>(null);
+  const max = form?.difficulty_max ?? 1000;
+  const setMax = (value: number) => setForm((prev) => (prev ? { ...prev, difficulty_max: value } : prev));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (data) setMax(data.difficulty_max);
+    if (data) setForm(data);
   }, [data]);
 
   const save = async (event: FormEvent) => {
@@ -40,7 +45,7 @@ export function Settings() {
     setMessage(null);
     setSaveError(null);
     try {
-      await api.admin.updateSettings({ difficulty_max: max });
+      if (form) await api.admin.updateSettings(form);
       reload();
       setMessage("Настройки сохранены");
     } catch (err) {
@@ -88,6 +93,37 @@ export function Settings() {
                 ))}
               </div>
             </div>
+            {form && (
+              <div className="space-y-4 border-t border-border pt-5">
+                <div>
+                  <h2 className="font-semibold text-fg">Регистрация и пароли</h2>
+                  <p className="text-sm text-muted">Пароль всегда должен содержать букву и цифру и не содержать имя пользователя; длину задаёте вы.</p>
+                </div>
+                <div className="max-w-xs">
+                  <Input
+                    label="Минимальная длина пароля"
+                    type="number"
+                    min={6}
+                    max={32}
+                    value={form.password_min_length}
+                    onChange={(e) => setForm({ ...form, password_min_length: Number(e.target.value) })}
+                    error={form.password_min_length < 6 || form.password_min_length > 32 ? "От 6 до 32 символов" : null}
+                  />
+                </div>
+                <label className="flex items-start gap-3 text-sm text-fg">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+                    checked={form.show_country_field}
+                    onChange={(e) => setForm({ ...form, show_country_field: e.target.checked })}
+                  />
+                  <span>
+                    Показывать поле «Страна» при регистрации
+                    <span className="block text-xs text-muted">Если выключено, у всех новых пользователей страна — Таджикистан.</span>
+                  </span>
+                </label>
+              </div>
+            )}
             <Button type="submit" loading={saving}>
               Сохранить
             </Button>
@@ -95,6 +131,7 @@ export function Settings() {
         </Card>
       )}
       <LevelsCard />
+      <PlacesCard />
       <RatingCard />
     </>
   );
@@ -237,6 +274,119 @@ function LevelsCard() {
           </div>
         </form>
       )}
+    </Card>
+  );
+}
+
+/** Справочник мест: области страны и их города — из него выбирают при регистрации и в профиле. */
+function PlacesCard() {
+  const [country, setCountry] = useState("TJ");
+  const { data: regions, reload, error } = useAsync(() => api.geo.regions(country), [country]);
+  const [regionName, setRegionName] = useState("");
+  const [cityNames, setCityNames] = useState<Record<number, string>>({});
+  const [open, setOpen] = useState<number | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const act = async (action: () => Promise<unknown>) => {
+    setMessage(null);
+    try {
+      await action();
+      reload();
+    } catch (err) {
+      setMessage(errorText(err));
+    }
+  };
+  return (
+    <Card className="mt-6 max-w-3xl space-y-4 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-fg">Области и города</h2>
+          <p className="text-sm text-muted">Списки для регистрации и профиля. Если города нет в списке, пользователь впишет его сам.</p>
+        </div>
+        <div className="w-60">
+          <Select value={country} onChange={(e) => setCountry(e.target.value)} aria-label="Страна">
+            {countryOptions().map((item) => (
+              <option key={item.code} value={item.code}>
+                {flagEmoji(item.code)} {item.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+      {(error || message) && <ErrorMessage>{error ?? message}</ErrorMessage>}
+      <div className="divide-y divide-border rounded-xl border border-border">
+        {regions?.map((region) => (
+          <div key={region.id} className="px-4 py-3 text-sm">
+            <div className="flex items-center gap-3">
+              <button className="flex-1 text-left font-medium text-fg" onClick={() => setOpen(open === region.id ? null : region.id)}>
+                {open === region.id ? "▾" : "▸"} {region.name} <span className="text-xs font-normal text-muted">· {region.cities.length}</span>
+              </button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => window.confirm(`Удалить «${region.name}» вместе с городами?`) && act(() => api.admin.removeRegion(region.id))}
+              >
+                Удалить
+              </Button>
+            </div>
+            {open === region.id && (
+              <div className="mt-3 space-y-3 pl-5">
+                <div className="flex flex-wrap gap-1.5">
+                  {region.cities.map((city) => (
+                    <span key={city.id} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs text-fg">
+                      {city.name}
+                      <button className="text-muted hover:text-danger" aria-label={`Удалить ${city.name}`} onClick={() => act(() => api.admin.removeCity(city.id))}>
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <form
+                  className="flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void act(async () => {
+                      await api.admin.createCity(region.id, cityNames[region.id] ?? "");
+                      setCityNames((prev) => ({ ...prev, [region.id]: "" }));
+                    });
+                  }}
+                >
+                  <div className="w-60">
+                    <Input
+                      value={cityNames[region.id] ?? ""}
+                      onChange={(e) => setCityNames((prev) => ({ ...prev, [region.id]: e.target.value }))}
+                      placeholder="Город или район"
+                      minLength={2}
+                      required
+                      aria-label="Новый город"
+                    />
+                  </div>
+                  <Button type="submit" size="sm" variant="secondary">
+                    + Город
+                  </Button>
+                </form>
+              </div>
+            )}
+          </div>
+        ))}
+        {regions?.length === 0 && <p className="px-4 py-3 text-sm text-muted">Областей нет — пользователи из этой страны впишут город сами.</p>}
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void act(async () => {
+            await api.admin.createRegion({ country_code: country, name: regionName, position: (regions?.length ?? 0) + 1 });
+            setRegionName("");
+          });
+        }}
+      >
+        <div className="w-72">
+          <Input value={regionName} onChange={(e) => setRegionName(e.target.value)} placeholder="Новая область" minLength={2} required aria-label="Новая область" />
+        </div>
+        <Button type="submit" size="sm" variant="secondary">
+          + Область
+        </Button>
+      </form>
     </Card>
   );
 }

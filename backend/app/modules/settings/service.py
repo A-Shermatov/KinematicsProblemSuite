@@ -21,6 +21,10 @@ class PlatformSettings(BaseModel):
     """Все настройки с значениями по умолчанию — если ключа нет в базе, берётся значение отсюда."""
 
     difficulty_max: int = Field(default=1000, ge=DIFFICULTY_STEP, le=10_000)
+    # Минимальная длина пароля при регистрации и смене пароля.
+    password_min_length: int = Field(default=8, ge=6, le=32)
+    # Показывать поле «Страна» в регистрации; иначе страна — Таджикистан.
+    show_country_field: bool = False
 
     @field_validator("difficulty_max")
     @classmethod

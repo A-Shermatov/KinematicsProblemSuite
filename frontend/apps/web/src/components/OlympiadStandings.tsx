@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Avatar, Card, EmptyState, ErrorMessage, Loading, api, cx, rankTextClass, t, useAsync, type StandingsCell } from "@kps/shared";
+import { Avatar, Card, EmptyState, ErrorMessage, Loading, api, cx, rankTextClass, t, useAsync, UserCell, type StandingsCell } from "@kps/shared";
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const REFRESH_MS = 30_000;
@@ -98,12 +98,18 @@ export function OlympiadStandingsTable({ olympiadId, live, highlight }: { olympi
                       <div className="min-w-0">
                         <Link
                           to={`/users/${row.user_id}`}
-                          className={cx("font-semibold hover:underline", rankTextClass(row.title?.code) || "text-fg")}
+                          className="hover:underline"
                           title={row.title ? `${t(row.title.name)} · ${row.title.rating}` : undefined}
                         >
-                          {row.name || row.username}
+                          <UserCell
+                            name={row.name}
+                            username={row.username}
+                            countryCode={row.country_code}
+                            school={row.school}
+                            city={row.city}
+                            nameClass={rankTextClass(row.title?.code)}
+                          />
                         </Link>
-                        <p className="truncate text-xs text-muted">{[row.school, row.city].filter(Boolean).join(", ")}</p>
                       </div>
                     </div>
                   </td>

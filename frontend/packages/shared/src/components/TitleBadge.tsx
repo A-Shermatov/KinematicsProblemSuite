@@ -32,7 +32,7 @@ export function rankCodeFor(rating: number): RankCode {
 
 /** Класс цвета имени по званию (пусто — без рейтинга). */
 export function rankTextClass(code: RankCode | null | undefined): string {
-  return code ? RANK_STYLE[code].text : "";
+  return (code && RANK_STYLE[code]?.text) || "";
 }
 
 export function rankHex(code: RankCode): string {
@@ -41,7 +41,7 @@ export function rankHex(code: RankCode): string {
 
 /** Звание по рейтингу олимпиадника рядом с именем. */
 export function TitleBadge({ title, className, showRating }: { title: UserTitle | null | undefined; className?: string; showRating?: boolean }) {
-  if (!title) return null;
+  if (!title || !RANK_STYLE[title.code]) return null;
   return (
     <span
       className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold", RANK_STYLE[title.code].badge, className)}
