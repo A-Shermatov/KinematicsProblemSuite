@@ -212,6 +212,9 @@ export interface Attempt {
   created_at: string;
   correct_answer: string | null;
   task_unit: string | null;
+  /** К неверному ответу есть подсказка; текст — после открытия (снижает очки, как обычная подсказка). */
+  mistake_hint_available: boolean;
+  mistake_hint: string | null;
 }
 
 export interface StudentStats {

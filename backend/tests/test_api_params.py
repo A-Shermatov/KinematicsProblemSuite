@@ -60,7 +60,11 @@ def test_parametric_task(client: ApiClient) -> None:
     assert right["status"] == "correct"
     assert float(right["correct_answer"]) == pytest.approx(speed / 3.6)
     # Подсказка о единицах работает и для личного ответа: ученик ответил в км/ч.
-    assert "км/ч и м/с" in client.attempt(students[1], task["id"], f"{shown[students[1]]}").json()["feedback"]
+    # Текст не выводится сразу — ученик открывает его сам (за снижение очков).
+    in_kmh = client.attempt(students[1], task["id"], f"{shown[students[1]]}").json()
+    assert in_kmh["mistake_hint_available"] and in_kmh["mistake_hint"] is None
+    opened = client.post(f"/api/attempts/{in_kmh['id']}/hint", students[1]).json()
+    assert "км/ч и м/с" in opened["mistake_hint"]
 
     # Учитель видит шаблон.
     assert client.get(f"/api/tasks/{task['id']}/full", teacher).json()["condition"] == CONDITION

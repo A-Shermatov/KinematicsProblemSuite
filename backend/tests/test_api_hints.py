@@ -51,22 +51,28 @@ def test_hints_and_explanation(client: ApiClient) -> None:
 
 
 def test_explanation_after_wrong_attempts_and_mistake_feedback(client: ApiClient) -> None:
-    _, task = setup_task(client)
+    teacher, task = setup_task(client)
     student = client.student()
     url = f"/api/tasks/{task['id']}/help"
+    # Подсказка по ошибке не показывается сразу — только что она есть.
     teacher_mistake = client.attempt(student, task["id"], "7.2").json()
-    assert teacher_mistake["status"] == "incorrect" and "разделили на 10" in teacher_mistake["feedback"]
+    assert teacher_mistake["status"] == "incorrect" and teacher_mistake["mistake_hint_available"] is True
+    assert teacher_mistake["mistake_hint"] is None and "разделили на 10" not in teacher_mistake["feedback"]
     units = client.attempt(student, task["id"], "72").json()
-    assert "км/ч и м/с" in units["feedback"]
+    assert units["mistake_hint_available"] and units["mistake_hint"] is None
     assert client.get(url, student).json()["attempts_until_explanation"] == 1
     sign = client.attempt(student, task["id"], "-20").json()
-    assert "знак" in sign["feedback"]
+    # Ученик открывает подсказку сам — и задача даст на 20% меньше очков.
+    opened = client.post(f"/api/attempts/{sign['id']}/hint", student).json()
+    assert "знак" in opened["mistake_hint"]
+    assert client.post(f"/api/attempts/{sign['id']}/hint", client.student("other")).status_code == 404
     help_ = client.get(url, student).json()
-    assert help_["explanation"] and help_["attempts_until_explanation"] == 0
-    # Без подсказок задача даёт все очки.
+    assert help_["explanation"] and help_["attempts_until_explanation"] == 0 and help_["points"] == 400
     client.attempt(student, task["id"], "20 м/с")
     sid = client.get("/api/users/me", student).json()["id"]
-    assert client.get(f"/api/stats/achievements/{sid}").json()["points"] == 500
+    assert client.get(f"/api/stats/achievements/{sid}").json()["points"] == 400
+    # Автор задачи видит подсказку к ответу ученика сразу.
+    assert "км/ч и м/с" in client.get(f"/api/attempts/{units['id']}", teacher).json()["mistake_hint"]
 
 
 def test_hint_validation(client: ApiClient) -> None:

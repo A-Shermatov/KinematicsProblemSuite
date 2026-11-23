@@ -250,6 +250,8 @@ DELETE_SOURCE = "DELETE FROM sources WHERE id = $1 RETURNING id"
 TASK_HELP = """
 SELECT k.id, k.author_id, k.difficulty, k.hints, k.explanation,
        (SELECT count(*) FROM task_hint_opens h WHERE h.task_id = k.id AND h.user_id = $2)::int AS opened,
+       (SELECT count(*) FROM attempt_hint_opens ho JOIN attempts x ON x.id = ho.attempt_id
+        WHERE x.task_id = k.id AND x.student_id = $2)::int AS mistake_hints_opened,
        EXISTS (SELECT 1 FROM attempts a WHERE a.task_id = k.id AND a.student_id = $2
                AND a.status IN ('correct', 'graded') AND COALESCE(a.teacher_grade, a.system_grade, 0) >= 50) AS solved,
        (SELECT count(*) FROM attempts a

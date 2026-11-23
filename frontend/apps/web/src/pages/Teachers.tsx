@@ -31,6 +31,8 @@ import {
   type Review,
   type TeacherProfile,
   t,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 import { TaskRow } from "./Catalog";
 
@@ -45,6 +47,7 @@ export function Teachers() {
     () => api.teachers.list({ subject_id: subjectId ?? undefined, search: query || undefined, sort }),
     [subjectId, query, sort],
   );
+  const paged = usePaged(data ?? [], 24, `${subjectId}|${query}|${sort}`);
 
   return (
     <>
@@ -87,7 +90,7 @@ export function Teachers() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && data.length === 0 && <EmptyState icon="🎓" title={t("Учителя не найдены")} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {data?.map((teacher) => (
+        {paged.pageItems.map((teacher) => (
           <Link key={teacher.id} to={`/teachers/${teacher.id}`} className="group">
             <Card className="flex h-full flex-col gap-4 p-5 transition group-hover:-translate-y-0.5 group-hover:border-primary/50 group-hover:shadow-lg">
               <div className="flex items-center gap-3">
@@ -127,6 +130,7 @@ export function Teachers() {
           </Link>
         ))}
       </div>
+      <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
     </>
   );
 }

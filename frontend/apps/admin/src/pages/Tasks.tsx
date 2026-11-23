@@ -18,13 +18,15 @@ import {
   formatSource,
   useAsync,
   useDocumentTitle,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 import { PUBLIC_URL } from "../config";
 
 export function Tasks() {
   useDocumentTitle("Задачи");
   const [search, setSearch] = useState("");
-  const { data, error, loading, setData } = useAsync(() => api.tasks.list(), []);
+  const { data, error, loading, setData } = useAsync(() => api.tasks.list({ limit: 1000 }), []);
 
   const tasks = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -32,6 +34,7 @@ export function Tasks() {
       (task) => !query || `${task.title} ${task.theme_title} ${task.author_name}`.toLowerCase().includes(query),
     );
   }, [data, search]);
+  const paged = usePaged(tasks, 50, search);
 
   const remove = async (id: number, title: string) => {
     if (!window.confirm(`Удалить задачу «${title}»? Решения учеников сохранятся в истории.`)) return;
@@ -53,57 +56,60 @@ export function Tasks() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data && tasks.length === 0 && <EmptyState title="Задач не найдено" />}
       {tasks.length > 0 && (
-        <Card className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-5 py-3 font-medium">Задача</th>
-                <th className="px-5 py-3 font-medium">Автор</th>
-                <th className="px-5 py-3 font-medium">Проверка</th>
-                <th className="px-5 py-3 font-medium">Изменена</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {tasks.map((task) => (
-                <tr key={task.id} className="hover:bg-surface-2/60">
-                  <td className="px-5 py-3.5">
-                    <a href={`${PUBLIC_URL}/tasks/${task.id}`} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-primary">
-                      {task.title}
-                    </a>
-                    {task.duplicate_of && (
-                      <Badge tone="danger" className="ml-2">
-                        дубликат №{task.duplicate_of}
-                      </Badge>
-                    )}
-                    <p className="text-xs text-muted">
-                      {task.subject_title} → {task.theme_title}
-                      {formatSource(task) && ` · ${formatSource(task)}`}
-                    </p>
-                  </td>
-                  <td className="px-5 py-3.5 text-fg">{task.author_name}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <Badge tone={task.check_mode === "auto" ? "primary" : "warning"}>{task.check_mode === "auto" ? "Авто" : "Вручную"}</Badge>
-                      <Difficulty value={task.difficulty} />
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-3.5 text-muted">{formatDateTime(task.updated_at)}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex justify-end gap-2">
-                      <ButtonLink to={`/tasks/${task.id}/edit`} variant="secondary" size="sm">
-                        Изменить
-                      </ButtonLink>
-                      <Button variant="danger" size="sm" onClick={() => remove(task.id, task.title)}>
-                        Удалить
-                      </Button>
-                    </div>
-                  </td>
+        <>
+          <Card className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-5 py-3 font-medium">Задача</th>
+                  <th className="px-5 py-3 font-medium">Автор</th>
+                  <th className="px-5 py-3 font-medium">Проверка</th>
+                  <th className="px-5 py-3 font-medium">Изменена</th>
+                  <th className="px-5 py-3" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paged.pageItems.map((task) => (
+                  <tr key={task.id} className="hover:bg-surface-2/60">
+                    <td className="px-5 py-3.5">
+                      <a href={`${PUBLIC_URL}/tasks/${task.id}`} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-primary">
+                        {task.title}
+                      </a>
+                      {task.duplicate_of && (
+                        <Badge tone="danger" className="ml-2">
+                          дубликат №{task.duplicate_of}
+                        </Badge>
+                      )}
+                      <p className="text-xs text-muted">
+                        {task.subject_title} → {task.theme_title}
+                        {formatSource(task) && ` · ${formatSource(task)}`}
+                      </p>
+                    </td>
+                    <td className="px-5 py-3.5 text-fg">{task.author_name}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <Badge tone={task.check_mode === "auto" ? "primary" : "warning"}>{task.check_mode === "auto" ? "Авто" : "Вручную"}</Badge>
+                        <Difficulty value={task.difficulty} />
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-muted">{formatDateTime(task.updated_at)}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex justify-end gap-2">
+                        <ButtonLink to={`/tasks/${task.id}/edit`} variant="secondary" size="sm">
+                          Изменить
+                        </ButtonLink>
+                        <Button variant="danger" size="sm" onClick={() => remove(task.id, task.title)}>
+                          Удалить
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
     </>
   );

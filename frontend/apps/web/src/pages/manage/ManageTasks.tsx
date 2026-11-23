@@ -19,6 +19,8 @@ import {
   useAuth,
   useDocumentTitle,
   t,
+  Pagination,
+  usePaged,
 } from "@kps/shared";
 
 export function ManageTasks() {
@@ -27,7 +29,7 @@ export function ManageTasks() {
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
   const { data, error, loading, setData } = useAsync(
-    () => api.tasks.list(isAdmin ? {} : { author_id: user?.id }),
+    () => api.tasks.list(isAdmin ? { limit: 1000 } : { author_id: user?.id, limit: 1000 }),
     [user?.id, isAdmin],
   );
 
@@ -35,6 +37,7 @@ export function ManageTasks() {
     const query = search.trim().toLowerCase();
     return (data ?? []).filter((task) => !query || `${task.title} ${task.theme_title}`.toLowerCase().includes(query));
   }, [data, search]);
+  const paged = usePaged(tasks, 25, search);
 
   const remove = async (id: number, title: string) => {
     if (!window.confirm(t("Удалить задачу «{0}»? Решения учеников сохранятся в истории.", [title]))) return;
@@ -78,31 +81,34 @@ export function ManageTasks() {
         </EmptyState>
       )}
       {tasks.length > 0 && (
-        <Card className="divide-y divide-border overflow-hidden">
-          {tasks.map((task) => (
-            <div key={task.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
-              <div className="min-w-0 flex-1">
-                <Link to={`/tasks/${task.id}`} className="font-medium text-fg hover:text-primary">
-                  {task.title}
-                </Link>
-                <p className="text-xs text-muted">
-                  {task.subject_title} → {task.theme_title}
-                  {isAdmin && ` · ${task.author_name}`}  {t("· изменена")} {formatDateTime(task.updated_at)}
-                </p>
+        <>
+          <Card className="divide-y divide-border overflow-hidden">
+            {paged.pageItems.map((task) => (
+              <div key={task.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+                <div className="min-w-0 flex-1">
+                  <Link to={`/tasks/${task.id}`} className="font-medium text-fg hover:text-primary">
+                    {task.title}
+                  </Link>
+                  <p className="text-xs text-muted">
+                    {task.subject_title} → {task.theme_title}
+                    {isAdmin && ` · ${task.author_name}`}  {t("· изменена")} {formatDateTime(task.updated_at)}
+                  </p>
+                </div>
+                <Badge tone={task.check_mode === "auto" ? "primary" : "warning"}>{task.check_mode === "auto" ? t("Автопроверка") : t("Вручную")}</Badge>
+                <Difficulty value={task.difficulty} />
+                <div className="flex gap-2">
+                  <ButtonLink to={`/manage/tasks/${task.id}/edit`} variant="secondary" size="sm">
+                    {t("Изменить")}
+                  </ButtonLink>
+                  <Button variant="danger" size="sm" onClick={() => remove(task.id, task.title)}>
+                    {t("Удалить")}
+                  </Button>
+                </div>
               </div>
-              <Badge tone={task.check_mode === "auto" ? "primary" : "warning"}>{task.check_mode === "auto" ? t("Автопроверка") : t("Вручную")}</Badge>
-              <Difficulty value={task.difficulty} />
-              <div className="flex gap-2">
-                <ButtonLink to={`/manage/tasks/${task.id}/edit`} variant="secondary" size="sm">
-                  {t("Изменить")}
-                </ButtonLink>
-                <Button variant="danger" size="sm" onClick={() => remove(task.id, task.title)}>
-                  {t("Удалить")}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </Card>
+            ))}
+          </Card>
+          <Pagination page={paged.page} pageCount={paged.pageCount} onChange={paged.setPage} total={paged.total} />
+        </>
       )}
     </>
   );
