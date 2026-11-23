@@ -263,6 +263,7 @@ export interface LeaderboardRow {
   city: string | null;
   school: string | null;
   country_code: string;
+  role: "student" | "teacher";
   solved_tasks: number;
   points: number;
   title: UserTitle | null;

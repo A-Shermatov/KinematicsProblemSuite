@@ -111,6 +111,8 @@ async def leaderboard(
             "avatar_url": public_url(row["avatar_path"]),
             "city": row["city"],
             "school": row["school"],
+            "country_code": row["country_code"],
+            "role": row["role"],
             "solved_tasks": row["solved_tasks"],
             "points": row["points"],
             "title": user_titles.get(row["user_id"]),
